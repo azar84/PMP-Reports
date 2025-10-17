@@ -1,0 +1,15 @@
+{
+  "/_not-found/page": "app/_not-found/page.js",
+  "/admin-panel/page": "app/admin-panel/page.js",
+  "/api/admin/clients/route": "app/api/admin/clients/route.js",
+  "/api/admin/company-staff/route": "app/api/admin/company-staff/route.js",
+  "/api/admin/consultant-types/route": "app/api/admin/consultant-types/route.js",
+  "/api/admin/consultants/route": "app/api/admin/consultants/route.js",
+  "/api/admin/contacts/route": "app/api/admin/contacts/route.js",
+  "/api/admin/dashboard-stats/route": "app/api/admin/dashboard-stats/route.js",
+  "/api/admin/design-system/route": "app/api/admin/design-system/route.js",
+  "/api/admin/projects/route": "app/api/admin/projects/route.js",
+  "/api/admin/scheduler/route": "app/api/admin/scheduler/route.js",
+  "/api/admin/site-settings/route": "app/api/admin/site-settings/route.js",
+  "/api/admin/users/route": "app/api/admin/users/route.js"
+}

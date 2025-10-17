@@ -139,7 +139,7 @@ const CronExpressionEditor = ({
           <select
             value={schedule.frequency}
             onChange={(e) => setSchedule({ ...schedule, frequency: e.target.value as any })}
-            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+            className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
             style={{ 
               borderColor: 'var(--color-gray-light)',
               color: 'var(--color-text-primary)',
@@ -160,7 +160,7 @@ const CronExpressionEditor = ({
             type="time"
             value={schedule.time}
             onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
-            className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+            className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
             style={{ 
               borderColor: 'var(--color-gray-light)',
               color: 'var(--color-text-primary)',
@@ -176,7 +176,7 @@ const CronExpressionEditor = ({
             <select
               value={schedule.dayOfWeek || 0}
               onChange={(e) => setSchedule({ ...schedule, dayOfWeek: parseInt(e.target.value) })}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
               style={{ 
                 borderColor: 'var(--color-gray-light)',
                 color: 'var(--color-text-primary)',
@@ -201,7 +201,7 @@ const CronExpressionEditor = ({
             <select
               value={schedule.dayOfMonth || 1}
               onChange={(e) => setSchedule({ ...schedule, dayOfMonth: parseInt(e.target.value) })}
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
               style={{ 
                 borderColor: 'var(--color-gray-light)',
                 color: 'var(--color-text-primary)',
@@ -224,7 +224,7 @@ const CronExpressionEditor = ({
               value={schedule.customExpression || ''}
               onChange={(e) => setSchedule({ ...schedule, customExpression: e.target.value })}
               placeholder="0 2 * * * (minute hour day month weekday)"
-              className="w-full border rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
               style={{ 
                 borderColor: 'var(--color-gray-light)',
                 color: 'var(--color-text-primary)',

@@ -3,7 +3,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "sqlite"
   url      = env("DATABASE_URL")
 }
 
@@ -235,4 +235,110 @@ model AdminUser {
   updatedAt    DateTime  @updatedAt
 
   @@map("admin_users")
+}
+
+model Client {
+  id           Int       @id @default(autoincrement())
+  name         String
+  officeAddress String?
+  phone        String?
+  email        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  projects     Project[] // One client can have many projects
+
+  @@map("clients")
+}
+
+model Consultant {
+  id           Int       @id @default(autoincrement())
+  name         String
+  officeAddress String?
+  phone        String?
+  email        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  types        ConsultantType[] // Many-to-many with consultant types
+  projectsAsPMC Project[] @relation("ProjectManagementConsultant")
+  projectsAsDesign Project[] @relation("DesignConsultant")
+  projectsAsCost Project[] @relation("CostConsultant")
+  projectsAsSupervision Project[] @relation("SupervisionConsultant")
+
+  @@map("consultants")
+}
+
+model ConsultantType {
+  id          Int         @id @default(autoincrement())
+  type        String      @unique // "PMC", "Design", "Cost", "Supervision"
+  description String?
+  consultants Consultant[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  @@map("consultant_types")
+}
+
+model CompanyStaff {
+  id        Int      @id @default(autoincrement())
+  staffName String
+  email     String?
+  phone     String?
+  position  String?
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  projectsAsDirector Project[] @relation("ProjectDirector") // Staff can be project director on multiple projects
+  projectsAsManager  Project[] @relation("ProjectManager") // Staff can be project manager on multiple projects
+
+  @@map("company_staff")
+}
+
+model Contact {
+  id          Int       @id @default(autoincrement())
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  position    String?
+  notes       String?
+  isPrimary   Boolean   @default(false)
+  isActive    Boolean   @default(true)
+  entityType  String    // 'client' or 'consultant'
+  entityId    Int       // ID of the client or consultant
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@map("contacts")
+}
+
+model Project {
+  id                        Int       @id @default(autoincrement())
+  projectCode              String    @unique // Unique project code
+  projectName              String
+  projectDescription       String?
+  clientId                 Int?      // FK to Client
+  client                   Client?   @relation(fields: [clientId], references: [id])
+  projectManagementConsultantId Int? // FK to Consultant
+  projectManagementConsultant Consultant? @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
+  designConsultantId       Int?      // FK to Consultant
+  designConsultant         Consultant? @relation("DesignConsultant", fields: [designConsultantId], references: [id])
+  supervisionConsultantId  Int?      // FK to Consultant
+  supervisionConsultant    Consultant? @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
+  costConsultantId         Int?      // FK to Consultant
+  costConsultant           Consultant? @relation("CostConsultant", fields: [costConsultantId], references: [id])
+  projectDirectorId        Int?      // FK to CompanyStaff
+  projectDirector          CompanyStaff? @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
+  projectManagerId         Int?      // FK to CompanyStaff
+  projectManager           CompanyStaff? @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  startDate                DateTime?
+  endDate                  DateTime?
+  duration                 String?   // Duration in a readable format (e.g., "6 months", "2 years")
+  eot                      String?   // Extension of Time
+  lastUpdate               DateTime  @default(now()) @updatedAt
+  createdAt                DateTime  @default(now())
+  updatedAt                DateTime  @updatedAt
+
+  @@map("projects")
 }

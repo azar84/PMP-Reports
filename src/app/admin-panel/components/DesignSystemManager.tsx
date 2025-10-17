@@ -398,7 +398,7 @@ const DesignSystemManager: React.FC = () => {
           <Button
             onClick={handleSave}
             disabled={saving}
-            style={{ backgroundColor: colors.success, color: colors.backgroundSecondary }}
+            style={{ backgroundColor: colors.success, color: '#FFFFFF' }}
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'Saving...' : 'Save Changes'}</span>
@@ -410,7 +410,7 @@ const DesignSystemManager: React.FC = () => {
       {message && (
         <div className={`p-4 rounded-lg`} style={{
           backgroundColor: message.type === 'success' ? colors.success : colors.error,
-          color: colors.backgroundSecondary,
+          color: '#FFFFFF',
           borderColor: message.type === 'success' ? colors.success : colors.error
         }}>
           {message.text}
@@ -1218,7 +1218,7 @@ const DesignSystemManager: React.FC = () => {
                   <span className="text-sm" style={{ color: colors.textSecondary }}>Preview Mode:</span>
                   <button
                     onClick={() => setPreviewMode(previewMode === 'light' ? 'dark' : 'light')}
-                    className="flex items-center space-x-2 px-3 py-1 rounded-lg border"
+                    className="flex items-center space-x-2 px-3 py-1 rounded-lg border border-gray-200/10"
                     style={{ 
                       borderColor: colors.grayLight,
                       backgroundColor: colors.backgroundSecondary
@@ -1232,7 +1232,7 @@ const DesignSystemManager: React.FC = () => {
 
               {/* Component Preview */}
               <div 
-                className="p-8 rounded-lg border"
+                className="p-8 rounded-lg border border-gray-200/10"
                 style={{
                   backgroundColor: previewMode === 'light' ? designSystem.backgroundPrimary : designSystem.backgroundDark,
                   color: previewMode === 'light' ? designSystem.textPrimary : designSystem.backgroundPrimary,

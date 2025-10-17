@@ -446,7 +446,7 @@ export default function UserManagement() {
                 <select
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
+                  className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
                   style={{ borderColor: colors.grayLight }}
                 >
                   <option value="admin">Admin</option>
@@ -563,7 +563,7 @@ export default function UserManagement() {
                 <select
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full px-3 py-2 border rounded-md focus:outline-none focus:ring-2"
+                  className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
                   style={{ borderColor: colors.grayLight }}
                 >
                   <option value="admin">Admin</option>
@@ -726,9 +726,9 @@ export default function UserManagement() {
           </div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y" style={{ borderColor: colors.grayLight }}>
+            <table className="min-w-full">
               <thead style={{ backgroundColor: colors.backgroundSecondary }}>
-                <tr>
+                <tr className="border-b border-gray-200/20">
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     User
                   </th>
@@ -751,7 +751,7 @@ export default function UserManagement() {
               </thead>
               <tbody style={{ backgroundColor: colors.backgroundPrimary }}>
                 {users.map((user) => (
-                  <tr key={user.id} style={{ backgroundColor: colors.backgroundPrimary }}>
+                  <tr key={user.id} className="border-b border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">

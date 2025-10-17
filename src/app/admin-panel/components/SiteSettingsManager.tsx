@@ -1008,7 +1008,7 @@ export default function SiteSettingsManager() {
                     placeholder="Brief description of your company..."
                     value={settings.footerCompanyDescription || ''}
                     onChange={(e) => handleEmailSettingChange('footerCompanyDescription', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 border border-gray-200/10 rounded-md shadow-sm focus:outline-none focus:ring-2"
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
@@ -1099,7 +1099,7 @@ export default function SiteSettingsManager() {
                     placeholder="123 Business St, City, State 12345"
                     value={settings.companyAddress || ''}
                     onChange={(e) => handleEmailSettingChange('companyAddress', e.target.value)}
-                    className="w-full px-3 py-2 border rounded-md shadow-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 border border-gray-200/10 rounded-md shadow-sm focus:outline-none focus:ring-2"
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
@@ -1593,7 +1593,7 @@ export default function SiteSettingsManager() {
                     type="color"
                     value={settings.sidebarBackgroundColor || '#1F2937'}
                     onChange={(e) => handleInputChange('sidebarBackgroundColor', e.target.value)}
-                    className="w-16 h-10 p-1 rounded border"
+                    className="w-16 h-10 p-1 rounded border border-gray-200/10"
                     style={{ 
                       borderColor: 'var(--color-gray-light)',
                       backgroundColor: 'var(--color-bg-primary)'
@@ -1627,7 +1627,7 @@ export default function SiteSettingsManager() {
                     type="color"
                     value={settings.sidebarTextColor || '#E5E7EB'}
                     onChange={(e) => handleInputChange('sidebarTextColor', e.target.value)}
-                    className="w-16 h-10 p-1 rounded border"
+                    className="w-16 h-10 p-1 rounded border border-gray-200/10"
                     style={{ 
                       borderColor: 'var(--color-gray-light)',
                       backgroundColor: 'var(--color-bg-primary)'
@@ -1661,7 +1661,7 @@ export default function SiteSettingsManager() {
                     type="color"
                     value={settings.sidebarSelectedColor || '#FFFFFF'}
                     onChange={(e) => handleInputChange('sidebarSelectedColor', e.target.value)}
-                    className="w-16 h-10 p-1 rounded border"
+                    className="w-16 h-10 p-1 rounded border border-gray-200/10"
                     style={{ 
                       borderColor: 'var(--color-gray-light)',
                       backgroundColor: 'var(--color-bg-primary)'
@@ -1695,7 +1695,7 @@ export default function SiteSettingsManager() {
                     type="color"
                     value={settings.sidebarHoverColor || '#D1D5DB'}
                     onChange={(e) => handleInputChange('sidebarHoverColor', e.target.value)}
-                    className="w-16 h-10 p-1 rounded border"
+                    className="w-16 h-10 p-1 rounded border border-gray-200/10"
                     style={{ 
                       borderColor: 'var(--color-gray-light)',
                       backgroundColor: 'var(--color-bg-primary)'

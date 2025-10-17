@@ -451,7 +451,7 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
                   <select
                     value={fileTypeFilter}
                     onChange={(e) => setFileTypeFilter(e.target.value)}
-                    className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
+                    className="w-full px-3 py-2 border border-gray-200/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm"
                     style={{
                       borderColor: designSystem?.textMuted || colors.textMuted,
                       color: colors.textPrimary,
@@ -490,9 +490,8 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
                     placeholder="Search media files..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
-                    className="w-full pl-10 pr-4 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full pl-10 pr-4 py-2 border border-gray-200/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
                     style={{
-                      borderColor: designSystem?.textMuted || colors.textMuted,
                       color: colors.textPrimary,
                       backgroundColor: designSystem?.backgroundPrimary || colors.backgroundPrimary
                     }}
@@ -1091,7 +1090,7 @@ const UrlImportModal: React.FC<{
               type="url"
               value={formData.url}
               onChange={(e) => setFormData({ ...formData, url: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{
                 borderColor: designSystem?.textMuted || colors.textMuted,
                 color: colors.textPrimary,
@@ -1113,7 +1112,7 @@ const UrlImportModal: React.FC<{
               type="text"
               value={formData.title}
               onChange={(e) => setFormData({ ...formData, title: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{
                 borderColor: designSystem?.textMuted || colors.textMuted,
                 color: colors.textPrimary,
@@ -1134,7 +1133,7 @@ const UrlImportModal: React.FC<{
               type="text"
               value={formData.alt}
               onChange={(e) => setFormData({ ...formData, alt: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{
                 borderColor: designSystem?.textMuted || colors.textMuted,
                 color: colors.textPrimary,
@@ -1154,7 +1153,7 @@ const UrlImportModal: React.FC<{
             <textarea
               value={formData.description}
               onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-              className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-full px-3 py-2 border border-gray-200/10 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               style={{
                 borderColor: designSystem?.textMuted || colors.textMuted,
                 color: colors.textPrimary,
@@ -1191,7 +1190,7 @@ const UrlImportModal: React.FC<{
             <button
               type="button"
               onClick={onClose}
-              className="flex-1 px-4 py-2 border rounded-lg transition-colors"
+              className="flex-1 px-4 py-2 border border-gray-200/10 rounded-lg transition-colors"
               style={{
                 borderColor: designSystem?.textMuted || colors.textMuted,
                 color: colors.textSecondary,

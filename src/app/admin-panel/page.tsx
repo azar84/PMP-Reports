@@ -25,7 +25,9 @@ import {
   BellOff,
   CheckCircle,
   AlertCircle,
-  Info
+  Info,
+  Building2,
+  User
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
@@ -33,11 +35,16 @@ import DesignSystemManager from './components/DesignSystemManager';
 import MediaLibraryManager from './components/MediaLibraryManager';
 import UserManagement from './components/UserManagement';
 import SchedulerManager from './components/SchedulerManager';
+import ProjectManager from './components/ProjectManager';
+import ClientManager from './components/ClientManager';
+import ConsultantManager from './components/ConsultantManager';
+import CompanyStaffManager from './components/CompanyStaffManager';
+import ContactManager from './components/ContactManager';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-type Section = 'dashboard' | 'media-library' | 'users' | 'scheduler' | 'site-settings' | 'design-system';
+type Section = 'dashboard' | 'projects' | 'clients' | 'consultants' | 'company-staff' | 'contacts' | 'media-library' | 'users' | 'scheduler' | 'site-settings' | 'design-system';
 
 // Navigation items with design system colors
 const getNavigationItems = (designSystem: any) => {
@@ -45,6 +52,11 @@ const getNavigationItems = (designSystem: any) => {
   
   return [
     { id: 'dashboard', name: 'Home', icon: Home, color: colors.primary },
+    { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary },
+    { id: 'clients', name: 'Clients', icon: Building2, color: colors.info },
+    { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success },
+    { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning },
+    { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info },
     { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary },
     { id: 'users', name: 'Users', icon: Users, color: colors.error },
     { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning },
@@ -136,7 +148,11 @@ export default function AdminPanel() {
     totalUsers: 0,
     mediaFiles: 0,
     scheduledJobs: 0,
-    activeSettings: 0
+    activeSettings: 0,
+    totalProjects: 0,
+    totalClients: 0,
+    totalConsultants: 0,
+    totalStaff: 0
   });
 
   useEffect(() => {
@@ -169,11 +185,24 @@ export default function AdminPanel() {
         }
 
         console.log('🔍 Admin Panel: Fetching dashboard stats...');
-        // Fetch dashboard stats
-        const statsResponse = await get<{ success: boolean; data: any }>('/api/admin/dashboard-stats');
+        // Fetch dashboard stats and project data
+        const [statsResponse, projectsRes, clientsRes, consultantsRes, staffRes] = await Promise.all([
+          get<{ success: boolean; data: any }>('/api/admin/dashboard-stats'),
+          get<{ success: boolean; data: any[] }>('/api/admin/projects'),
+          get<{ success: boolean; data: any[] }>('/api/admin/clients'),
+          get<{ success: boolean; data: any[] }>('/api/admin/consultants'),
+          get<{ success: boolean; data: any[] }>('/api/admin/company-staff'),
+        ]);
+        
         console.log('🔍 Admin Panel: Dashboard stats response:', statsResponse);
         if (statsResponse.success) {
-          setDashboardStats(statsResponse.data);
+          setDashboardStats({
+            ...statsResponse.data,
+            totalProjects: projectsRes.success ? projectsRes.data.length : 0,
+            totalClients: clientsRes.success ? clientsRes.data.length : 0,
+            totalConsultants: consultantsRes.success ? consultantsRes.data.length : 0,
+            totalStaff: staffRes.success ? staffRes.data.length : 0,
+          });
         }
         setLoadingStats(false);
       } catch (error) {
@@ -234,6 +263,51 @@ export default function AdminPanel() {
 
   const renderContent = () => {
     switch (activeSection) {
+      case 'projects':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <ProjectManager />
+          </div>
+        );
+      case 'clients':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <ClientManager />
+          </div>
+        );
+      case 'consultants':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <ConsultantManager />
+          </div>
+        );
+      case 'company-staff':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <CompanyStaffManager />
+          </div>
+        );
+      case 'contacts':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <ContactManager />
+          </div>
+        );
       case 'media-library':
         return (
           <div 
@@ -301,13 +375,13 @@ export default function AdminPanel() {
                     className="text-3xl font-bold mb-1"
                     style={{ color: colors.textPrimary }}
                   >
-                    ${dashboardStats.totalUsers * 125000 || 0}
+                    {loadingStats ? '...' : dashboardStats.totalProjects}
                   </p>
                   <p 
                     className="text-sm font-medium"
                     style={{ color: colors.textSecondary }}
                   >
-                    Revenue
+                    Total Projects
                   </p>
                 </div>
               </Card>
@@ -324,13 +398,13 @@ export default function AdminPanel() {
                     className="text-3xl font-bold mb-1"
                     style={{ color: colors.textPrimary }}
                   >
-                    {loadingStats ? '...' : dashboardStats.mediaFiles}
+                    {loadingStats ? '...' : dashboardStats.totalClients}
                   </p>
                   <p 
                     className="text-sm font-medium"
                     style={{ color: colors.textSecondary }}
                   >
-                    Active Projects
+                    Active Clients
                   </p>
                 </div>
               </Card>
@@ -347,13 +421,13 @@ export default function AdminPanel() {
                     className="text-3xl font-bold mb-1"
                     style={{ color: colors.textPrimary }}
                   >
-                    {loadingStats ? '...' : dashboardStats.scheduledJobs + 24}
+                    {loadingStats ? '...' : dashboardStats.totalConsultants}
                   </p>
                   <p 
                     className="text-sm font-medium"
                     style={{ color: colors.textSecondary }}
                   >
-                    Pending Tasks
+                    Consultants
                   </p>
                 </div>
               </Card>
@@ -370,13 +444,13 @@ export default function AdminPanel() {
                     className="text-3xl font-bold mb-1"
                     style={{ color: colors.textPrimary }}
                   >
-                    {loadingStats ? '...' : dashboardStats.activeSettings + 2}
+                    {loadingStats ? '...' : dashboardStats.totalStaff}
                   </p>
                   <p 
                     className="text-sm font-medium"
                     style={{ color: colors.textSecondary }}
                   >
-                    New Inquiries
+                    Company Staff
                   </p>
                 </div>
               </Card>
@@ -579,10 +653,9 @@ export default function AdminPanel() {
               <input
                 type="text"
                 placeholder="Search..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-colors"
+                className="w-full pl-10 pr-4 py-2 rounded-lg border border-gray-200/10 focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-colors"
                 style={{
                   backgroundColor: colors.backgroundPrimary,
-                  borderColor: colors.grayLight,
                   color: colors.textPrimary
                 }}
                 onFocus={(e) => {
@@ -590,7 +663,6 @@ export default function AdminPanel() {
                   e.target.style.boxShadow = `0 0 0 2px ${colors.primary}33`;
                 }}
                 onBlur={(e) => {
-                  e.target.style.borderColor = colors.grayLight;
                   e.target.style.boxShadow = 'none';
                 }}
               />
@@ -614,31 +686,6 @@ export default function AdminPanel() {
             >
               {activeSection === 'dashboard' ? 'DASHBOARD' : activeSection.toUpperCase().replace('-', ' ')}
             </h1>
-          </div>
-          
-          {/* Centered Search */}
-          <div className="flex-1 flex justify-center px-8">
-            <div className="relative w-full" style={{ width: '70%' }}>
-              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
-              <input
-                type="text"
-                placeholder="Search..."
-                className="w-full pl-10 pr-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-opacity-50 transition-colors"
-                style={{
-                  backgroundColor: colors.backgroundPrimary,
-                  borderColor: colors.grayLight,
-                  color: colors.textPrimary
-                }}
-                onFocus={(e) => {
-                  e.target.style.borderColor = colors.primary;
-                  e.target.style.boxShadow = `0 0 0 2px ${colors.primary}33`;
-                }}
-                onBlur={(e) => {
-                  e.target.style.borderColor = colors.grayLight;
-                  e.target.style.boxShadow = 'none';
-                }}
-              />
-            </div>
           </div>
           
           <div className="flex items-center space-x-3">
