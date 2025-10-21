@@ -2,6 +2,51 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
 
+// Default checklist template
+const defaultChecklistTemplate = [
+  { phase: 'Project LOA (Letter of Award)', isSubItem: false },
+  { phase: 'Commencement Date', isSubItem: false },
+  { phase: 'Budget Kick-Off Between Project Manager and Tendering Revenue, Budget, Gross', isSubItem: false },
+  { phase: 'Contract Signing Between Kabri and Client', isSubItem: false },
+  { phase: 'Project Facilities Approval from the Bank', isSubItem: false },
+  { phase: 'Submission of Project Bonds and Insurances', isSubItem: false },
+  { phase: 'Performance Bond', isSubItem: true, parentPhase: 'Submission of Project Bonds and Insurances' },
+  { phase: 'Advance Bond', isSubItem: true, parentPhase: 'Submission of Project Bonds and Insurances' },
+  { phase: 'Insurances', isSubItem: true, parentPhase: 'Submission of Project Bonds and Insurances' },
+  { phase: 'Project Program of Work with Client', isSubItem: false },
+  { phase: 'Project Program of Work with Internal Target', isSubItem: false },
+  { phase: 'Project Organizational Chart', isSubItem: false },
+  { phase: 'Project Resources Sheet', isSubItem: false },
+  { phase: 'Design Tracker', isSubItem: false },
+  { phase: 'Authority NOCs Tracker (No Objection Certificates)', isSubItem: false },
+  { phase: 'Project Detailed Budget', isSubItem: false },
+  { phase: 'Project Cash Flow', isSubItem: false },
+  { phase: 'Project Code and ERP Matrix', isSubItem: false },
+  { phase: 'Engineering Phase Submissions (E1 Log Sheet)', isSubItem: false },
+  { phase: 'Procurement Phase Long Lead Items (E2 Log Sheet)', isSubItem: false },
+  { phase: 'Project Quality', isSubItem: false },
+  { phase: 'Project Risk Matrix', isSubItem: false },
+  { phase: 'Project Close-Out', isSubItem: false },
+];
+
+// Get checklist template (from database or fallback to default)
+async function getChecklistTemplate() {
+  try {
+    const activeTemplate = await prisma.checklistTemplate.findFirst({
+      where: { isActive: true },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    if (activeTemplate && activeTemplate.items) {
+      return activeTemplate.items as any[];
+    }
+  } catch (error) {
+    console.error('Error fetching checklist template:', error);
+  }
+
+  return defaultChecklistTemplate;
+}
+
 const projectSchema = z.object({
   projectCode: z.string().min(1, 'Project code is required'),
   projectName: z.string().min(1, 'Project name is required'),
@@ -107,6 +152,46 @@ export async function POST(request: NextRequest) {
               consultantType: contact.consultantType || undefined,
             },
           });
+        }
+      }
+
+      // Auto-initialize checklist for the new project
+      const checklistTemplate = await getChecklistTemplate();
+      const createdItems: { [key: string]: number } = {}; // Store created item IDs by phase name
+      
+      // First pass: Create all parent items
+      for (const template of checklistTemplate) {
+        if (!template.isSubItem) {
+          const item = await tx.projectChecklistItem.create({
+            data: {
+              projectId: project.id,
+              itemNumber: '', // Empty item number since we're not using numbers
+              phase: template.phase,
+              status: 'Pending',
+              isSubItem: false,
+              parentItemId: null,
+            },
+          });
+          createdItems[template.phase] = item.id;
+        }
+      }
+      
+      // Second pass: Create sub-items and link them to their parents
+      for (const template of checklistTemplate) {
+        if (template.isSubItem && template.parentPhase) {
+          const parentId = createdItems[template.parentPhase];
+          if (parentId) {
+            await tx.projectChecklistItem.create({
+              data: {
+                projectId: project.id,
+                itemNumber: '', // Empty item number since we're not using numbers
+                phase: template.phase,
+                status: 'Pending',
+                isSubItem: true,
+                parentItemId: parentId,
+              },
+            });
+          }
         }
       }
 

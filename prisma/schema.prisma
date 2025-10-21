@@ -357,6 +357,43 @@ model Project {
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
   projectContacts          ProjectContact[] // Many-to-many with contacts
+  projectChecklistItems    ProjectChecklistItem[] // Project checklist items
 
   @@map("projects")
+}
+
+model ProjectChecklistItem {
+  id            Int       @id @default(autoincrement())
+  projectId     Int       // FK to Project
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Checklist item details
+  itemNumber    String    // e.g., "1", "6.1", "18.31"
+  phase         String    // The phase/task description
+  plannedDate   DateTime? // Planned completion date
+  actualDate    DateTime? // Actual completion date
+  status        String?   // Status: "Pending", "In Progress", "Completed", "On Hold", "Cancelled"
+  notes         String?   // Additional notes
+  isSubItem     Boolean   @default(false) // Whether this is a sub-item (e.g., 6.1, 6.2)
+  parentItemId  Int?      // Reference to parent item for sub-items
+  
+  // Metadata
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("project_checklist_items")
+}
+
+model ChecklistTemplate {
+  id          Int       @id @default(autoincrement())
+  name        String    @default("Default Template")
+  description String?
+  items       Json      // Array of template items
+  isActive    Boolean   @default(true)
+  
+  // Metadata
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("checklist_templates")
 }
