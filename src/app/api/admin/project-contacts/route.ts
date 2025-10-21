@@ -50,13 +50,12 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = projectContactSchema.parse(body);
 
-    // Check if relationship already exists
-    const existingRelationship = await prisma.projectContact.findUnique({
+    // Check if relationship already exists for this specific consultant type
+    const existingRelationship = await prisma.projectContact.findFirst({
       where: {
-        projectId_contactId: {
-          projectId: validatedData.projectId,
-          contactId: validatedData.contactId,
-        },
+        projectId: validatedData.projectId,
+        contactId: validatedData.contactId,
+        consultantType: validatedData.consultantType,
       },
     });
 

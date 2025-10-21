@@ -2357,11 +2357,11 @@ export default function ProjectManager() {
                         )}
 
                         {/* Project Contacts */}
-                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId).length > 0 && (
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc').length > 0 && (
                           <div className="mb-3">
                             <div className="flex flex-wrap gap-2">
                               {projectContacts
-                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId)
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc')
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
@@ -2432,7 +2432,7 @@ export default function ProjectManager() {
                                     className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
                                     style={{ backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
-                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId) ||
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'));
                                       
                                       if (isAssignedToThisType) {
@@ -2470,11 +2470,11 @@ export default function ProjectManager() {
                                       )}
                                       <input
                                         type="checkbox"
-                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId) || 
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc') || 
                                                 (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'))}
                                         onChange={(e) => {
                                           e.stopPropagation();
-                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId) ||
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc') ||
                                                            (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'));
                                           
                                           if (isAssignedToThisType) {
@@ -3489,11 +3489,11 @@ export default function ProjectManager() {
                         )}
 
                         {/* Project Contacts */}
-                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId).length > 0 && (
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design').length > 0 && (
                           <div className="mb-3">
                             <div className="flex flex-wrap gap-2">
                               {projectContacts
-                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId)
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design')
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
@@ -3564,7 +3564,7 @@ export default function ProjectManager() {
                                     className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
                                     style={{ backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
-                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId) ||
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'));
                                       
                                       if (isAssignedToThisType) {
@@ -3602,11 +3602,11 @@ export default function ProjectManager() {
                                       )}
                                       <input
                                         type="checkbox"
-                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId) || 
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design') || 
                                                 (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'))}
                                         onChange={(e) => {
                                           e.stopPropagation();
-                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId) ||
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design') ||
                                                            (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'));
                                           
                                           if (isAssignedToThisType) {
@@ -3785,11 +3785,11 @@ export default function ProjectManager() {
                         )}
 
                         {/* Project Contacts */}
-                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId).length > 0 && (
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost').length > 0 && (
                           <div className="mb-3">
                             <div className="flex flex-wrap gap-2">
                               {projectContacts
-                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId)
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost')
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
@@ -3860,7 +3860,7 @@ export default function ProjectManager() {
                                     className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
                                     style={{ backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
-                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId) ||
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'));
                                       if (isAssignedToThisType) {
                                         if (editingProject) {
@@ -3892,11 +3892,11 @@ export default function ProjectManager() {
                                     <div className="flex items-center space-x-2">
                                       <input
                                         type="checkbox"
-                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId) || 
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost') || 
                                                 (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'))}
                                         onChange={(e) => {
                                           e.stopPropagation();
-                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId) ||
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost') ||
                                                            (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'));
                                           
                                           if (isAssignedToThisType) {
@@ -4075,11 +4075,11 @@ export default function ProjectManager() {
                         )}
 
                         {/* Project Contacts */}
-                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId).length > 0 && (
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision').length > 0 && (
                           <div className="mb-3">
                             <div className="flex flex-wrap gap-2">
                               {projectContacts
-                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId)
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision')
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
@@ -4150,7 +4150,7 @@ export default function ProjectManager() {
                                     className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
                                     style={{ backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
-                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId) ||
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'));
                                       if (isAssignedToThisType) {
                                         if (editingProject) {
@@ -4182,11 +4182,11 @@ export default function ProjectManager() {
                                     <div className="flex items-center space-x-2">
                                       <input
                                         type="checkbox"
-                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId) || 
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision') || 
                                                 (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'))}
                                         onChange={(e) => {
                                           e.stopPropagation();
-                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId) ||
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision') ||
                                                            (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'));
                                           
                                           if (isAssignedToThisType) {

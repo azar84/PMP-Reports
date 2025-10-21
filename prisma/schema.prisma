@@ -325,7 +325,7 @@ model ProjectContact {
   project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
   contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   
-  @@unique([projectId, contactId]) // Prevent duplicate project-contact relationships
+  @@unique([projectId, contactId, consultantType]) // Allow same contact for different consultant types
   @@map("project_contacts")
 }
 
