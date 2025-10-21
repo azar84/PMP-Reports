@@ -136,9 +136,10 @@ export async function POST(request: NextRequest) {
         for (const contact of contacts) {
           await tx.projectContact.upsert({
             where: {
-              projectId_contactId: {
+              projectId_contactId_consultantType: {
                 projectId: project.id,
                 contactId: contact.contactId,
+                consultantType: contact.consultantType || null,
               },
             },
             update: {
