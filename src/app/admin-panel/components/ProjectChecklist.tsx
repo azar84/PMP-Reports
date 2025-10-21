@@ -250,27 +250,42 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
   // Indent/Outdent handlers
   const handleIndent = async (itemId: number) => {
     const item = checklistItems.find(i => i.id === itemId);
-    if (!item || item.isSubItem) return;
+    if (!item) return;
 
-    // Find the previous item to use as parent
     const itemIndex = checklistItems.findIndex(i => i.id === itemId);
     if (itemIndex === 0) return; // Can't indent first item
 
     const previousItem = checklistItems[itemIndex - 1];
-    if (previousItem.isSubItem) return; // Can't indent under a sub-item
+    
+    // Smart demote logic:
+    // 1. If previous item has a parent, inherit that parent
+    // 2. If previous item is a parent item, become its sub-item
+    // 3. If previous item is a sub-item, become sibling under its parent
+    
+    let newParentId: number | undefined;
+    
+    if (previousItem.isSubItem && previousItem.parentItemId) {
+      // Previous item is a sub-item, inherit its parent
+      newParentId = previousItem.parentItemId;
+    } else if (!previousItem.isSubItem) {
+      // Previous item is a parent item, become its sub-item
+      newParentId = previousItem.id;
+    }
+
+    if (newParentId === undefined) return;
 
     try {
       const response = await put(`/api/admin/projects/${projectId}/checklist/${itemId}`, {
         ...item,
         isSubItem: true,
-        parentItemId: previousItem.id,
+        parentItemId: newParentId,
       }) as { success: boolean };
 
       if (response.success) {
         setChecklistItems(items => 
           items.map(i => 
             i.id === itemId 
-              ? { ...i, isSubItem: true, parentItemId: previousItem.id }
+              ? { ...i, isSubItem: true, parentItemId: newParentId }
               : i
           )
         );
@@ -284,6 +299,11 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
     const item = checklistItems.find(i => i.id === itemId);
     if (!item || !item.isSubItem) return;
 
+    // Smart promote logic:
+    // 1. If current item has siblings (same parent), promote to same level as parent
+    // 2. If current item is only child, promote to same level as parent
+    // 3. Always promote to parent level (remove sub-item status)
+    
     try {
       const response = await put(`/api/admin/projects/${projectId}/checklist/${itemId}`, {
         ...item,
@@ -467,8 +487,8 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                               variant="ghost"
                               size="sm"
                               className="p-1 h-6 w-6"
-                              disabled={item.isSubItem || checklistItems.findIndex(i => i.id === item.id) === 0}
-                              title="Indent (make sub-item)"
+                              disabled={checklistItems.findIndex(i => i.id === item.id) === 0}
+                              title="Demote (inherit parent from previous item)"
                             >
                               <ChevronRight className="w-3 h-3" />
                             </Button>
@@ -478,7 +498,7 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                               size="sm"
                               className="p-1 h-6 w-6"
                               disabled={!item.isSubItem}
-                              title="Outdent (make parent item)"
+                              title="Promote (move to parent level)"
                             >
                               <ChevronLeft className="w-3 h-3" />
                             </Button>
