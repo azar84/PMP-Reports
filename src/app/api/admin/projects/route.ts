@@ -159,9 +159,11 @@ export async function POST(request: NextRequest) {
       const checklistTemplate = await getChecklistTemplate();
       const createdItems: { [key: string]: number } = {}; // Store created item IDs by phase name
       
-      // First pass: Create all parent items
+      // Create items in template order to maintain proper hierarchy
+      let orderCounter = 0;
       for (const template of checklistTemplate) {
         if (!template.isSubItem) {
+          // Create parent item
           const item = await tx.projectChecklistItem.create({
             data: {
               projectId: project.id,
@@ -170,15 +172,12 @@ export async function POST(request: NextRequest) {
               status: 'Pending',
               isSubItem: false,
               parentItemId: null,
+              order: orderCounter++,
             },
           });
           createdItems[template.phase] = item.id;
-        }
-      }
-      
-      // Second pass: Create sub-items and link them to their parents
-      for (const template of checklistTemplate) {
-        if (template.isSubItem && template.parentPhase) {
+        } else if (template.isSubItem && template.parentPhase) {
+          // Create sub-item immediately after its parent
           const parentId = createdItems[template.parentPhase];
           if (parentId) {
             await tx.projectChecklistItem.create({
@@ -189,6 +188,7 @@ export async function POST(request: NextRequest) {
                 status: 'Pending',
                 isSubItem: true,
                 parentItemId: parentId,
+                order: orderCounter++,
               },
             });
           }

@@ -376,6 +376,7 @@ model ProjectChecklistItem {
   notes         String?   // Additional notes
   isSubItem     Boolean   @default(false) // Whether this is a sub-item (e.g., 6.1, 6.2)
   parentItemId  Int?      // Reference to parent item for sub-items
+  order         Int       @default(0) // Display order for proper sorting
   
   // Metadata
   createdAt     DateTime  @default(now())

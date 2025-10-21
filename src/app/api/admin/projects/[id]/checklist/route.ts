@@ -11,6 +11,7 @@ const checklistItemSchema = z.object({
   notes: z.string().optional().or(z.null()),
   isSubItem: z.boolean().default(false),
   parentItemId: z.number().optional().or(z.null()),
+  order: z.number().optional().default(0),
 });
 
 // GET - Fetch all checklist items for a project
@@ -32,7 +33,7 @@ export async function GET(
     const checklistItems = await prisma.projectChecklistItem.findMany({
       where: { projectId },
       orderBy: [
-        { createdAt: 'asc' }
+        { order: 'asc' }
       ],
     });
 
@@ -70,6 +71,7 @@ export async function POST(
       ...validatedData,
       projectId,
       itemNumber: validatedData.itemNumber || '', // Add itemNumber field
+      order: validatedData.order || 0, // Add order field
       plannedDate: validatedData.plannedDate ? new Date(validatedData.plannedDate) : null,
       actualDate: validatedData.actualDate ? new Date(validatedData.actualDate) : null,
     };
@@ -123,6 +125,7 @@ export async function PUT(
         
         const updateData = {
           ...validatedData,
+          order: validatedData.order || 0, // Add order field
           plannedDate: validatedData.plannedDate ? new Date(validatedData.plannedDate) : null,
           actualDate: validatedData.actualDate ? new Date(validatedData.actualDate) : null,
         };

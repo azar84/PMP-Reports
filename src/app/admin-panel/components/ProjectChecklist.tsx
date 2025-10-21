@@ -34,6 +34,7 @@ interface ChecklistItem {
   notes?: string;
   isSubItem: boolean;
   parentItemId?: number;
+  order: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -139,6 +140,7 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
         itemNumber: '', // Add empty itemNumber
         isSubItem: false,
         parentItemId: undefined,
+        order: checklistItems.length, // Set order to end of list
       };
       
       const response = await post<{ success: boolean; data: ChecklistItem }>(`/api/admin/projects/${projectId}/checklist`, itemData);

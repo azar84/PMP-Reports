@@ -72,10 +72,12 @@ export async function POST(
     const checklistItems = await prisma.$transaction(async (tx) => {
       const items = [];
       const createdItems: { [key: string]: number } = {}; // Store created item IDs by phase name
+      let orderCounter = 0;
       
-      // First pass: Create all parent items
+      // Create items in template order to maintain proper hierarchy
       for (const template of defaultChecklistTemplate) {
         if (!template.isSubItem) {
+          // Create parent item
           const item = await tx.projectChecklistItem.create({
             data: {
               projectId,
@@ -84,16 +86,13 @@ export async function POST(
               status: 'Pending',
               isSubItem: false,
               parentItemId: null,
+              order: orderCounter++,
             },
           });
           createdItems[template.phase] = item.id;
           items.push(item);
-        }
-      }
-      
-      // Second pass: Create sub-items and link them to their parents
-      for (const template of defaultChecklistTemplate) {
-        if (template.isSubItem && template.parentPhase) {
+        } else if (template.isSubItem && template.parentPhase) {
+          // Create sub-item immediately after its parent
           const parentId = createdItems[template.parentPhase];
           if (parentId) {
             const item = await tx.projectChecklistItem.create({
@@ -104,6 +103,7 @@ export async function POST(
                 status: 'Pending',
                 isSubItem: true,
                 parentItemId: parentId,
+                order: orderCounter++,
               },
             });
             items.push(item);
