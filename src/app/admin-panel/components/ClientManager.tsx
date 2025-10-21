@@ -423,7 +423,7 @@ export default function ClientManager() {
             {filteredClients.map((client) => (
               <div 
                 key={client.id}
-                className="p-4 rounded-lg"
+                className="p-4 rounded-lg relative"
                 style={{ 
                   backgroundColor: colors.backgroundPrimary
                 }}
@@ -470,7 +470,8 @@ export default function ClientManager() {
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between">
+                {/* Action buttons positioned in lower right corner */}
+                <div className="absolute bottom-4 right-4">
                   <div className="flex items-center space-x-2">
                     <Button
                       onClick={() => {

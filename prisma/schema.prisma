@@ -303,14 +303,29 @@ model Contact {
   phone       String?
   position    String?
   notes       String?
-  isPrimary   Boolean   @default(false)
   isActive    Boolean   @default(true)
   entityType  String    // 'client' or 'consultant'
   entityId    Int       // ID of the client or consultant
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
+  projectContacts ProjectContact[] // Many-to-many with projects
 
   @@map("contacts")
+}
+
+model ProjectContact {
+  id          Int       @id @default(autoincrement())
+  projectId   Int
+  contactId   Int
+  isPrimary   Boolean   @default(false) // Primary contact for this specific project
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  
+  @@unique([projectId, contactId]) // Prevent duplicate project-contact relationships
+  @@map("project_contacts")
 }
 
 model Project {
@@ -339,6 +354,7 @@ model Project {
   lastUpdate               DateTime  @default(now()) @updatedAt
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt
+  projectContacts          ProjectContact[] // Many-to-many with contacts
 
   @@map("projects")
 }

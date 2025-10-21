@@ -17,7 +17,11 @@ import {
   Search,
   X,
   Save,
-  ArrowLeft
+  ArrowLeft,
+  HardHat,
+  DraftingCompass,
+  Calculator,
+  Eye
 } from 'lucide-react';
 
 interface Project {
@@ -70,6 +74,20 @@ interface CompanyStaff {
   phone?: string;
 }
 
+interface Contact {
+  id: number;
+  firstName: string;
+  lastName: string;
+  email?: string;
+  phone?: string;
+  position?: string;
+  notes?: string;
+  isPrimary: boolean;
+  isActive: boolean;
+  entityType: string;
+  entityId: number;
+}
+
 export default function ProjectManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
@@ -78,11 +96,146 @@ export default function ProjectManager() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
   const [consultants, setConsultants] = useState<Consultant[]>([]);
+  const [consultantTypes, setConsultantTypes] = useState<Array<{ id: number; type: string }>>([]);
   const [staff, setStaff] = useState<CompanyStaff[]>([]);
+  const [contacts, setContacts] = useState<Contact[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
+  const [projectContacts, setProjectContacts] = useState<any[]>([]);
+  const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
+  const [contactSearchTerm, setContactSearchTerm] = useState('');
+  const [pmcContactSearchTerm, setPMCContactSearchTerm] = useState('');
+  const [designContactSearchTerm, setDesignContactSearchTerm] = useState('');
+  const [costContactSearchTerm, setCostContactSearchTerm] = useState('');
+  const [supervisionContactSearchTerm, setSupervisionContactSearchTerm] = useState('');
+  const [showContactDropdown, setShowContactDropdown] = useState(false);
+  const [showPMCContactDropdown, setShowPMCContactDropdown] = useState(false);
+  const [showDesignContactDropdown, setShowDesignContactDropdown] = useState(false);
+  const [showCostContactDropdown, setShowCostContactDropdown] = useState(false);
+  const [showSupervisionContactDropdown, setShowSupervisionContactDropdown] = useState(false);
+  const [showClientForm, setShowClientForm] = useState(false);
+  const [showConsultantForm, setShowConsultantForm] = useState(false);
+  const [showClientContactForm, setShowClientContactForm] = useState(false);
+  const [showConsultantContactForm, setShowConsultantContactForm] = useState(false);
+  const [showPMCContactForm, setShowPMCContactForm] = useState(false);
+  const [showDesignContactForm, setShowDesignContactForm] = useState(false);
+  const [showCostContactForm, setShowCostContactForm] = useState(false);
+  const [showSupervisionContactForm, setShowSupervisionContactForm] = useState(false);
+  const [showStaffForm, setShowStaffForm] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
+  const [contactModalData, setContactModalData] = useState<{
+    consultantType: string;
+    consultantName: string;
+    consultantId: number;
+  } | null>(null);
+  const [clientContactFormData, setClientContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true,
+    entityType: 'client',
+    entityId: undefined,
+  });
+  const [consultantContactFormData, setConsultantContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true,
+    entityType: 'consultant',
+    entityId: undefined,
+  });
+  const [pmcContactFormData, setPMCContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true,
+    entityType: 'consultant',
+    entityId: undefined,
+  });
+  const [designContactFormData, setDesignContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true,
+    entityType: 'consultant',
+    entityId: undefined,
+  });
+  const [costContactFormData, setCostContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true,
+    entityType: 'consultant',
+    entityId: undefined,
+  });
+  const [supervisionContactFormData, setSupervisionContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true,
+    entityType: 'consultant',
+    entityId: undefined,
+  });
+  const [modalContactFormData, setModalContactFormData] = useState<Partial<Contact>>({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    position: '',
+    notes: '',
+    isPrimary: false,
+    isActive: true, // Always active when created
+    entityType: 'consultant',
+    entityId: undefined,
+  });
+  const [staffFormData, setStaffFormData] = useState<Partial<CompanyStaff>>({
+    staffName: '',
+    position: '',
+    email: '',
+    phone: '',
+  });
+  const [clientFormData, setClientFormData] = useState<Partial<Client>>({
+    name: '',
+    officeAddress: '',
+    phone: '',
+    email: '',
+    isActive: true,
+  });
+  const [consultantFormData, setConsultantFormData] = useState<Partial<Consultant & { selectedTypes: number[] }>>({
+    name: '',
+    officeAddress: '',
+    phone: '',
+    email: '',
+    isActive: true,
+    selectedTypes: [],
+  });
   const [formData, setFormData] = useState<Partial<Project>>({
     projectCode: '',
     projectName: '',
@@ -108,32 +261,127 @@ export default function ProjectManager() {
   useEffect(() => {
     if (formData.startDate && formData.endDate) {
       const calculatedDuration = calculateDuration(formData.startDate, formData.endDate);
-      if (calculatedDuration !== formData.duration) {
-        setFormData(prev => ({ ...prev, duration: calculatedDuration }));
-      }
+      setFormData(prev => {
+        if (prev.duration !== calculatedDuration) {
+          return { ...prev, duration: calculatedDuration };
+        }
+        return prev;
+      });
+    } else {
+      setFormData(prev => {
+        if (prev.duration !== '') {
+          return { ...prev, duration: '' };
+        }
+        return prev;
+      });
     }
   }, [formData.startDate, formData.endDate]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [projectsRes, clientsRes, consultantsRes, staffRes] = await Promise.all([
+      const [projectsRes, clientsRes, consultantsRes, consultantTypesRes, staffRes, contactsRes] = await Promise.all([
         get<{ success: boolean; data: Project[] }>('/api/admin/projects'),
         get<{ success: boolean; data: Client[] }>('/api/admin/clients'),
         get<{ success: boolean; data: Consultant[] }>('/api/admin/consultants'),
+        get<{ success: boolean; data: Array<{ id: number; type: string }> }>('/api/admin/consultant-types'),
         get<{ success: boolean; data: CompanyStaff[] }>('/api/admin/company-staff'),
+        get<{ success: boolean; data: Contact[] }>('/api/admin/contacts'),
       ]);
 
       if (projectsRes.success) setProjects(projectsRes.data);
       if (clientsRes.success) setClients(clientsRes.data);
       if (consultantsRes.success) setConsultants(consultantsRes.data);
+      if (consultantTypesRes.success) setConsultantTypes(consultantTypesRes.data);
       if (staffRes.success) setStaff(staffRes.data);
+      if (contactsRes.success) setContacts(contactsRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
       setLoading(false);
     }
   };
+
+  // Get client contacts
+  const getClientContacts = (clientId?: number) => {
+    if (!clientId) return [];
+    return contacts.filter(contact => 
+      contact.entityType === 'client' && 
+      contact.entityId === clientId && 
+      contact.isActive
+    );
+  };
+
+  // Get consultant contacts
+  const getConsultantContacts = (consultantId?: number) => {
+    if (!consultantId) return [];
+    return contacts.filter(contact => 
+      contact.entityType === 'consultant' && 
+      contact.entityId === consultantId && 
+      contact.isActive
+    );
+  };
+
+  // Filter contacts based on search term
+  const getFilteredContacts = (clientId?: number) => {
+    const clientContacts = getClientContacts(clientId);
+    if (!contactSearchTerm) return clientContacts;
+    
+    return clientContacts.filter(contact =>
+      `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+      contact.email?.toLowerCase().includes(contactSearchTerm.toLowerCase()) ||
+      contact.position?.toLowerCase().includes(contactSearchTerm.toLowerCase())
+    );
+  };
+
+  // Filter consultant contacts based on search term
+  const getFilteredConsultantContacts = (consultantId?: number, searchTerm?: string) => {
+    const consultantContacts = getConsultantContacts(consultantId);
+    if (!searchTerm) return consultantContacts;
+    
+    return consultantContacts.filter(contact =>
+      `${contact.firstName} ${contact.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      contact.position?.toLowerCase().includes(searchTerm.toLowerCase())
+    );
+  };
+
+  // Remove selected contacts
+  const handleRemoveContact = (contactId: number) => {
+    setSelectedContacts(prev => prev.filter(id => id !== contactId));
+  };
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (!target.closest('.contact-dropdown-container')) {
+        setShowContactDropdown(false);
+      }
+      if (!target.closest('.pmc-contact-dropdown-container')) {
+        setShowPMCContactDropdown(false);
+      }
+      if (!target.closest('.design-contact-dropdown-container')) {
+        setShowDesignContactDropdown(false);
+      }
+      if (!target.closest('.cost-contact-dropdown-container')) {
+        setShowCostContactDropdown(false);
+      }
+      if (!target.closest('.supervision-contact-dropdown-container')) {
+        setShowSupervisionContactDropdown(false);
+      }
+    };
+
+    const hasOpenDropdown = showContactDropdown || showPMCContactDropdown || showDesignContactDropdown || showCostContactDropdown || showSupervisionContactDropdown;
+    
+    if (hasOpenDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showContactDropdown, showPMCContactDropdown, showDesignContactDropdown, showCostContactDropdown, showSupervisionContactDropdown]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -142,6 +390,20 @@ export default function ProjectManager() {
         ...formData,
         startDate: formData.startDate || null,
         endDate: formData.endDate || null,
+        // Include contacts for new projects (deduplicated)
+        contacts: editingProject ? undefined : (() => {
+          const uniqueContacts = new Map();
+          pendingContacts.forEach(pc => {
+            const key = pc.contactId;
+            if (!uniqueContacts.has(key) || pc.isPrimary) {
+              uniqueContacts.set(key, {
+                contactId: pc.contactId,
+                isPrimary: pc.isPrimary,
+              });
+            }
+          });
+          return Array.from(uniqueContacts.values());
+        })(),
       };
 
       if (editingProject) {
@@ -158,6 +420,19 @@ export default function ProjectManager() {
 
       setShowForm(false);
       setEditingProject(null);
+      setSelectedContacts([]);
+      setProjectContacts([]);
+      setPendingContacts([]);
+      setContactSearchTerm('');
+      setPMCContactSearchTerm('');
+      setDesignContactSearchTerm('');
+      setCostContactSearchTerm('');
+      setSupervisionContactSearchTerm('');
+      setShowContactDropdown(false);
+      setShowPMCContactDropdown(false);
+      setShowDesignContactDropdown(false);
+      setShowCostContactDropdown(false);
+      setShowSupervisionContactDropdown(false);
       setFormData({
         projectCode: '',
         projectName: '',
@@ -219,8 +494,27 @@ export default function ProjectManager() {
     setFormData(newFormData);
   };
 
+  const fetchProjectContacts = async (projectId: number) => {
+    try {
+      const response = await get<{ success: boolean; data: any[] }>(`/api/admin/project-contacts?projectId=${projectId}`);
+      if (response.success) {
+        setProjectContacts(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching project contacts:', error);
+    }
+  };
+
   const handleEdit = (project: Project) => {
     setEditingProject(project);
+    setSelectedContacts([]);
+    setProjectContacts([]);
+    setContactSearchTerm('');
+    setShowContactDropdown(false);
+    
+    // Fetch project contacts for this project
+    fetchProjectContacts(project.id);
+    
     setFormData({
       projectCode: project.projectCode,
       projectName: project.projectName,
@@ -240,6 +534,71 @@ export default function ProjectManager() {
     setShowForm(true);
   };
 
+  const handleTogglePrimaryContact = async (projectContactId: number, isPrimary: boolean) => {
+    try {
+      const response = await put(`/api/admin/project-contacts`, {
+        id: projectContactId,
+        isPrimary: !isPrimary,
+      });
+      
+      if (response.success) {
+        // Refresh project contacts
+        if (editingProject?.id) {
+          fetchProjectContacts(editingProject.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error updating primary contact:', error);
+    }
+  };
+
+  const handleRemoveProjectContact = async (projectContactId: number) => {
+    try {
+      const response = await del(`/api/admin/project-contacts?id=${projectContactId}`);
+      
+      if (response.success) {
+        // Refresh project contacts
+        if (editingProject?.id) {
+          fetchProjectContacts(editingProject.id);
+        }
+      }
+    } catch (error) {
+      console.error('Error removing project contact:', error);
+    }
+  };
+
+  const handleAddExistingContactToProject = async (contactId: number, isPrimary: boolean = false, entityType: string, entityId: number, consultantType?: string) => {
+    if (editingProject?.id) {
+      // For existing projects, create the relationship immediately
+      try {
+        const response = await post('/api/admin/project-contacts', {
+          projectId: editingProject.id,
+          contactId: contactId,
+          isPrimary: isPrimary,
+        });
+        
+        if (response.success) {
+          // Refresh project contacts
+          fetchProjectContacts(editingProject.id);
+        }
+      } catch (error) {
+        console.error('Error adding contact to project:', error);
+      }
+    } else {
+      // For new projects, store in pending contacts
+      setPendingContacts(prev => {
+        const existing = prev.find(pc => pc.contactId === contactId && pc.entityType === entityType && pc.entityId === entityId && pc.consultantType === consultantType);
+        if (existing) {
+          // Remove if already exists
+          return prev.filter(pc => !(pc.contactId === contactId && pc.entityType === entityType && pc.entityId === entityId && pc.consultantType === consultantType));
+        } else {
+          // Add new pending contact
+          return [...prev, { contactId, entityType, entityId, consultantType, isPrimary }];
+        }
+      });
+    }
+  };
+
   const handleDelete = async (id: number) => {
     if (confirm('Are you sure you want to delete this project?')) {
       try {
@@ -250,6 +609,371 @@ export default function ProjectManager() {
       } catch (error) {
         console.error('Error deleting project:', error);
       }
+    }
+  };
+
+  // Handle client creation
+  const handleClientSubmit = async () => {
+    try {
+      const clientData = {
+        ...clientFormData,
+        email: clientFormData.email || undefined,
+        phone: clientFormData.phone || undefined,
+        officeAddress: clientFormData.officeAddress || undefined,
+      };
+
+      const response = await post<{ success: boolean; data: Client }>('/api/admin/clients', clientData);
+      if (response.success) {
+        setClients([response.data, ...clients]);
+        setFormData({ ...formData, clientId: response.data.id });
+        setShowClientForm(false);
+        setClientFormData({
+          name: '',
+          officeAddress: '',
+          phone: '',
+          email: '',
+          isActive: true,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating client:', error);
+    }
+  };
+
+  // Handle consultant creation
+  const handleConsultantSubmit = async () => {
+    try {
+      const consultantData = {
+        name: consultantFormData.name,
+        officeAddress: consultantFormData.officeAddress || undefined,
+        phone: consultantFormData.phone || undefined,
+        email: consultantFormData.email || undefined,
+        isActive: consultantFormData.isActive,
+        types: consultantFormData.selectedTypes || [],
+      };
+
+      const response = await post<{ success: boolean; data: Consultant }>('/api/admin/consultants', consultantData);
+      if (response.success) {
+        setConsultants([response.data, ...consultants]);
+        setShowConsultantForm(false);
+        setConsultantFormData({
+          name: '',
+          officeAddress: '',
+          phone: '',
+          email: '',
+          isActive: true,
+          selectedTypes: [],
+        });
+      }
+    } catch (error) {
+      console.error('Error creating consultant:', error);
+    }
+  };
+
+  // Handle consultant type toggle
+  const handleConsultantTypeToggle = (typeId: number) => {
+    setConsultantFormData(prev => ({
+      ...prev,
+      selectedTypes: prev.selectedTypes?.includes(typeId)
+        ? prev.selectedTypes.filter(id => id !== typeId)
+        : [...(prev.selectedTypes || []), typeId]
+    }));
+  };
+
+  // Handle client contact creation
+  const handleClientContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...clientContactFormData,
+        email: clientContactFormData.email || undefined,
+        phone: clientContactFormData.phone || undefined,
+        position: clientContactFormData.position || undefined,
+        notes: clientContactFormData.notes || undefined,
+        isActive: true, // Always active when created
+        entityId: formData.clientId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        
+        // Create project contact relationship
+        if (editingProject?.id) {
+          const projectContactData = {
+            projectId: editingProject.id,
+            contactId: response.data.id,
+            isPrimary: false, // Always false when creating - can be set later via radio buttons
+          };
+          
+          await post('/api/admin/project-contacts', projectContactData);
+          
+          // Refresh project contacts
+          fetchProjectContacts(editingProject.id);
+        }
+        
+        setShowClientContactForm(false);
+        setClientContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true,
+          entityType: 'client',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating client contact:', error);
+    }
+  };
+
+  // Handle consultant contact creation
+  const handleConsultantContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...consultantContactFormData,
+        email: consultantContactFormData.email || undefined,
+        phone: consultantContactFormData.phone || undefined,
+        position: consultantContactFormData.position || undefined,
+        notes: consultantContactFormData.notes || undefined,
+        entityId: consultantContactFormData.entityId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        setShowConsultantContactForm(false);
+        setConsultantContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true,
+          entityType: 'consultant',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating consultant contact:', error);
+    }
+  };
+
+  // Handle PMC contact creation
+  const handlePMCContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...pmcContactFormData,
+        email: pmcContactFormData.email || undefined,
+        phone: pmcContactFormData.phone || undefined,
+        position: pmcContactFormData.position || undefined,
+        notes: pmcContactFormData.notes || undefined,
+        entityId: pmcContactFormData.entityId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        setShowPMCContactForm(false);
+        setPMCContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true,
+          entityType: 'consultant',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating PMC contact:', error);
+    }
+  };
+
+  // Handle Design contact creation
+  const handleDesignContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...designContactFormData,
+        email: designContactFormData.email || undefined,
+        phone: designContactFormData.phone || undefined,
+        position: designContactFormData.position || undefined,
+        notes: designContactFormData.notes || undefined,
+        entityId: designContactFormData.entityId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        setShowDesignContactForm(false);
+        setDesignContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true,
+          entityType: 'consultant',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating Design contact:', error);
+    }
+  };
+
+  // Handle Cost contact creation
+  const handleCostContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...costContactFormData,
+        email: costContactFormData.email || undefined,
+        phone: costContactFormData.phone || undefined,
+        position: costContactFormData.position || undefined,
+        notes: costContactFormData.notes || undefined,
+        entityId: costContactFormData.entityId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        setShowCostContactForm(false);
+        setCostContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true,
+          entityType: 'consultant',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating Cost contact:', error);
+    }
+  };
+
+  // Handle Supervision contact creation
+  const handleSupervisionContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...supervisionContactFormData,
+        email: supervisionContactFormData.email || undefined,
+        phone: supervisionContactFormData.phone || undefined,
+        position: supervisionContactFormData.position || undefined,
+        notes: supervisionContactFormData.notes || undefined,
+        entityId: supervisionContactFormData.entityId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        setShowSupervisionContactForm(false);
+        setSupervisionContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true,
+          entityType: 'consultant',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating Supervision contact:', error);
+    }
+  };
+
+  // Handle modal contact creation
+  const handleModalContactSubmit = async () => {
+    try {
+      const contactData = {
+        ...modalContactFormData,
+        email: modalContactFormData.email || undefined,
+        phone: modalContactFormData.phone || undefined,
+        position: modalContactFormData.position || undefined,
+        notes: modalContactFormData.notes || undefined,
+        isActive: true, // Always active when created
+        entityId: modalContactFormData.entityId,
+      };
+
+      const response = await post<{ success: boolean; data: Contact }>('/api/admin/contacts', contactData);
+      if (response.success) {
+        setContacts([response.data, ...contacts]);
+        
+        // Create project contact relationship
+        if (editingProject?.id) {
+          const projectContactData = {
+            projectId: editingProject.id,
+            contactId: response.data.id,
+            isPrimary: false, // Always false when creating - can be set later via radio buttons
+          };
+          
+          await post('/api/admin/project-contacts', projectContactData);
+          
+          // Refresh project contacts
+          fetchProjectContacts(editingProject.id);
+        }
+        
+        setShowContactModal(false);
+        setContactModalData(null);
+        setModalContactFormData({
+          firstName: '',
+          lastName: '',
+          email: '',
+          phone: '',
+          position: '',
+          notes: '',
+          isPrimary: false,
+          isActive: true, // Always active when created
+          entityType: 'consultant',
+          entityId: undefined,
+        });
+      }
+    } catch (error) {
+      console.error('Error creating contact:', error);
+    }
+  };
+
+  // Handle staff creation
+  const handleStaffSubmit = async () => {
+    try {
+      const staffData = {
+        ...staffFormData,
+        email: staffFormData.email || undefined,
+        phone: staffFormData.phone || undefined,
+        position: staffFormData.position || undefined,
+      };
+
+      const response = await post<{ success: boolean; data: CompanyStaff }>('/api/admin/company-staff', staffData);
+      if (response.success) {
+        setStaff([response.data, ...staff]);
+        setShowStaffForm(false);
+        setStaffFormData({
+          staffName: '',
+          position: '',
+          email: '',
+          phone: '',
+        });
+      }
+    } catch (error) {
+      console.error('Error creating staff:', error);
     }
   };
 
@@ -282,7 +1006,7 @@ export default function ProjectManager() {
         <Button
           onClick={() => setShowForm(true)}
           className="flex items-center space-x-2"
-          style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+          style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
         >
           <Plus className="w-4 h-4" />
           <span>Add Project</span>
@@ -316,6 +1040,19 @@ export default function ProjectManager() {
               onClick={() => {
                 setShowForm(false);
                 setEditingProject(null);
+                setSelectedContacts([]);
+                setProjectContacts([]);
+                setPendingContacts([]);
+                setContactSearchTerm('');
+                setPMCContactSearchTerm('');
+                setDesignContactSearchTerm('');
+                setCostContactSearchTerm('');
+                setSupervisionContactSearchTerm('');
+                setShowContactDropdown(false);
+                setShowPMCContactDropdown(false);
+                setShowDesignContactDropdown(false);
+                setShowCostContactDropdown(false);
+                setShowSupervisionContactDropdown(false);
                 setFormData({
                   projectCode: '',
                   projectName: '',
@@ -354,7 +1091,7 @@ export default function ProjectManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -371,128 +1108,2808 @@ export default function ProjectManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
               </div>
 
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Client
-                </label>
-                <select
-                  value={formData.clientId || ''}
-                  onChange={(e) => setFormData({ ...formData, clientId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select Client</option>
-                  {clients.map(client => (
-                    <option key={client.id} value={client.id}>{client.name}</option>
-                  ))}
-                </select>
+              {/* Client Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Building2 className="w-5 h-5" style={{ color: colors.primary }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Client</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        Client
+                      </label>
+                        <Button
+                          type="button"
+                          onClick={() => setShowClientForm(true)}
+                          variant="ghost"
+                          className="text-xs px-2 py-1"
+                          style={{ color: colors.textPrimary }}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          New Client
+                        </Button>
+                      </div>
+                      <select
+                        value={formData.clientId || ''}
+                        onChange={(e) => {
+                          const clientId = e.target.value ? parseInt(e.target.value) : undefined;
+                          setFormData({ ...formData, clientId });
+                          setSelectedContacts([]);
+                          setContactSearchTerm('');
+                          setShowContactDropdown(false);
+                        }}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.grayLight,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select Client</option>
+                        {clients.map(client => (
+                          <option key={client.id} value={client.id}>{client.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Client Contacts */}
+                    {formData.clientId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Client Contacts
+                        </label>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              setShowClientContactForm(true);
+                              setClientContactFormData({
+                                firstName: '',
+                                lastName: '',
+                                email: '',
+                                phone: '',
+                                position: '',
+                                notes: '',
+                                isPrimary: false,
+                                isActive: true,
+                                entityType: 'client',
+                                entityId: formData.clientId,
+                              });
+                            }}
+                            variant="ghost"
+                            className="text-xs px-2 py-1"
+                            style={{ color: colors.textPrimary }}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Contact
+                          </Button>
+                        </div>
+                        
+                        {/* Pending Contacts Display */}
+                        {!editingProject && pendingContacts.filter(pc => pc.entityType === 'client' && pc.entityId === formData.clientId).length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>Selected Contacts</div>
+                            <div className="flex flex-wrap gap-2">
+                              {pendingContacts
+                                .filter(pc => pc.entityType === 'client' && pc.entityId === formData.clientId)
+                                .map((pendingContact, index) => {
+                                  const contact = contacts.find(c => c.id === pendingContact.contactId);
+                                return contact ? (
+                                  <div
+                                      key={index}
+                                      className="flex items-center space-x-3 py-2"
+                                    >
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                        {contact.firstName} {contact.lastName}
+                                      </span>
+                                      <label className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`client-primary-${formData.clientId}`}
+                                          checked={pendingContact.isPrimary}
+                                          onChange={() => {
+                                            // Set this contact as primary and unset others
+                                            setPendingContacts(prev => prev.map(pc => 
+                                              pc.entityType === 'client' && pc.entityId === formData.clientId
+                                                ? { ...pc, isPrimary: pc.contactId === contact.id }
+                                                : pc
+                                            ));
+                                          }}
+                                          className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                          style={{
+                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                            backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                            accentColor: colors.primary
+                                          }}
+                                        />
+                                        <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                      </label>
+                                    <button
+                                      type="button"
+                                        onClick={() => {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId)));
+                                        }}
+                                        className="hover:opacity-75 p-1"
+                                      >
+                                        <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Project Contacts */}
+                        {projectContacts.filter(pc => pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId).length > 0 && (
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {projectContacts
+                                .filter(pc => pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId)
+                                .map(projectContact => (
+                                  <div
+                                    key={projectContact.id}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {projectContact.contact.firstName} {projectContact.contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`client-primary-existing-${formData.clientId}`}
+                                        checked={projectContact.isPrimary}
+                                        onChange={() => {
+                                          handleTogglePrimaryContact(projectContact.id, projectContact.isPrimary);
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveProjectContact(projectContact.id)}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contact Search */}
+                        <div className="relative contact-dropdown-container">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search client contacts..."
+                              value={contactSearchTerm}
+                              onChange={(e) => setContactSearchTerm(e.target.value)}
+                              onFocus={() => setShowContactDropdown(true)}
+                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.grayLight,
+                                color: colors.textPrimary
+                              }}
+                            />
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
+                          </div>
+
+                          {/* Contact Dropdown */}
+                          {showContactDropdown && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary }}
+                            >
+                              {getFilteredContacts(formData.clientId).length > 0 ? (
+                                getFilteredContacts(formData.clientId).map(contact => (
+                                  <div
+                                    key={contact.id}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
+                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    onClick={() => {
+                                      const isAssigned = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId) ||
+                                                       (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId));
+                                      if (isAssigned) {
+                                        if (editingProject) {
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId);
+                                          if (projectContact) {
+                                            handleRemoveProjectContact(projectContact.id);
+                                          }
+                                        } else {
+                                          // Remove from pending contacts
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId)));
+                                        }
+                                      } else {
+                                        handleAddExistingContactToProject(contact.id, false, 'client', formData.clientId || 0);
+                                      }
+                                      // Don't close dropdown immediately to see the selection
+                                      // setShowContactDropdown(false);
+                                      setContactSearchTerm('');
+                                    }}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <div>
+                                        <div className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {contact.firstName} {contact.lastName}
+                                        </div>
+                                        <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                          {contact.position} {contact.email && `• ${contact.email}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      {contact.isPrimary && (
+                                        <span className="px-2 py-1 text-xs rounded" style={{ backgroundColor: colors.warning, color: colors.textPrimary }}>
+                                          Primary
+                                        </span>
+                                      )}
+                                      <input
+                                        type="checkbox"
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId) || 
+                                                (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId))}
+                                        onChange={() => {
+                                          const isAssigned = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId) ||
+                                                           (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId));
+                                          if (isAssigned) {
+                                            if (editingProject) {
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId);
+                                              if (projectContact) {
+                                                handleRemoveProjectContact(projectContact.id);
+                                              }
+                                            } else {
+                                              // Remove from pending contacts
+                                              setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId)));
+                                            }
+                                          } else {
+                                            handleAddExistingContactToProject(contact.id, false, 'client', formData.clientId || 0);
+                                          }
+                                        }}
+                                        className="rounded"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-3 text-center text-sm" style={{ color: colors.textSecondary }}>
+                                  {contactSearchTerm ? 'No contacts found matching your search.' : 'No contacts available for this client.'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Client Contact Creation Form */}
+                    {showClientContactForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Add Client Contact
+                          </h4>
+                          <Button
+                            onClick={() => setShowClientContactForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                  </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                <span style={{ color: colors.error }}>*</span> First Name
+                              </label>
+                              <Input
+                                type="text"
+                                value={clientContactFormData.firstName}
+                                onChange={(e) => setClientContactFormData({ ...clientContactFormData, firstName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                <span style={{ color: colors.error }}>*</span> Last Name
+                              </label>
+                              <Input
+                                type="text"
+                                value={clientContactFormData.lastName}
+                                onChange={(e) => setClientContactFormData({ ...clientContactFormData, lastName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={clientContactFormData.email}
+                                onChange={(e) => setClientContactFormData({ ...clientContactFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={clientContactFormData.phone}
+                                onChange={(e) => setClientContactFormData({ ...clientContactFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Position
+                              </label>
+                              <Input
+                                type="text"
+                                value={clientContactFormData.position}
+                                onChange={(e) => setClientContactFormData({ ...clientContactFormData, position: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Notes
+                              </label>
+                              <textarea
+                                value={clientContactFormData.notes}
+                                onChange={(e) => setClientContactFormData({ ...clientContactFormData, notes: e.target.value })}
+                                rows={2}
+                                className="w-full p-2 rounded-lg border resize-none text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleClientContactSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Contact</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowClientContactForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Client Creation Form */}
+                    {showClientForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Create New Client
+                          </h4>
+                          <Button
+                            onClick={() => setShowClientForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Client Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={clientFormData.name}
+                                onChange={(e) => setClientFormData({ ...clientFormData, name: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={clientFormData.email}
+                                onChange={(e) => setClientFormData({ ...clientFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={clientFormData.phone}
+                                onChange={(e) => setClientFormData({ ...clientFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Office Address
+                              </label>
+                              <Input
+                                type="text"
+                                value={clientFormData.officeAddress}
+                                onChange={(e) => setClientFormData({ ...clientFormData, officeAddress: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleClientSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Create Client</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowClientForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* PMC Consultant Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <HardHat className="w-5 h-5" style={{ color: colors.success }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Project Management Consultant</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        PMC Consultant
+                      </label>
+                        <Button
+                          type="button"
+                          onClick={() => setShowConsultantForm(true)}
+                          variant="ghost"
+                          className="text-xs px-2 py-1"
+                          style={{ color: colors.textPrimary }}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          New Consultant
+                        </Button>
+                      </div>
+                      <select
+                        value={formData.projectManagementConsultantId || ''}
+                        onChange={(e) => {
+                          const consultantId = e.target.value ? parseInt(e.target.value) : undefined;
+                          setFormData({ ...formData, projectManagementConsultantId: consultantId });
+                          setPMCContactSearchTerm('');
+                          setShowPMCContactDropdown(false);
+                        }}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.grayLight,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select PMC</option>
+                        {consultants.filter(c => c.types.some(t => t.type === 'PMC')).map(consultant => (
+                          <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* PMC Contacts */}
+                    {formData.projectManagementConsultantId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          PMC Contacts
+                        </label>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const consultant = consultants.find(c => c.id === formData.projectManagementConsultantId);
+                              setContactModalData({
+                                consultantType: 'Project Management Consultant',
+                                consultantName: consultant?.name || 'Unknown',
+                                consultantId: formData.projectManagementConsultantId || 0,
+                              });
+                              setModalContactFormData({
+                                firstName: '',
+                                lastName: '',
+                                email: '',
+                                phone: '',
+                                position: '',
+                                notes: '',
+                                isPrimary: false,
+                                isActive: true, // Always active when created
+                                entityType: 'consultant',
+                                entityId: formData.projectManagementConsultantId,
+                              });
+                              setShowContactModal(true);
+                            }}
+                            variant="ghost"
+                            className="text-xs px-2 py-1"
+                            style={{ color: colors.textPrimary }}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Contact
+                          </Button>
+                        </div>
+                        
+                        {/* Pending Contacts Display */}
+                        {!editingProject && pendingContacts.filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc').length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>Selected Contacts</div>
+                            <div className="flex flex-wrap gap-2">
+                              {pendingContacts
+                                .filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc')
+                                .map((pendingContact, index) => {
+                                  const contact = contacts.find(c => c.id === pendingContact.contactId);
+                                return contact ? (
+                                  <div
+                                      key={index}
+                                      className="flex items-center space-x-3 py-2"
+                                    >
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                        {contact.firstName} {contact.lastName}
+                                      </span>
+                                      <label className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`pmc-primary-${formData.projectManagementConsultantId}-pmc`}
+                                          checked={pendingContact.isPrimary}
+                                          onChange={() => {
+                                            // Set this contact as primary and unset others
+                                            setPendingContacts(prev => prev.map(pc => 
+                                              pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'
+                                                ? { ...pc, isPrimary: pc.contactId === contact.id }
+                                                : pc
+                                            ));
+                                          }}
+                                          className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                          style={{
+                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                            backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                            accentColor: colors.primary
+                                          }}
+                                        />
+                                        <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                      </label>
+                                    <button
+                                      type="button"
+                                        onClick={() => {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc')));
+                                        }}
+                                        className="hover:opacity-75 p-1"
+                                      >
+                                        <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Project Contacts */}
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId).length > 0 && (
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {projectContacts
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId)
+                                .map(projectContact => (
+                                  <div
+                                    key={projectContact.id}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {projectContact.contact.firstName} {projectContact.contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`pmc-primary-existing-${formData.projectManagementConsultantId}-pmc`}
+                                        checked={projectContact.isPrimary}
+                                        onChange={() => {
+                                          handleTogglePrimaryContact(projectContact.id, projectContact.isPrimary);
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveProjectContact(projectContact.id)}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contact Search */}
+                        <div className="relative pmc-contact-dropdown-container">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search PMC contacts..."
+                              value={pmcContactSearchTerm}
+                              onChange={(e) => setPMCContactSearchTerm(e.target.value)}
+                              onFocus={() => setShowPMCContactDropdown(true)}
+                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.grayLight,
+                                color: colors.textPrimary
+                              }}
+                            />
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
+                          </div>
+
+                          {/* Contact Dropdown */}
+                          {showPMCContactDropdown && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary }}
+                            >
+                              {getFilteredConsultantContacts(formData.projectManagementConsultantId, pmcContactSearchTerm).length > 0 ? (
+                                getFilteredConsultantContacts(formData.projectManagementConsultantId, pmcContactSearchTerm).map(contact => (
+                                  <div
+                                    key={contact.id}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
+                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    onClick={() => {
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId) ||
+                                                       (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'));
+                                      
+                                      if (isAssignedToThisType) {
+                                        if (editingProject) {
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId);
+                                          if (projectContact) {
+                                            handleRemoveProjectContact(projectContact.id);
+                                          }
+                                        } else {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc')));
+                                        }
+                                      } else {
+                                        handleAddExistingContactToProject(contact.id, false, 'consultant', formData.projectManagementConsultantId || 0, 'pmc');
+                                      }
+                                      setShowPMCContactDropdown(false);
+                                      setPMCContactSearchTerm('');
+                                    }}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <div>
+                                        <div className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {contact.firstName} {contact.lastName}
+                                        </div>
+                                        <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                          {contact.position} {contact.email && `• ${contact.email}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      {contact.isPrimary && (
+                                        <span className="px-2 py-1 text-xs rounded" style={{ backgroundColor: colors.warning, color: colors.textPrimary }}>
+                                          Primary
+                                        </span>
+                                      )}
+                                      <input
+                                        type="checkbox"
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId) || 
+                                                (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'))}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId) ||
+                                                           (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'));
+                                          
+                                          if (isAssignedToThisType) {
+                                            if (editingProject) {
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId);
+                                              if (projectContact) {
+                                                handleRemoveProjectContact(projectContact.id);
+                                              }
+                                            } else {
+                                              setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc')));
+                                            }
+                                          } else {
+                                            handleAddExistingContactToProject(contact.id, false, 'consultant', formData.projectManagementConsultantId || 0, 'pmc');
+                                          }
+                                          setShowPMCContactDropdown(false);
+                                          setPMCContactSearchTerm('');
+                                        }}
+                                        className="rounded"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-3 text-center text-sm" style={{ color: colors.textSecondary }}>
+                                  {pmcContactSearchTerm ? 'No contacts found matching your search.' : 'No contacts available for this consultant.'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* PMC Contact Creation Form */}
+                    {showPMCContactForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Add PMC Contact
+                          </h4>
+                          <Button
+                            onClick={() => setShowPMCContactForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                  </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                First Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={pmcContactFormData.firstName}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, firstName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Last Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={pmcContactFormData.lastName}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, lastName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={pmcContactFormData.email}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={pmcContactFormData.phone}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Position
+                              </label>
+                              <Input
+                                type="text"
+                                value={pmcContactFormData.position}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, position: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Notes
+                              </label>
+                              <textarea
+                                value={pmcContactFormData.notes}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, notes: e.target.value })}
+                                rows={2}
+                                className="w-full p-2 rounded-lg border resize-none text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-4">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={pmcContactFormData.isPrimary}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, isPrimary: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Primary Contact
+                              </span>
+                            </label>
+
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={pmcContactFormData.isActive}
+                                onChange={(e) => setPMCContactFormData({ ...pmcContactFormData, isActive: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Active Contact
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handlePMCContactSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Contact</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowPMCContactForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Consultant Contact Creation Form */}
+                    {showConsultantContactForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Add Consultant Contact
+                          </h4>
+                          <Button
+                            onClick={() => setShowConsultantContactForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                First Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={consultantContactFormData.firstName}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, firstName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Last Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={consultantContactFormData.lastName}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, lastName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={consultantContactFormData.email}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={consultantContactFormData.phone}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Position
+                              </label>
+                              <Input
+                                type="text"
+                                value={consultantContactFormData.position}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, position: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Notes
+                              </label>
+                              <textarea
+                                value={consultantContactFormData.notes}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, notes: e.target.value })}
+                                rows={2}
+                                className="w-full p-2 rounded-lg border resize-none text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-4">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={consultantContactFormData.isPrimary}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, isPrimary: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Primary Contact
+                              </span>
+                            </label>
+
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={consultantContactFormData.isActive}
+                                onChange={(e) => setConsultantContactFormData({ ...consultantContactFormData, isActive: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Active Contact
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleConsultantContactSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Contact</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowConsultantContactForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Design Contact Creation Form */}
+                    {showDesignContactForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Add Design Contact
+                          </h4>
+                          <Button
+                            onClick={() => setShowDesignContactForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                First Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={designContactFormData.firstName}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, firstName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Last Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={designContactFormData.lastName}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, lastName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={designContactFormData.email}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={designContactFormData.phone}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Position
+                              </label>
+                              <Input
+                                type="text"
+                                value={designContactFormData.position}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, position: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Notes
+                              </label>
+                              <textarea
+                                value={designContactFormData.notes}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, notes: e.target.value })}
+                                rows={2}
+                                className="w-full p-2 rounded-lg border resize-none text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-4">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={designContactFormData.isPrimary}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, isPrimary: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Primary Contact
+                              </span>
+                            </label>
+
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={designContactFormData.isActive}
+                                onChange={(e) => setDesignContactFormData({ ...designContactFormData, isActive: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Active Contact
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleDesignContactSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Contact</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowDesignContactForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Cost Contact Creation Form */}
+                    {showCostContactForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Add Cost Contact
+                          </h4>
+                          <Button
+                            onClick={() => setShowCostContactForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                First Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={costContactFormData.firstName}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, firstName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Last Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={costContactFormData.lastName}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, lastName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={costContactFormData.email}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={costContactFormData.phone}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Position
+                              </label>
+                              <Input
+                                type="text"
+                                value={costContactFormData.position}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, position: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Notes
+                              </label>
+                              <textarea
+                                value={costContactFormData.notes}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, notes: e.target.value })}
+                                rows={2}
+                                className="w-full p-2 rounded-lg border resize-none text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-4">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={costContactFormData.isPrimary}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, isPrimary: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Primary Contact
+                              </span>
+                            </label>
+
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={costContactFormData.isActive}
+                                onChange={(e) => setCostContactFormData({ ...costContactFormData, isActive: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Active Contact
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleCostContactSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Contact</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowCostContactForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Supervision Contact Creation Form */}
+                    {showSupervisionContactForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Add Supervision Contact
+                          </h4>
+                          <Button
+                            onClick={() => setShowSupervisionContactForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                First Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={supervisionContactFormData.firstName}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, firstName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Last Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={supervisionContactFormData.lastName}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, lastName: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={supervisionContactFormData.email}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={supervisionContactFormData.phone}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Position
+                              </label>
+                              <Input
+                                type="text"
+                                value={supervisionContactFormData.position}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, position: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Notes
+                              </label>
+                              <textarea
+                                value={supervisionContactFormData.notes}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, notes: e.target.value })}
+                                rows={2}
+                                className="w-full p-2 rounded-lg border resize-none text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          <div className="flex items-center space-x-4">
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={supervisionContactFormData.isPrimary}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, isPrimary: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Primary Contact
+                              </span>
+                            </label>
+
+                            <label className="flex items-center space-x-2">
+                              <input
+                                type="checkbox"
+                                checked={supervisionContactFormData.isActive}
+                                onChange={(e) => setSupervisionContactFormData({ ...supervisionContactFormData, isActive: e.target.checked })}
+                                className="rounded"
+                              />
+                              <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                                Active Contact
+                              </span>
+                            </label>
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleSupervisionContactSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Add Contact</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowSupervisionContactForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Consultant Creation Form */}
+                    {showConsultantForm && (
+                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between mb-4">
+                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Create New Consultant
+                          </h4>
+                          <Button
+                            onClick={() => setShowConsultantForm(false)}
+                            variant="ghost"
+                            className="p-1"
+                          >
+                            <X className="w-4 h-4" />
+                          </Button>
+                        </div>
+
+                        <div className="space-y-3">
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Consultant Name *
+                              </label>
+                              <Input
+                                type="text"
+                                value={consultantFormData.name}
+                                onChange={(e) => setConsultantFormData({ ...consultantFormData, name: e.target.value })}
+                                required
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Email
+                              </label>
+                              <Input
+                                type="email"
+                                value={consultantFormData.email}
+                                onChange={(e) => setConsultantFormData({ ...consultantFormData, email: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Phone
+                              </label>
+                              <Input
+                                type="tel"
+                                value={consultantFormData.phone}
+                                onChange={(e) => setConsultantFormData({ ...consultantFormData, phone: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                Office Address
+                              </label>
+                              <Input
+                                type="text"
+                                value={consultantFormData.officeAddress}
+                                onChange={(e) => setConsultantFormData({ ...consultantFormData, officeAddress: e.target.value })}
+                                className="text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderColor: colors.grayLight,
+                                  color: colors.textPrimary
+                                }}
+                              />
+                            </div>
+                          </div>
+
+                          {/* Consultant Types */}
+                          <div>
+                            <label className="block text-xs font-medium mb-2" style={{ color: colors.textPrimary }}>
+                              Consultant Types *
+                            </label>
+                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                              {consultantTypes.map(type => {
+                                const isSelected = consultantFormData.selectedTypes?.includes(type.id) || false;
+                                
+                                return (
+                                  <label 
+                                    key={type.id} 
+                                    className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg transition-all duration-200"
+                                  >
+                                    <div className="relative">
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => handleConsultantTypeToggle(type.id)}
+                                        className="sr-only"
+                                      />
+                                      <div 
+                                        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                                          isSelected ? 'border-opacity-100' : 'border-opacity-50'
+                                        }`}
+                                        style={{
+                                          borderColor: colors.primary,
+                                          backgroundColor: isSelected ? colors.primary : 'transparent',
+                                        }}
+                                      >
+                                        {isSelected && (
+                                          <svg 
+                                            className="w-2 h-2" 
+                                            fill="none" 
+                                            stroke="currentColor" 
+                                            viewBox="0 0 24 24"
+                                            style={{ color: colors.textPrimary }}
+                                          >
+                                            <path 
+                                              strokeLinecap="round" 
+                                              strokeLinejoin="round" 
+                                              strokeWidth={2} 
+                                              d="M5 13l4 4L19 7" 
+                                            />
+                                          </svg>
+                                        )}
+                                      </div>
+                                    </div>
+                                    <span 
+                                      className="text-xs font-medium"
+                                      style={{ color: colors.textPrimary }}
+                                    >
+                                      {type.type}
+                                    </span>
+                                  </label>
+                                );
+                              })}
+                            </div>
+                            {(!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0) && (
+                              <p className="text-xs mt-1" style={{ color: colors.error }}>
+                                Please select at least one consultant type
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center space-x-3 pt-2">
+                            <Button
+                              type="button"
+                              onClick={handleConsultantSubmit}
+                              className="flex items-center space-x-2 text-sm px-3 py-1"
+                              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+                              disabled={!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0}
+                            >
+                              <Plus className="w-3 h-3" />
+                              <span>Create Consultant</span>
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => setShowConsultantForm(false)}
+                              variant="ghost"
+                              className="text-sm px-3 py-1"
+                              style={{ color: colors.textSecondary }}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Design Consultant Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <DraftingCompass className="w-5 h-5" style={{ color: colors.info }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Design Consultant</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        Design Consultant
+                      </label>
+                        <Button
+                          type="button"
+                          onClick={() => setShowConsultantForm(true)}
+                          variant="ghost"
+                          className="text-xs px-2 py-1"
+                          style={{ color: colors.textPrimary }}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          New Consultant
+                        </Button>
+                      </div>
+                      <select
+                        value={formData.designConsultantId || ''}
+                        onChange={(e) => {
+                          const consultantId = e.target.value ? parseInt(e.target.value) : undefined;
+                          setFormData({ ...formData, designConsultantId: consultantId });
+                          setDesignContactSearchTerm('');
+                          setShowDesignContactDropdown(false);
+                        }}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.grayLight,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select Design Consultant</option>
+                        {consultants.filter(c => c.types.some(t => t.type === 'Design')).map(consultant => (
+                          <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Design Contacts */}
+                    {formData.designConsultantId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Design Contacts
+                        </label>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const consultant = consultants.find(c => c.id === formData.designConsultantId);
+                              setContactModalData({
+                                consultantType: 'Design Consultant',
+                                consultantName: consultant?.name || 'Unknown',
+                                consultantId: formData.designConsultantId || 0,
+                              });
+                              setModalContactFormData({
+                                firstName: '',
+                                lastName: '',
+                                email: '',
+                                phone: '',
+                                position: '',
+                                notes: '',
+                                isPrimary: false,
+                                isActive: true, // Always active when created
+                                entityType: 'consultant',
+                                entityId: formData.designConsultantId,
+                              });
+                              setShowContactModal(true);
+                            }}
+                            variant="ghost"
+                            className="text-xs px-2 py-1"
+                            style={{ color: colors.textPrimary }}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Contact
+                          </Button>
+                        </div>
+                        
+                        {/* Pending Contacts Display */}
+                        {!editingProject && pendingContacts.filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design').length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>Selected Contacts</div>
+                            <div className="flex flex-wrap gap-2">
+                              {pendingContacts
+                                .filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design')
+                                .map((pendingContact, index) => {
+                                  const contact = contacts.find(c => c.id === pendingContact.contactId);
+                                return contact ? (
+                                  <div
+                                      key={index}
+                                      className="flex items-center space-x-3 py-2"
+                                    >
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                        {contact.firstName} {contact.lastName}
+                                      </span>
+                                      <label className="flex items-center space-x-2 cursor-pointer">
+                                        <input
+                                          type="radio"
+                                          name={`design-primary-${formData.designConsultantId}-design`}
+                                          checked={pendingContact.isPrimary}
+                                          onChange={() => {
+                                            // Set this contact as primary and unset others
+                                            setPendingContacts(prev => prev.map(pc => 
+                                              pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'
+                                                ? { ...pc, isPrimary: pc.contactId === contact.id }
+                                                : pc
+                                            ));
+                                          }}
+                                          className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                          style={{
+                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                            backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                            accentColor: colors.primary
+                                          }}
+                                        />
+                                        <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                      </label>
+                                    <button
+                                      type="button"
+                                        onClick={() => {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design')));
+                                        }}
+                                        className="hover:opacity-75 p-1"
+                                      >
+                                        <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Project Contacts */}
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId).length > 0 && (
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {projectContacts
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId)
+                                .map(projectContact => (
+                                  <div
+                                    key={projectContact.id}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {projectContact.contact.firstName} {projectContact.contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`design-primary-existing-${formData.designConsultantId}-design`}
+                                        checked={projectContact.isPrimary}
+                                        onChange={() => {
+                                          handleTogglePrimaryContact(projectContact.id, projectContact.isPrimary);
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveProjectContact(projectContact.id)}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contact Search */}
+                        <div className="relative design-contact-dropdown-container">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search design contacts..."
+                              value={designContactSearchTerm}
+                              onChange={(e) => setDesignContactSearchTerm(e.target.value)}
+                              onFocus={() => setShowDesignContactDropdown(true)}
+                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.grayLight,
+                                color: colors.textPrimary
+                              }}
+                            />
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
+                          </div>
+
+                          {/* Contact Dropdown */}
+                          {showDesignContactDropdown && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary }}
+                            >
+                              {getFilteredConsultantContacts(formData.designConsultantId, designContactSearchTerm).length > 0 ? (
+                                getFilteredConsultantContacts(formData.designConsultantId, designContactSearchTerm).map(contact => (
+                                  <div
+                                    key={contact.id}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
+                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    onClick={() => {
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId) ||
+                                                       (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'));
+                                      
+                                      if (isAssignedToThisType) {
+                                        if (editingProject) {
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId);
+                                          if (projectContact) {
+                                            handleRemoveProjectContact(projectContact.id);
+                                          }
+                                        } else {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design')));
+                                        }
+                                      } else {
+                                        handleAddExistingContactToProject(contact.id, false, 'consultant', formData.designConsultantId || 0, 'design');
+                                      }
+                                      setShowDesignContactDropdown(false);
+                                      setDesignContactSearchTerm('');
+                                    }}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <div>
+                                        <div className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {contact.firstName} {contact.lastName}
+                                        </div>
+                                        <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                          {contact.position} {contact.email && `• ${contact.email}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      {contact.isPrimary && (
+                                        <span className="px-2 py-1 text-xs rounded" style={{ backgroundColor: colors.warning, color: colors.textPrimary }}>
+                                          Primary
+                                        </span>
+                                      )}
+                                      <input
+                                        type="checkbox"
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId) || 
+                                                (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'))}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId) ||
+                                                           (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'));
+                                          
+                                          if (isAssignedToThisType) {
+                                            if (editingProject) {
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId);
+                                              if (projectContact) {
+                                                handleRemoveProjectContact(projectContact.id);
+                                              }
+                                            } else {
+                                              setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design')));
+                                            }
+                                          } else {
+                                            handleAddExistingContactToProject(contact.id, false, 'consultant', formData.designConsultantId || 0, 'design');
+                                          }
+                                          setShowDesignContactDropdown(false);
+                                          setDesignContactSearchTerm('');
+                                        }}
+                                        className="rounded"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-3 text-center text-sm" style={{ color: colors.textSecondary }}>
+                                  {designContactSearchTerm ? 'No contacts found matching your search.' : 'No contacts available for this consultant.'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Cost Consultant Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Calculator className="w-5 h-5" style={{ color: colors.warning }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Cost Consultant</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        Cost Consultant
+                      </label>
+                        <Button
+                          type="button"
+                          onClick={() => setShowConsultantForm(true)}
+                          variant="ghost"
+                          className="text-xs px-2 py-1"
+                          style={{ color: colors.textPrimary }}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          New Consultant
+                        </Button>
+                      </div>
+                      <select
+                        value={formData.costConsultantId || ''}
+                        onChange={(e) => {
+                          const consultantId = e.target.value ? parseInt(e.target.value) : undefined;
+                          setFormData({ ...formData, costConsultantId: consultantId });
+                          setCostContactSearchTerm('');
+                          setShowCostContactDropdown(false);
+                        }}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.grayLight,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select Cost Consultant</option>
+                        {consultants.filter(c => c.types.some(t => t.type === 'Cost')).map(consultant => (
+                          <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Cost Contacts */}
+                    {formData.costConsultantId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Cost Contacts
+                        </label>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const consultant = consultants.find(c => c.id === formData.costConsultantId);
+                              setContactModalData({
+                                consultantType: 'Cost Consultant',
+                                consultantName: consultant?.name || 'Unknown',
+                                consultantId: formData.costConsultantId || 0,
+                              });
+                              setModalContactFormData({
+                                firstName: '',
+                                lastName: '',
+                                email: '',
+                                phone: '',
+                                position: '',
+                                notes: '',
+                                isPrimary: false,
+                                isActive: true, // Always active when created
+                                entityType: 'consultant',
+                                entityId: formData.costConsultantId,
+                              });
+                              setShowContactModal(true);
+                            }}
+                            variant="ghost"
+                            className="text-xs px-2 py-1"
+                            style={{ color: colors.textPrimary }}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Contact
+                          </Button>
+                        </div>
+                        
+                        {/* Pending Contacts Display */}
+                        {!editingProject && pendingContacts.filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost').length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>Selected Contacts</div>
+                            <div className="flex flex-wrap gap-2">
+                              {pendingContacts
+                                .filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost')
+                                .map((pendingContact, index) => {
+                                  const contact = contacts.find(c => c.id === pendingContact.contactId);
+                                return contact ? (
+                                  <div
+                                    key={index}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {contact.firstName} {contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`cost-primary-${formData.costConsultantId}-cost`}
+                                        checked={pendingContact.isPrimary}
+                                        onChange={() => {
+                                          // Set this contact as primary and unset others
+                                          setPendingContacts(prev => prev.map(pc => 
+                                            pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'
+                                              ? { ...pc, isPrimary: pc.contactId === contact.id }
+                                              : pc
+                                          ));
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost')));
+                                      }}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Project Contacts */}
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId).length > 0 && (
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {projectContacts
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId)
+                                .map(projectContact => (
+                                  <div
+                                    key={projectContact.id}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {projectContact.contact.firstName} {projectContact.contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`cost-primary-existing-${formData.costConsultantId}-cost`}
+                                        checked={projectContact.isPrimary}
+                                        onChange={() => {
+                                          handleTogglePrimaryContact(projectContact.id, projectContact.isPrimary);
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveProjectContact(projectContact.id)}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contact Search */}
+                        <div className="relative cost-contact-dropdown-container">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search cost contacts..."
+                              value={costContactSearchTerm}
+                              onChange={(e) => setCostContactSearchTerm(e.target.value)}
+                              onFocus={() => setShowCostContactDropdown(true)}
+                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.grayLight,
+                                color: colors.textPrimary
+                              }}
+                            />
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
+                          </div>
+
+                          {/* Contact Dropdown */}
+                          {showCostContactDropdown && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary }}
+                            >
+                              {getFilteredConsultantContacts(formData.costConsultantId, costContactSearchTerm).length > 0 ? (
+                                getFilteredConsultantContacts(formData.costConsultantId, costContactSearchTerm).map(contact => (
+                                  <div
+                                    key={contact.id}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
+                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    onClick={() => {
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId) ||
+                                                       (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'));
+                                      if (isAssignedToThisType) {
+                                        if (editingProject) {
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId);
+                                          if (projectContact) {
+                                            handleRemoveProjectContact(projectContact.id);
+                                          }
+                                        } else {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost')));
+                                        }
+                                      } else {
+                                        handleAddExistingContactToProject(contact.id, false, 'consultant', formData.costConsultantId || 0, 'cost');
+                                      }
+                                      setShowCostContactDropdown(false);
+                                      setCostContactSearchTerm('');
+                                    }}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <div>
+                                        <div className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {contact.firstName} {contact.lastName}
+                                        </div>
+                                        <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                          {contact.position} {contact.email && `• ${contact.email}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId) || 
+                                                (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'))}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId) ||
+                                                           (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'));
+                                          
+                                          if (isAssignedToThisType) {
+                                            if (editingProject) {
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId);
+                                              if (projectContact) {
+                                                handleRemoveProjectContact(projectContact.id);
+                                              }
+                                            } else {
+                                              setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost')));
+                                            }
+                                          } else {
+                                            handleAddExistingContactToProject(contact.id, false, 'consultant', formData.costConsultantId || 0, 'cost');
+                                          }
+                                          setShowCostContactDropdown(false);
+                                          setCostContactSearchTerm('');
+                                        }}
+                                        className="rounded"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-3 text-center text-sm" style={{ color: colors.textSecondary }}>
+                                  {costContactSearchTerm ? 'No contacts found matching your search.' : 'No contacts available for this consultant.'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Supervision Consultant Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Eye className="w-5 h-5" style={{ color: colors.error }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Supervision Consultant</h3>
+                  </div>
+                  
+                  <div className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between mb-2">
+                        <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        Supervision Consultant
+                      </label>
+                        <Button
+                          type="button"
+                          onClick={() => setShowConsultantForm(true)}
+                          variant="ghost"
+                          className="text-xs px-2 py-1"
+                          style={{ color: colors.textPrimary }}
+                        >
+                          <Plus className="w-3 h-3 mr-1" />
+                          New Consultant
+                        </Button>
+                      </div>
+                      <select
+                        value={formData.supervisionConsultantId || ''}
+                        onChange={(e) => {
+                          const consultantId = e.target.value ? parseInt(e.target.value) : undefined;
+                          setFormData({ ...formData, supervisionConsultantId: consultantId });
+                          setSupervisionContactSearchTerm('');
+                          setShowSupervisionContactDropdown(false);
+                        }}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.grayLight,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select Supervision Consultant</option>
+                        {consultants.filter(c => c.types.some(t => t.type === 'Supervision')).map(consultant => (
+                          <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Supervision Contacts */}
+                    {formData.supervisionConsultantId && (
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Supervision Contacts
+                        </label>
+                          <Button
+                            type="button"
+                            onClick={() => {
+                              const consultant = consultants.find(c => c.id === formData.supervisionConsultantId);
+                              setContactModalData({
+                                consultantType: 'Supervision Consultant',
+                                consultantName: consultant?.name || 'Unknown',
+                                consultantId: formData.supervisionConsultantId || 0,
+                              });
+                              setModalContactFormData({
+                                firstName: '',
+                                lastName: '',
+                                email: '',
+                                phone: '',
+                                position: '',
+                                notes: '',
+                                isPrimary: false,
+                                isActive: true, // Always active when created
+                                entityType: 'consultant',
+                                entityId: formData.supervisionConsultantId,
+                              });
+                              setShowContactModal(true);
+                            }}
+                            variant="ghost"
+                            className="text-xs px-2 py-1"
+                            style={{ color: colors.textPrimary }}
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            Add Contact
+                          </Button>
+                        </div>
+                        
+                        {/* Pending Contacts Display */}
+                        {!editingProject && pendingContacts.filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision').length > 0 && (
+                          <div className="mb-3">
+                            <div className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>Selected Contacts</div>
+                            <div className="flex flex-wrap gap-2">
+                              {pendingContacts
+                                .filter(pc => pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision')
+                                .map((pendingContact, index) => {
+                                  const contact = contacts.find(c => c.id === pendingContact.contactId);
+                                return contact ? (
+                                  <div
+                                    key={index}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {contact.firstName} {contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`supervision-primary-${formData.supervisionConsultantId}-supervision`}
+                                        checked={pendingContact.isPrimary}
+                                        onChange={() => {
+                                          // Set this contact as primary and unset others
+                                          setPendingContacts(prev => prev.map(pc => 
+                                            pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'
+                                              ? { ...pc, isPrimary: pc.contactId === contact.id }
+                                              : pc
+                                          ));
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision')));
+                                      }}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ) : null;
+                              })}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Project Contacts */}
+                        {projectContacts.filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId).length > 0 && (
+                          <div className="mb-3">
+                            <div className="flex flex-wrap gap-2">
+                              {projectContacts
+                                .filter(pc => pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId)
+                                .map(projectContact => (
+                                  <div
+                                    key={projectContact.id}
+                                    className="flex items-center space-x-3 py-2"
+                                  >
+                                    <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="flex-1" style={{ color: colors.textPrimary }}>
+                                      {projectContact.contact.firstName} {projectContact.contact.lastName}
+                                    </span>
+                                    <label className="flex items-center space-x-2 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`supervision-primary-existing-${formData.supervisionConsultantId}-supervision`}
+                                        checked={projectContact.isPrimary}
+                                        onChange={() => {
+                                          handleTogglePrimaryContact(projectContact.id, projectContact.isPrimary);
+                                        }}
+                                        className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
+                                        style={{
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
+                                          accentColor: colors.primary
+                                        }}
+                                      />
+                                      <span className="text-sm" style={{ color: colors.textPrimary }}>Primary</span>
+                                    </label>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleRemoveProjectContact(projectContact.id)}
+                                      className="hover:opacity-75 p-1"
+                                    >
+                                      <X className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    </button>
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Contact Search */}
+                        <div className="relative supervision-contact-dropdown-container">
+                          <div className="relative">
+                            <input
+                              type="text"
+                              placeholder="Search supervision contacts..."
+                              value={supervisionContactSearchTerm}
+                              onChange={(e) => setSupervisionContactSearchTerm(e.target.value)}
+                              onFocus={() => setShowSupervisionContactDropdown(true)}
+                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.grayLight,
+                                color: colors.textPrimary
+                              }}
+                            />
+                            <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
+                          </div>
+
+                          {/* Contact Dropdown */}
+                          {showSupervisionContactDropdown && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary }}
+                            >
+                              {getFilteredConsultantContacts(formData.supervisionConsultantId, supervisionContactSearchTerm).length > 0 ? (
+                                getFilteredConsultantContacts(formData.supervisionConsultantId, supervisionContactSearchTerm).map(contact => (
+                                  <div
+                                    key={contact.id}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
+                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    onClick={() => {
+                                      const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId) ||
+                                                       (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'));
+                                      if (isAssignedToThisType) {
+                                        if (editingProject) {
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId);
+                                          if (projectContact) {
+                                            handleRemoveProjectContact(projectContact.id);
+                                          }
+                                        } else {
+                                          setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision')));
+                                        }
+                                      } else {
+                                        handleAddExistingContactToProject(contact.id, false, 'consultant', formData.supervisionConsultantId || 0, 'supervision');
+                                      }
+                                      setShowSupervisionContactDropdown(false);
+                                      setSupervisionContactSearchTerm('');
+                                    }}
+                                  >
+                                    <div className="flex items-center space-x-3">
+                                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <div>
+                                        <div className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {contact.firstName} {contact.lastName}
+                                        </div>
+                                        <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                          {contact.position} {contact.email && `• ${contact.email}`}
+                                        </div>
+                                      </div>
+                                    </div>
+                                    <div className="flex items-center space-x-2">
+                                      <input
+                                        type="checkbox"
+                                        checked={projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId) || 
+                                                (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'))}
+                                        onChange={(e) => {
+                                          e.stopPropagation();
+                                          const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId) ||
+                                                           (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'));
+                                          
+                                          if (isAssignedToThisType) {
+                                            if (editingProject) {
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId);
+                                              if (projectContact) {
+                                                handleRemoveProjectContact(projectContact.id);
+                                              }
+                                            } else {
+                                              setPendingContacts(prev => prev.filter(pc => !(pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision')));
+                                            }
+                                          } else {
+                                            handleAddExistingContactToProject(contact.id, false, 'consultant', formData.supervisionConsultantId || 0, 'supervision');
+                                          }
+                                          setShowSupervisionContactDropdown(false);
+                                          setSupervisionContactSearchTerm('');
+                                        }}
+                                        className="rounded"
+                                      />
+                                    </div>
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="p-3 text-center text-sm" style={{ color: colors.textSecondary }}>
+                                  {supervisionContactSearchTerm ? 'No contacts found matching your search.' : 'No contacts available for this consultant.'}
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Project Management Consultant
-                </label>
-                <select
-                  value={formData.projectManagementConsultantId || ''}
-                  onChange={(e) => setFormData({ ...formData, projectManagementConsultantId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select PMC</option>
-                  {consultants.filter(c => c.types.some(t => t.type === 'PMC')).map(consultant => (
-                    <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Design Consultant
-                </label>
-                <select
-                  value={formData.designConsultantId || ''}
-                  onChange={(e) => setFormData({ ...formData, designConsultantId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select Design Consultant</option>
-                  {consultants.filter(c => c.types.some(t => t.type === 'Design')).map(consultant => (
-                    <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Supervision Consultant
-                </label>
-                <select
-                  value={formData.supervisionConsultantId || ''}
-                  onChange={(e) => setFormData({ ...formData, supervisionConsultantId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select Supervision Consultant</option>
-                  {consultants.filter(c => c.types.some(t => t.type === 'Supervision')).map(consultant => (
-                    <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Cost Consultant
-                </label>
-                <select
-                  value={formData.costConsultantId || ''}
-                  onChange={(e) => setFormData({ ...formData, costConsultantId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select Cost Consultant</option>
-                  {consultants.filter(c => c.types.some(t => t.type === 'Cost')).map(consultant => (
-                    <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Project Director
                 </label>
+                  <Button
+                    type="button"
+                    onClick={() => setShowStaffForm(true)}
+                    variant="ghost"
+                    className="text-xs px-2 py-1"
+                    style={{ color: colors.textPrimary }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Staff
+                  </Button>
+                </div>
                 <select
                   value={formData.projectDirectorId || ''}
                   onChange={(e) => setFormData({ ...formData, projectDirectorId: e.target.value ? parseInt(e.target.value) : undefined })}
                   className="w-full p-3 rounded-lg border border-gray-200/10"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 >
@@ -504,16 +3921,28 @@ export default function ProjectManager() {
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Project Manager
                 </label>
+                  <Button
+                    type="button"
+                    onClick={() => setShowStaffForm(true)}
+                    variant="ghost"
+                    className="text-xs px-2 py-1"
+                    style={{ color: colors.textPrimary }}
+                  >
+                    <Plus className="w-3 h-3 mr-1" />
+                    Add Staff
+                  </Button>
+                </div>
                 <select
                   value={formData.projectManagerId || ''}
                   onChange={(e) => setFormData({ ...formData, projectManagerId: e.target.value ? parseInt(e.target.value) : undefined })}
                   className="w-full p-3 rounded-lg border border-gray-200/10"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 >
@@ -523,6 +3952,118 @@ export default function ProjectManager() {
                   ))}
                 </select>
               </div>
+
+              {/* Staff Creation Form */}
+              {showStaffForm && (
+                <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Add Company Staff
+                    </h4>
+                    <Button
+                      onClick={() => setShowStaffForm(false)}
+                      variant="ghost"
+                      className="p-1"
+                    >
+                      <X className="w-4 h-4" />
+                    </Button>
+                  </div>
+
+                  <div className="space-y-3">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                          Staff Name *
+                        </label>
+                        <Input
+                          type="text"
+                          value={staffFormData.staffName}
+                          onChange={(e) => setStaffFormData({ ...staffFormData, staffName: e.target.value })}
+                          required
+                          className="text-sm"
+                          style={{
+                            backgroundColor: colors.backgroundSecondary,
+                            borderColor: colors.grayLight,
+                            color: colors.textPrimary
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                          Position
+                        </label>
+                        <Input
+                          type="text"
+                          value={staffFormData.position}
+                          onChange={(e) => setStaffFormData({ ...staffFormData, position: e.target.value })}
+                          className="text-sm"
+                          style={{
+                            backgroundColor: colors.backgroundSecondary,
+                            borderColor: colors.grayLight,
+                            color: colors.textPrimary
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                          Email
+                        </label>
+                        <Input
+                          type="email"
+                          value={staffFormData.email}
+                          onChange={(e) => setStaffFormData({ ...staffFormData, email: e.target.value })}
+                          className="text-sm"
+                          style={{
+                            backgroundColor: colors.backgroundSecondary,
+                            borderColor: colors.grayLight,
+                            color: colors.textPrimary
+                          }}
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                          Phone
+                        </label>
+                        <Input
+                          type="tel"
+                          value={staffFormData.phone}
+                          onChange={(e) => setStaffFormData({ ...staffFormData, phone: e.target.value })}
+                          className="text-sm"
+                          style={{
+                            backgroundColor: colors.backgroundSecondary,
+                            borderColor: colors.grayLight,
+                            color: colors.textPrimary
+                          }}
+                        />
+                      </div>
+                    </div>
+
+                    <div className="flex items-center space-x-3 pt-2">
+                      <Button
+                        type="button"
+                        onClick={handleStaffSubmit}
+                        className="flex items-center space-x-2 text-sm px-3 py-1"
+                        style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+                      >
+                        <Plus className="w-3 h-3" />
+                        <span>Add Staff</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        onClick={() => setShowStaffForm(false)}
+                        variant="ghost"
+                        className="text-sm px-3 py-1"
+                        style={{ color: colors.textSecondary }}
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
@@ -534,7 +4075,7 @@ export default function ProjectManager() {
                   onChange={(e) => handleDateChange('startDate', e.target.value)}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -550,7 +4091,7 @@ export default function ProjectManager() {
                   onChange={(e) => handleDateChange('endDate', e.target.value)}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -587,7 +4128,7 @@ export default function ProjectManager() {
                   onChange={(e) => setFormData({ ...formData, eot: e.target.value })}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -605,7 +4146,7 @@ export default function ProjectManager() {
                 className="w-full p-3 rounded-lg border border-gray-200/10 resize-none"
                 style={{
                   backgroundColor: colors.backgroundPrimary,
-                  borderColor: 'rgba(229, 231, 235, 0.1)',
+                  borderColor: colors.grayLight,
                   color: colors.textPrimary
                 }}
               />
@@ -615,7 +4156,7 @@ export default function ProjectManager() {
               <Button
                 type="submit"
                 className="flex items-center space-x-2"
-                style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+                style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
               >
                 <Save className="w-4 h-4" />
                 <span>{editingProject ? 'Update Project' : 'Create Project'}</span>
@@ -639,10 +4180,9 @@ export default function ProjectManager() {
       {/* Projects List */}
       <div className="space-y-4">
         {filteredProjects.map((project) => (
-          <Card key={project.id} className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
-            <div className="flex items-start justify-between">
-              <div className="flex-1">
-                <div className="flex items-center space-x-3 mb-3">
+          <Card key={project.id} className="p-6 relative" style={{ backgroundColor: colors.backgroundSecondary }}>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-3">
                   <Building2 className="w-5 h-5" style={{ color: colors.primary }} />
                   <div>
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
@@ -655,7 +4195,7 @@ export default function ProjectManager() {
                 </div>
 
                 {project.projectDescription && (
-                  <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
                     {project.projectDescription}
                   </p>
                 )}
@@ -715,7 +4255,9 @@ export default function ProjectManager() {
                 </div>
               </div>
 
-              <div className="flex items-center space-x-2 ml-4">
+            {/* Action buttons positioned in lower right corner */}
+            <div className="absolute bottom-6 right-6">
+              <div className="flex items-center space-x-2">
                 <Button
                   onClick={() => handleEdit(project)}
                   variant="ghost"
@@ -748,6 +4290,190 @@ export default function ProjectManager() {
             {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first project'}
           </p>
         </Card>
+      )}
+
+      {/* Contact Creation Modal */}
+      {showContactModal && contactModalData && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border" style={{ 
+            backgroundColor: colors.backgroundSecondary,
+            borderColor: colors.grayLight
+          }}>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                  Add Contact for {contactModalData.consultantType}
+                </h3>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  {contactModalData.consultantName}
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowContactModal(false);
+                  setContactModalData(null);
+                  setModalContactFormData({
+                    firstName: '',
+                    lastName: '',
+                    email: '',
+                    phone: '',
+                    position: '',
+                    notes: '',
+                    isPrimary: false,
+                    isActive: true, // Always active when created
+                    entityType: 'consultant',
+                    entityId: undefined,
+                  });
+                }}
+                variant="ghost"
+                className="p-1"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    <span style={{ color: colors.error }}>*</span> First Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={modalContactFormData.firstName}
+                    onChange={(e) => setModalContactFormData({ ...modalContactFormData, firstName: e.target.value })}
+                    required
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.grayLight,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    <span style={{ color: colors.error }}>*</span> Last Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={modalContactFormData.lastName}
+                    onChange={(e) => setModalContactFormData({ ...modalContactFormData, lastName: e.target.value })}
+                    required
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.grayLight,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Email
+                  </label>
+                  <Input
+                    type="email"
+                    value={modalContactFormData.email}
+                    onChange={(e) => setModalContactFormData({ ...modalContactFormData, email: e.target.value })}
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.grayLight,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Phone
+                  </label>
+                  <Input
+                    type="tel"
+                    value={modalContactFormData.phone}
+                    onChange={(e) => setModalContactFormData({ ...modalContactFormData, phone: e.target.value })}
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.grayLight,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Position
+                  </label>
+                  <Input
+                    type="text"
+                    value={modalContactFormData.position}
+                    onChange={(e) => setModalContactFormData({ ...modalContactFormData, position: e.target.value })}
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.grayLight,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Notes
+                  </label>
+                  <textarea
+                    value={modalContactFormData.notes}
+                    onChange={(e) => setModalContactFormData({ ...modalContactFormData, notes: e.target.value })}
+                    rows={3}
+                    className="w-full p-3 rounded-lg border border-gray-200/10 resize-none"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.grayLight,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t" style={{ borderColor: colors.grayLight }}>
+                <Button
+                  onClick={() => {
+                    setShowContactModal(false);
+                    setContactModalData(null);
+                    setModalContactFormData({
+                      firstName: '',
+                      lastName: '',
+                      email: '',
+                      phone: '',
+                      position: '',
+                      notes: '',
+                      isPrimary: false,
+                      isActive: true, // Always active when created
+                      entityType: 'consultant',
+                      entityId: undefined,
+                    });
+                  }}
+                  variant="ghost"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleModalContactSubmit}
+                  className="flex items-center space-x-2"
+                  style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Contact</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

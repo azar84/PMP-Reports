@@ -89,7 +89,7 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
             )}
             style={{
               backgroundColor: variant === 'filled' ? 'var(--color-bg-secondary, #F9FAFB)' : 'transparent',
-              borderColor: hasError ? 'var(--color-error, #EF4444)' : 'rgba(229, 231, 235, 0.1)',
+              borderColor: hasError ? 'var(--color-error, #EF4444)' : 'var(--color-border-light, rgba(229, 231, 235, 0.1))',
               color: 'var(--color-text-primary, #1F2937)'
             }}
             ref={ref}

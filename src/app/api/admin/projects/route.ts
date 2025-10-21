@@ -5,7 +5,7 @@ import { prisma } from '@/lib/db';
 const projectSchema = z.object({
   projectCode: z.string().min(1, 'Project code is required'),
   projectName: z.string().min(1, 'Project name is required'),
-  projectDescription: z.string().optional(),
+  projectDescription: z.string().optional().or(z.literal('')),
   clientId: z.number().optional(),
   projectManagementConsultantId: z.number().optional(),
   designConsultantId: z.number().optional(),
@@ -13,10 +13,14 @@ const projectSchema = z.object({
   costConsultantId: z.number().optional(),
   projectDirectorId: z.number().optional(),
   projectManagerId: z.number().optional(),
-  startDate: z.string().optional(),
-  endDate: z.string().optional(),
-  duration: z.string().optional(),
-  eot: z.string().optional(),
+  startDate: z.string().optional().or(z.null()),
+  endDate: z.string().optional().or(z.null()),
+  duration: z.string().optional().or(z.literal('')),
+  eot: z.string().optional().or(z.literal('')),
+  contacts: z.array(z.object({
+    contactId: z.number(),
+    isPrimary: z.boolean().default(false),
+  })).optional().default([]),
 });
 
 // GET - Fetch all projects
@@ -53,27 +57,59 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = projectSchema.parse(body);
 
+    // Extract contacts from validated data
+    const { contacts, ...projectData } = validatedData;
+
     // Convert date strings to DateTime objects if provided
-    const projectData = {
-      ...validatedData,
-      startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
-      endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
+    const projectDataWithDates = {
+      ...projectData,
+      startDate: projectData.startDate ? new Date(projectData.startDate) : null,
+      endDate: projectData.endDate ? new Date(projectData.endDate) : null,
     };
 
-    const project = await prisma.project.create({
-      data: projectData,
-      include: {
-        client: true,
-        projectManagementConsultant: true,
-        designConsultant: true,
-        supervisionConsultant: true,
-        costConsultant: true,
-        projectDirector: true,
-        projectManager: true,
-      },
+    // Use transaction to create project and contacts atomically
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the project first
+      const project = await tx.project.create({
+        data: projectDataWithDates,
+        include: {
+          client: true,
+          projectManagementConsultant: true,
+          designConsultant: true,
+          supervisionConsultant: true,
+          costConsultant: true,
+          projectDirector: true,
+          projectManager: true,
+        },
+      });
+
+      // Create project contacts if any are provided
+      if (contacts && contacts.length > 0) {
+        // Use upsert to handle potential duplicates
+        for (const contact of contacts) {
+          await tx.projectContact.upsert({
+            where: {
+              projectId_contactId: {
+                projectId: project.id,
+                contactId: contact.contactId,
+              },
+            },
+            update: {
+              isPrimary: contact.isPrimary,
+            },
+            create: {
+              projectId: project.id,
+              contactId: contact.contactId,
+              isPrimary: contact.isPrimary,
+            },
+          });
+        }
+      }
+
+      return project;
     });
 
-    return NextResponse.json({ success: true, data: project });
+    return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Error creating project:', error);
     if (error instanceof z.ZodError) {

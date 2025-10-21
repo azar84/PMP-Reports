@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 const dynamicButtonStyles = `
   .btn-primary {
     background-color: var(--color-primary);
-    color: white;
+    color: var(--color-bg-primary);
     border: none;
   }
   .btn-primary:hover:not(:disabled) {
@@ -23,7 +23,7 @@ const dynamicButtonStyles = `
 
   .btn-secondary {
     background-color: var(--color-secondary);
-    color: white;
+    color: var(--color-bg-primary);
     border: 1px solid var(--color-secondary);
   }
   .btn-secondary:hover:not(:disabled) {
@@ -33,7 +33,7 @@ const dynamicButtonStyles = `
 
   .btn-accent {
     background-color: var(--color-accent);
-    color: white;
+    color: var(--color-bg-primary);
     border: none;
   }
   .btn-accent:hover:not(:disabled) {
@@ -54,7 +54,7 @@ const dynamicButtonStyles = `
 
   .btn-destructive {
     background-color: var(--color-error);
-    color: white;
+    color: var(--color-bg-primary);
     border: none;
   }
   .btn-destructive:hover:not(:disabled) {
@@ -64,7 +64,7 @@ const dynamicButtonStyles = `
 
   .btn-success {
     background-color: var(--color-success);
-    color: white;
+    color: var(--color-bg-primary);
     border: none;
   }
   .btn-success:hover:not(:disabled) {
@@ -74,7 +74,7 @@ const dynamicButtonStyles = `
 
   .btn-info {
     background-color: var(--color-info);
-    color: white;
+    color: var(--color-bg-primary);
     border: none;
   }
   .btn-info:hover:not(:disabled) {
