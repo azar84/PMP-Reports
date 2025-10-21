@@ -17,9 +17,11 @@ const projectSchema = z.object({
   endDate: z.string().optional().or(z.null()),
   duration: z.string().optional().or(z.literal('')),
   eot: z.string().optional().or(z.literal('')),
+  projectValue: z.number().positive().optional().or(z.null()),
   contacts: z.array(z.object({
     contactId: z.number(),
     isPrimary: z.boolean().default(false),
+    consultantType: z.string().optional(), // 'pmc', 'design', 'supervision', 'cost'
   })).optional().default([]),
 });
 
@@ -96,11 +98,13 @@ export async function POST(request: NextRequest) {
             },
             update: {
               isPrimary: contact.isPrimary,
+              consultantType: contact.consultantType || undefined,
             },
             create: {
               projectId: project.id,
               contactId: contact.contactId,
               isPrimary: contact.isPrimary,
+              consultantType: contact.consultantType || undefined,
             },
           });
         }

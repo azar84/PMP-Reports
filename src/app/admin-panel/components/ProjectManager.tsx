@@ -47,6 +47,7 @@ interface Project {
   endDate?: string;
   duration?: string;
   eot?: string;
+  projectValue?: number;
   lastUpdate: string;
   createdAt: string;
   updatedAt: string;
@@ -103,6 +104,8 @@ export default function ProjectManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
+  const [showDetailView, setShowDetailView] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -131,6 +134,7 @@ export default function ProjectManager() {
     consultantName: string;
     consultantId: number;
   } | null>(null);
+  const [showConsultantModal, setShowConsultantModal] = useState(false);
   const [clientContactFormData, setClientContactFormData] = useState<Partial<Contact>>({
     firstName: '',
     lastName: '',
@@ -251,6 +255,7 @@ export default function ProjectManager() {
     endDate: '',
     duration: '',
     eot: '',
+    projectValue: undefined,
   });
 
   useEffect(() => {
@@ -390,20 +395,12 @@ export default function ProjectManager() {
         ...formData,
         startDate: formData.startDate || null,
         endDate: formData.endDate || null,
-        // Include contacts for new projects (deduplicated)
-        contacts: editingProject ? undefined : (() => {
-          const uniqueContacts = new Map();
-          pendingContacts.forEach(pc => {
-            const key = pc.contactId;
-            if (!uniqueContacts.has(key) || pc.isPrimary) {
-              uniqueContacts.set(key, {
-                contactId: pc.contactId,
-                isPrimary: pc.isPrimary,
-              });
-            }
-          });
-          return Array.from(uniqueContacts.values());
-        })(),
+        // Include contacts for new projects (with consultant type)
+        contacts: editingProject ? undefined : pendingContacts.map(pc => ({
+          contactId: pc.contactId,
+          isPrimary: pc.isPrimary,
+          consultantType: pc.consultantType,
+        })),
       };
 
       if (editingProject) {
@@ -505,6 +502,35 @@ export default function ProjectManager() {
     }
   };
 
+  const handleViewDetails = (project: Project) => {
+    setSelectedProject(project);
+    setShowDetailView(true);
+    // Fetch project contacts for this project
+    fetchProjectContacts(project.id);
+  };
+
+  const handleBackToList = () => {
+    setShowDetailView(false);
+    setSelectedProject(null);
+    setProjectContacts([]);
+  };
+
+  // Helper function to check if a contact is primary for a specific consultant type
+  const isPrimaryForConsultantType = (projectContact: any, consultantId: number, consultantType: string) => {
+    // Get all contacts for this specific consultant and consultant type
+    const consultantContacts = projectContacts.filter(pc => 
+      pc.contact.entityType === 'consultant' && 
+      pc.contact.entityId === consultantId &&
+      pc.consultantType === consultantType
+    );
+    
+    // Find the primary contact for this consultant and consultant type
+    const primaryContact = consultantContacts.find(pc => pc.isPrimary);
+    
+    // Return true if this contact is the primary one for this consultant and consultant type
+    return primaryContact && primaryContact.id === projectContact.id;
+  };
+
   const handleEdit = (project: Project) => {
     setEditingProject(project);
     setSelectedContacts([]);
@@ -530,6 +556,7 @@ export default function ProjectManager() {
       endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '',
       duration: project.duration || '',
       eot: project.eot || '',
+      projectValue: project.projectValue || undefined,
     });
     setShowForm(true);
   };
@@ -575,6 +602,7 @@ export default function ProjectManager() {
           projectId: editingProject.id,
           contactId: contactId,
           isPrimary: isPrimary,
+          consultantType: consultantType,
         });
         
         if (response.success) {
@@ -656,6 +684,7 @@ export default function ProjectManager() {
       if (response.success) {
         setConsultants([response.data, ...consultants]);
         setShowConsultantForm(false);
+        setShowConsultantModal(false);
         setConsultantFormData({
           name: '',
           officeAddress: '',
@@ -918,11 +947,24 @@ export default function ProjectManager() {
         setContacts([response.data, ...contacts]);
         
         // Create project contact relationship
-        if (editingProject?.id) {
+        if (editingProject?.id && contactModalData) {
+          // Determine consultant type based on contactModalData
+          let consultantType = null;
+          if (contactModalData.consultantType === 'Project Management Consultant') {
+            consultantType = 'pmc';
+          } else if (contactModalData.consultantType === 'Design Consultant') {
+            consultantType = 'design';
+          } else if (contactModalData.consultantType === 'Cost Consultant') {
+            consultantType = 'cost';
+          } else if (contactModalData.consultantType === 'Supervision Consultant') {
+            consultantType = 'supervision';
+          }
+          
           const projectContactData = {
             projectId: editingProject.id,
             contactId: response.data.id,
             isPrimary: false, // Always false when creating - can be set later via radio buttons
+            consultantType: consultantType,
           };
           
           await post('/api/admin/project-contacts', projectContactData);
@@ -993,25 +1035,491 @@ export default function ProjectManager() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
+      {showDetailView && selectedProject ? (
+        // Project Detail View
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-            Project Management
-          </h1>
-          <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Manage your projects, consultants, and timelines
-          </p>
+          {/* Detail View Header */}
+          <div className="flex items-center justify-between mb-6">
+            <div className="flex items-center space-x-4">
+              <Button
+                onClick={handleBackToList}
+                variant="ghost"
+                className="p-2"
+                style={{ color: colors.textMuted }}
+              >
+                <ArrowLeft className="w-5 h-5" />
+              </Button>
+              <div>
+                <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                  {selectedProject.projectName}
+                </h1>
+                <p className="text-sm" style={{ color: colors.textMuted }}>
+                  Project Code: {selectedProject.projectCode}
+                </p>
+              </div>
+            </div>
+            <Button
+              onClick={() => {
+                setShowDetailView(false);
+                handleEdit(selectedProject);
+              }}
+              className="flex items-center space-x-2"
+              style={{ backgroundColor: colors.primary, color: 'white' }}
+            >
+              <Edit className="w-4 h-4" />
+              <span>Edit Project</span>
+            </Button>
+          </div>
+
+          {/* Project Details Grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+            {/* Basic Information */}
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-6 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                <Building2 className="w-5 h-5" />
+                <span>Basic Information</span>
+              </h2>
+              <div className="space-y-4">
+                <div>
+                  <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Project Code</span>
+                  <p className="text-lg" style={{ color: colors.textPrimary }}>{selectedProject.projectCode}</p>
+                </div>
+                <div>
+                  <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Project Name</span>
+                  <p className="text-lg" style={{ color: colors.textPrimary }}>{selectedProject.projectName}</p>
+                </div>
+                {selectedProject.projectDescription && (
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Description</span>
+                    <p style={{ color: colors.textPrimary }}>{selectedProject.projectDescription}</p>
+                  </div>
+                )}
+                {selectedProject.projectValue && (
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Project Value</span>
+                    <p className="text-xl font-semibold" style={{ color: colors.primary }}>
+                      ${selectedProject.projectValue.toLocaleString('en-US', { 
+                        minimumFractionDigits: 2, 
+                        maximumFractionDigits: 2 
+                      })}
+                    </p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Timeline Information */}
+            <Card className="p-6">
+              <h2 className="text-xl font-semibold mb-6 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                <Calendar className="w-5 h-5" />
+                <span>Timeline</span>
+              </h2>
+              <div className="space-y-4">
+                {selectedProject.startDate && (
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Start Date</span>
+                    <p style={{ color: colors.textPrimary }}>
+                      {new Date(selectedProject.startDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                )}
+                {selectedProject.endDate && (
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>End Date</span>
+                    <p style={{ color: colors.textPrimary }}>
+                      {new Date(selectedProject.endDate).toLocaleDateString('en-US', {
+                        year: 'numeric',
+                        month: 'long',
+                        day: 'numeric'
+                      })}
+                    </p>
+                  </div>
+                )}
+                {selectedProject.duration && (
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Duration</span>
+                    <p style={{ color: colors.textPrimary }}>{selectedProject.duration}</p>
+                  </div>
+                )}
+                {selectedProject.eot && (
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Extension of Time</span>
+                    <p style={{ color: colors.textPrimary }}>{selectedProject.eot}</p>
+                  </div>
+                )}
+              </div>
+            </Card>
+
+            {/* Client Information */}
+            {selectedProject.client && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-6 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                  <Building2 className="w-5 h-5" />
+                  <span>Client Information</span>
+                </h2>
+                <div className="space-y-4">
+                  <div>
+                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Client Name</span>
+                    <p className="text-lg" style={{ color: colors.textPrimary }}>{selectedProject.client.name}</p>
+                  </div>
+                  
+                  {/* Client Contacts */}
+                  {projectContacts.filter(pc => pc.contact.entityType === 'client' && pc.contact.entityId === selectedProject.clientId).length > 0 && (
+                    <div className="mt-4">
+                      <h3 className="text-lg font-medium mb-3" style={{ color: colors.textPrimary }}>Client Contacts</h3>
+                      <div className="ml-6 space-y-2">
+                        {projectContacts
+                          .filter(pc => pc.contact.entityType === 'client' && pc.contact.entityId === selectedProject.clientId)
+                          .map((projectContact) => (
+                            <div 
+                              key={projectContact.id} 
+                              className="flex items-center justify-between py-2"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <div>
+                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {projectContact.contact.firstName} {projectContact.contact.lastName}
+                                  </p>
+                                  {projectContact.contact.email && (
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                      {projectContact.contact.email}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {projectContact.isPrimary && (
+                                <span 
+                                  className="px-2 py-1 text-xs rounded-full" 
+                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                >
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Project Team - Only Staff */}
+            {(selectedProject.projectDirector || selectedProject.projectManager) && (
+              <Card className="p-6">
+                <h2 className="text-xl font-semibold mb-6 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                  <Users className="w-5 h-5" />
+                  <span>Project Team</span>
+                </h2>
+                <div className="space-y-4">
+                  {selectedProject.projectDirector && (
+                    <div className="flex items-center space-x-3">
+                      <User className="w-5 h-5" style={{ color: colors.textMuted }} />
+                      <div>
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Project Director</span>
+                        <p style={{ color: colors.textPrimary }}>{selectedProject.projectDirector.staffName}</p>
+                        {selectedProject.projectDirector.position && (
+                          <p className="text-sm" style={{ color: colors.textMuted }}>{selectedProject.projectDirector.position}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  {selectedProject.projectManager && (
+                    <div className="flex items-center space-x-3">
+                      <User className="w-5 h-5" style={{ color: colors.textMuted }} />
+                      <div>
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Project Manager</span>
+                        <p style={{ color: colors.textPrimary }}>{selectedProject.projectManager.staffName}</p>
+                        {selectedProject.projectManager.position && (
+                          <p className="text-sm" style={{ color: colors.textMuted }}>{selectedProject.projectManager.position}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+          </div>
+
+          {/* Consultants with Contacts */}
+          {(selectedProject.projectManagementConsultant || selectedProject.designConsultant || selectedProject.supervisionConsultant || selectedProject.costConsultant) && (
+            <div className="space-y-6">
+              <h2 className="text-xl font-semibold flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                <Users className="w-5 h-5" />
+                <span>Consultants</span>
+              </h2>
+              
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* Project Management Consultant Card */}
+                {selectedProject.projectManagementConsultant && (
+                  <Card className="p-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <HardHat className="w-5 h-5" style={{ color: colors.textMuted }} />
+                      <div>
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Project Management Consultant</span>
+                        <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{selectedProject.projectManagementConsultant.name}</p>
+                      </div>
+                    </div>
+                    {/* PMC Contacts */}
+                    <div className="space-y-2">
+                      {contacts
+                        .filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.projectManagementConsultantId && contact.isActive)
+                        .filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'pmc'))
+                        .map((contact) => {
+                          const projectContact = projectContacts.find(pc => pc.contactId === contact.id && pc.consultantType === 'pmc');
+                          return (
+                            <div 
+                              key={contact.id} 
+                              className="flex items-center justify-between py-2"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <div>
+                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {contact.firstName} {contact.lastName}
+                                  </p>
+                                  {contact.email && (
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                      {contact.email}
+                                    </p>
+                                  )}
+                                  {contact.position && (
+                                    <p className="text-xs" style={{ color: colors.textMuted }}>
+                                      {contact.position}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {projectContact && projectContact.isPrimary && (
+                                <span 
+                                  className="px-2 py-1 text-xs rounded-full" 
+                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                >
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      {contacts.filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.projectManagementConsultantId && contact.isActive).filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'pmc')).length === 0 && (
+                        <p className="text-sm text-center py-4" style={{ color: colors.textMuted }}>
+                          No contacts assigned to this project
+                        </p>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Design Consultant Card */}
+                {selectedProject.designConsultant && (
+                  <Card className="p-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <DraftingCompass className="w-5 h-5" style={{ color: colors.textMuted }} />
+                      <div>
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Design Consultant</span>
+                        <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{selectedProject.designConsultant.name}</p>
+                      </div>
+                    </div>
+                    {/* Design Contacts */}
+                    <div className="space-y-2">
+                      {contacts
+                        .filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.designConsultantId && contact.isActive)
+                        .filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'design'))
+                        .map((contact) => {
+                          const projectContact = projectContacts.find(pc => pc.contactId === contact.id && pc.consultantType === 'design');
+                          return (
+                            <div 
+                              key={contact.id} 
+                              className="flex items-center justify-between py-2"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <div>
+                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {contact.firstName} {contact.lastName}
+                                  </p>
+                                  {contact.email && (
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                      {contact.email}
+                                    </p>
+                                  )}
+                                  {contact.position && (
+                                    <p className="text-xs" style={{ color: colors.textMuted }}>
+                                      {contact.position}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {projectContact && projectContact.isPrimary && (
+                                <span 
+                                  className="px-2 py-1 text-xs rounded-full" 
+                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                >
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      {contacts.filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.designConsultantId && contact.isActive).filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'design')).length === 0 && (
+                        <p className="text-sm text-center py-4" style={{ color: colors.textMuted }}>
+                          No contacts assigned to this project
+                        </p>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Supervision Consultant Card */}
+                {selectedProject.supervisionConsultant && (
+                  <Card className="p-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <Eye className="w-5 h-5" style={{ color: colors.textMuted }} />
+                      <div>
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Supervision Consultant</span>
+                        <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{selectedProject.supervisionConsultant.name}</p>
+                      </div>
+                    </div>
+                    {/* Supervision Contacts */}
+                    <div className="space-y-2">
+                      {contacts
+                        .filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.supervisionConsultantId && contact.isActive)
+                        .filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'supervision'))
+                        .map((contact) => {
+                          const projectContact = projectContacts.find(pc => pc.contactId === contact.id && pc.consultantType === 'supervision');
+                          return (
+                            <div 
+                              key={contact.id} 
+                              className="flex items-center justify-between py-2"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <div>
+                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {contact.firstName} {contact.lastName}
+                                  </p>
+                                  {contact.email && (
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                      {contact.email}
+                                    </p>
+                                  )}
+                                  {contact.position && (
+                                    <p className="text-xs" style={{ color: colors.textMuted }}>
+                                      {contact.position}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {projectContact && projectContact.isPrimary && (
+                                <span 
+                                  className="px-2 py-1 text-xs rounded-full" 
+                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                >
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      {contacts.filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.supervisionConsultantId && contact.isActive).filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'supervision')).length === 0 && (
+                        <p className="text-sm text-center py-4" style={{ color: colors.textMuted }}>
+                          No contacts assigned to this project
+                        </p>
+                      )}
+                    </div>
+                  </Card>
+                )}
+
+                {/* Cost Consultant Card */}
+                {selectedProject.costConsultant && (
+                  <Card className="p-6">
+                    <div className="flex items-center space-x-3 mb-4">
+                      <Calculator className="w-5 h-5" style={{ color: colors.textMuted }} />
+                      <div>
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Cost Consultant</span>
+                        <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>{selectedProject.costConsultant.name}</p>
+                      </div>
+                    </div>
+                    {/* Cost Contacts */}
+                    <div className="space-y-2">
+                      {contacts
+                        .filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.costConsultantId && contact.isActive)
+                        .filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'cost'))
+                        .map((contact) => {
+                          const projectContact = projectContacts.find(pc => pc.contactId === contact.id && pc.consultantType === 'cost');
+                          return (
+                            <div 
+                              key={contact.id} 
+                              className="flex items-center justify-between py-2"
+                            >
+                              <div className="flex items-center space-x-3">
+                                <User className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <div>
+                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {contact.firstName} {contact.lastName}
+                                  </p>
+                                  {contact.email && (
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                      {contact.email}
+                                    </p>
+                                  )}
+                                  {contact.position && (
+                                    <p className="text-xs" style={{ color: colors.textMuted }}>
+                                      {contact.position}
+                                    </p>
+                                  )}
+                                </div>
+                              </div>
+                              {projectContact && projectContact.isPrimary && (
+                                <span 
+                                  className="px-2 py-1 text-xs rounded-full" 
+                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                >
+                                  Primary
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      {contacts.filter(contact => contact.entityType === 'consultant' && contact.entityId === selectedProject.costConsultantId && contact.isActive).filter(contact => projectContacts.some(pc => pc.contactId === contact.id && pc.consultantType === 'cost')).length === 0 && (
+                        <p className="text-sm text-center py-4" style={{ color: colors.textMuted }}>
+                          No contacts assigned to this project
+                        </p>
+                      )}
+                    </div>
+                  </Card>
+                )}
+              </div>
+            </div>
+          )}
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2"
-          style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Project</span>
-        </Button>
-      </div>
+      ) : (
+        // Project List View
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                Project Management
+              </h1>
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                Manage your projects, consultants, and timelines
+              </p>
+            </div>
+            <Button
+              onClick={() => setShowForm(true)}
+              className="flex items-center space-x-2"
+              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+            >
+              <Plus className="w-4 h-4" />
+              <span>Add Project</span>
+            </Button>
+          </div>
 
       {/* Search */}
       <div className="relative">
@@ -1091,7 +1599,6 @@ export default function ProjectManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -1108,7 +1615,6 @@ export default function ProjectManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -1151,7 +1657,6 @@ export default function ProjectManager() {
                         className="w-full p-3 rounded-lg border border-gray-200/10"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          borderColor: colors.grayLight,
                           color: colors.textPrimary
                         }}
                       >
@@ -1207,7 +1712,7 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                       key={index}
-                                      className="flex items-center space-x-3 py-2"
+                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                     >
                                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -1260,7 +1765,7 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -1308,7 +1813,6 @@ export default function ProjectManager() {
                               className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                borderColor: colors.grayLight,
                                 color: colors.textPrimary
                               }}
                             />
@@ -1432,7 +1936,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1450,7 +1953,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1467,7 +1969,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1484,7 +1985,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1501,7 +2001,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1518,7 +2017,6 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1579,7 +2077,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1596,7 +2093,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1613,7 +2109,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1630,7 +2125,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1680,7 +2174,7 @@ export default function ProjectManager() {
                       </label>
                         <Button
                           type="button"
-                          onClick={() => setShowConsultantForm(true)}
+                          onClick={() => setShowConsultantModal(true)}
                           variant="ghost"
                           className="text-xs px-2 py-1"
                           style={{ color: colors.textPrimary }}
@@ -1700,12 +2194,11 @@ export default function ProjectManager() {
                         className="w-full p-3 rounded-lg border border-gray-200/10"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          borderColor: colors.grayLight,
                           color: colors.textPrimary
                         }}
                       >
                         <option value="">Select PMC</option>
-                        {consultants.filter(c => c.types.some(t => t.type === 'PMC')).map(consultant => (
+                        {consultants.filter(c => c.types.some(t => t.type === 'Project Management')).map(consultant => (
                           <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
                         ))}
                       </select>
@@ -1762,7 +2255,7 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                       key={index}
-                                      className="flex items-center space-x-3 py-2"
+                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                     >
                                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -1815,7 +2308,7 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -1863,7 +2356,6 @@ export default function ProjectManager() {
                               className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                borderColor: colors.grayLight,
                                 color: colors.textPrimary
                               }}
                             />
@@ -1888,7 +2380,7 @@ export default function ProjectManager() {
                                       
                                       if (isAssignedToThisType) {
                                         if (editingProject) {
-                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId);
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc');
                                           if (projectContact) {
                                             handleRemoveProjectContact(projectContact.id);
                                           }
@@ -1930,7 +2422,7 @@ export default function ProjectManager() {
                                           
                                           if (isAssignedToThisType) {
                                             if (editingProject) {
-                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId);
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc');
                                               if (projectContact) {
                                                 handleRemoveProjectContact(projectContact.id);
                                               }
@@ -1989,7 +2481,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2007,7 +2498,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2024,7 +2514,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2041,7 +2530,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2058,7 +2546,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2075,7 +2562,6 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2162,7 +2648,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2180,7 +2665,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2197,7 +2681,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2214,7 +2697,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2231,7 +2713,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2248,7 +2729,6 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2335,7 +2815,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2353,7 +2832,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2370,7 +2848,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2387,7 +2864,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2404,7 +2880,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2421,7 +2896,6 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2508,7 +2982,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2526,7 +2999,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2543,7 +3015,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2560,7 +3031,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2577,7 +3047,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2594,7 +3063,6 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2681,7 +3149,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2699,7 +3166,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2716,7 +3182,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2733,7 +3198,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2750,7 +3214,6 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2767,7 +3230,6 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -2824,183 +3286,6 @@ export default function ProjectManager() {
                       </div>
                     )}
 
-                    {/* Consultant Creation Form */}
-                    {showConsultantForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-between mb-4">
-                          <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
-                            Create New Consultant
-                          </h4>
-                          <Button
-                            onClick={() => setShowConsultantForm(false)}
-                            variant="ghost"
-                            className="p-1"
-                          >
-                            <X className="w-4 h-4" />
-                          </Button>
-                        </div>
-
-                        <div className="space-y-3">
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            <div>
-                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
-                                Consultant Name *
-                              </label>
-                              <Input
-                                type="text"
-                                value={consultantFormData.name}
-                                onChange={(e) => setConsultantFormData({ ...consultantFormData, name: e.target.value })}
-                                required
-                                className="text-sm"
-                                style={{
-                                  backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
-                                  color: colors.textPrimary
-                                }}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
-                                Email
-                              </label>
-                              <Input
-                                type="email"
-                                value={consultantFormData.email}
-                                onChange={(e) => setConsultantFormData({ ...consultantFormData, email: e.target.value })}
-                                className="text-sm"
-                                style={{
-                                  backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
-                                  color: colors.textPrimary
-                                }}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
-                                Phone
-                              </label>
-                              <Input
-                                type="tel"
-                                value={consultantFormData.phone}
-                                onChange={(e) => setConsultantFormData({ ...consultantFormData, phone: e.target.value })}
-                                className="text-sm"
-                                style={{
-                                  backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
-                                  color: colors.textPrimary
-                                }}
-                              />
-                            </div>
-
-                            <div>
-                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
-                                Office Address
-                              </label>
-                              <Input
-                                type="text"
-                                value={consultantFormData.officeAddress}
-                                onChange={(e) => setConsultantFormData({ ...consultantFormData, officeAddress: e.target.value })}
-                                className="text-sm"
-                                style={{
-                                  backgroundColor: colors.backgroundSecondary,
-                                  borderColor: colors.grayLight,
-                                  color: colors.textPrimary
-                                }}
-                              />
-                            </div>
-                          </div>
-
-                          {/* Consultant Types */}
-                          <div>
-                            <label className="block text-xs font-medium mb-2" style={{ color: colors.textPrimary }}>
-                              Consultant Types *
-                            </label>
-                            <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                              {consultantTypes.map(type => {
-                                const isSelected = consultantFormData.selectedTypes?.includes(type.id) || false;
-                                
-                                return (
-                                  <label 
-                                    key={type.id} 
-                                    className="flex items-center space-x-2 cursor-pointer p-2 rounded-lg transition-all duration-200"
-                                  >
-                                    <div className="relative">
-                                      <input
-                                        type="checkbox"
-                                        checked={isSelected}
-                                        onChange={() => handleConsultantTypeToggle(type.id)}
-                                        className="sr-only"
-                                      />
-                                      <div 
-                                        className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${
-                                          isSelected ? 'border-opacity-100' : 'border-opacity-50'
-                                        }`}
-                                        style={{
-                                          borderColor: colors.primary,
-                                          backgroundColor: isSelected ? colors.primary : 'transparent',
-                                        }}
-                                      >
-                                        {isSelected && (
-                                          <svg 
-                                            className="w-2 h-2" 
-                                            fill="none" 
-                                            stroke="currentColor" 
-                                            viewBox="0 0 24 24"
-                                            style={{ color: colors.textPrimary }}
-                                          >
-                                            <path 
-                                              strokeLinecap="round" 
-                                              strokeLinejoin="round" 
-                                              strokeWidth={2} 
-                                              d="M5 13l4 4L19 7" 
-                                            />
-                                          </svg>
-                                        )}
-                                      </div>
-                                    </div>
-                                    <span 
-                                      className="text-xs font-medium"
-                                      style={{ color: colors.textPrimary }}
-                                    >
-                                      {type.type}
-                                    </span>
-                                  </label>
-                                );
-                              })}
-                            </div>
-                            {(!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0) && (
-                              <p className="text-xs mt-1" style={{ color: colors.error }}>
-                                Please select at least one consultant type
-                              </p>
-                            )}
-                          </div>
-
-                          <div className="flex items-center space-x-3 pt-2">
-                            <Button
-                              type="button"
-                              onClick={handleConsultantSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
-                              disabled={!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0}
-                            >
-                              <Plus className="w-3 h-3" />
-                              <span>Create Consultant</span>
-                            </Button>
-                            <Button
-                              type="button"
-                              onClick={() => setShowConsultantForm(false)}
-                              variant="ghost"
-                              className="text-sm px-3 py-1"
-                              style={{ color: colors.textSecondary }}
-                            >
-                              Cancel
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
               </div>
@@ -3021,7 +3306,7 @@ export default function ProjectManager() {
                       </label>
                         <Button
                           type="button"
-                          onClick={() => setShowConsultantForm(true)}
+                          onClick={() => setShowConsultantModal(true)}
                           variant="ghost"
                           className="text-xs px-2 py-1"
                           style={{ color: colors.textPrimary }}
@@ -3041,7 +3326,6 @@ export default function ProjectManager() {
                         className="w-full p-3 rounded-lg border border-gray-200/10"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          borderColor: colors.grayLight,
                           color: colors.textPrimary
                         }}
                       >
@@ -3103,7 +3387,7 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                       key={index}
-                                      className="flex items-center space-x-3 py-2"
+                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                     >
                                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3156,7 +3440,7 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3204,7 +3488,6 @@ export default function ProjectManager() {
                               className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                borderColor: colors.grayLight,
                                 color: colors.textPrimary
                               }}
                             />
@@ -3229,7 +3512,7 @@ export default function ProjectManager() {
                                       
                                       if (isAssignedToThisType) {
                                         if (editingProject) {
-                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId);
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design');
                                           if (projectContact) {
                                             handleRemoveProjectContact(projectContact.id);
                                           }
@@ -3271,7 +3554,7 @@ export default function ProjectManager() {
                                           
                                           if (isAssignedToThisType) {
                                             if (editingProject) {
-                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId);
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design');
                                               if (projectContact) {
                                                 handleRemoveProjectContact(projectContact.id);
                                               }
@@ -3319,7 +3602,7 @@ export default function ProjectManager() {
                       </label>
                         <Button
                           type="button"
-                          onClick={() => setShowConsultantForm(true)}
+                          onClick={() => setShowConsultantModal(true)}
                           variant="ghost"
                           className="text-xs px-2 py-1"
                           style={{ color: colors.textPrimary }}
@@ -3339,7 +3622,6 @@ export default function ProjectManager() {
                         className="w-full p-3 rounded-lg border border-gray-200/10"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          borderColor: colors.grayLight,
                           color: colors.textPrimary
                         }}
                       >
@@ -3401,7 +3683,7 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                     key={index}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3454,7 +3736,7 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3502,7 +3784,6 @@ export default function ProjectManager() {
                               className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                borderColor: colors.grayLight,
                                 color: colors.textPrimary
                               }}
                             />
@@ -3526,7 +3807,7 @@ export default function ProjectManager() {
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'));
                                       if (isAssignedToThisType) {
                                         if (editingProject) {
-                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId);
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost');
                                           if (projectContact) {
                                             handleRemoveProjectContact(projectContact.id);
                                           }
@@ -3563,7 +3844,7 @@ export default function ProjectManager() {
                                           
                                           if (isAssignedToThisType) {
                                             if (editingProject) {
-                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId);
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost');
                                               if (projectContact) {
                                                 handleRemoveProjectContact(projectContact.id);
                                               }
@@ -3611,7 +3892,7 @@ export default function ProjectManager() {
                       </label>
                         <Button
                           type="button"
-                          onClick={() => setShowConsultantForm(true)}
+                          onClick={() => setShowConsultantModal(true)}
                           variant="ghost"
                           className="text-xs px-2 py-1"
                           style={{ color: colors.textPrimary }}
@@ -3631,7 +3912,6 @@ export default function ProjectManager() {
                         className="w-full p-3 rounded-lg border border-gray-200/10"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          borderColor: colors.grayLight,
                           color: colors.textPrimary
                         }}
                       >
@@ -3693,7 +3973,7 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                     key={index}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3746,7 +4026,7 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3794,7 +4074,6 @@ export default function ProjectManager() {
                               className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                borderColor: colors.grayLight,
                                 color: colors.textPrimary
                               }}
                             />
@@ -3818,7 +4097,7 @@ export default function ProjectManager() {
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'));
                                       if (isAssignedToThisType) {
                                         if (editingProject) {
-                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId);
+                                          const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision');
                                           if (projectContact) {
                                             handleRemoveProjectContact(projectContact.id);
                                           }
@@ -3855,7 +4134,7 @@ export default function ProjectManager() {
                                           
                                           if (isAssignedToThisType) {
                                             if (editingProject) {
-                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId);
+                                              const projectContact = projectContacts.find(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision');
                                               if (projectContact) {
                                                 handleRemoveProjectContact(projectContact.id);
                                               }
@@ -3909,7 +4188,6 @@ export default function ProjectManager() {
                   className="w-full p-3 rounded-lg border border-gray-200/10"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 >
@@ -3942,7 +4220,6 @@ export default function ProjectManager() {
                   className="w-full p-3 rounded-lg border border-gray-200/10"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 >
@@ -3983,7 +4260,6 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            borderColor: colors.grayLight,
                             color: colors.textPrimary
                           }}
                         />
@@ -4000,7 +4276,6 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            borderColor: colors.grayLight,
                             color: colors.textPrimary
                           }}
                         />
@@ -4017,7 +4292,6 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            borderColor: colors.grayLight,
                             color: colors.textPrimary
                           }}
                         />
@@ -4034,7 +4308,6 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            borderColor: colors.grayLight,
                             color: colors.textPrimary
                           }}
                         />
@@ -4075,7 +4348,6 @@ export default function ProjectManager() {
                   onChange={(e) => handleDateChange('startDate', e.target.value)}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -4091,7 +4363,6 @@ export default function ProjectManager() {
                   onChange={(e) => handleDateChange('endDate', e.target.value)}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -4108,7 +4379,6 @@ export default function ProjectManager() {
                   placeholder="Will be calculated automatically"
                   style={{
                     backgroundColor: colors.backgroundSecondary,
-                    borderColor: colors.grayLight,
                     color: colors.textSecondary,
                     cursor: 'not-allowed'
                   }}
@@ -4128,7 +4398,24 @@ export default function ProjectManager() {
                   onChange={(e) => setFormData({ ...formData, eot: e.target.value })}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: colors.grayLight,
+                    color: colors.textPrimary
+                  }}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Project Value
+                </label>
+                <Input
+                  type="number"
+                  value={formData.projectValue || ''}
+                  onChange={(e) => setFormData(prev => ({ ...prev, projectValue: e.target.value ? parseFloat(e.target.value) : undefined }))}
+                  placeholder="Enter project value/budget"
+                  min="0"
+                  step="0.01"
+                  style={{
+                    backgroundColor: colors.backgroundPrimary,
                     color: colors.textPrimary
                   }}
                 />
@@ -4146,7 +4433,6 @@ export default function ProjectManager() {
                 className="w-full p-3 rounded-lg border border-gray-200/10 resize-none"
                 style={{
                   backgroundColor: colors.backgroundPrimary,
-                  borderColor: colors.grayLight,
                   color: colors.textPrimary
                 }}
               />
@@ -4252,12 +4538,33 @@ export default function ProjectManager() {
                       <span style={{ color: colors.textPrimary }}>{project.duration}</span>
                     </div>
                   )}
+
+                  {project.projectValue && (
+                    <div className="flex items-center space-x-2">
+                      <Calculator className="w-4 h-4" style={{ color: colors.textMuted }} />
+                      <span style={{ color: colors.textSecondary }}>Value:</span>
+                      <span style={{ color: colors.textPrimary }}>
+                        ${project.projectValue.toLocaleString('en-US', { 
+                          minimumFractionDigits: 2, 
+                          maximumFractionDigits: 2 
+                        })}
+                      </span>
+                    </div>
+                  )}
                 </div>
               </div>
 
             {/* Action buttons positioned in lower right corner */}
             <div className="absolute bottom-6 right-6">
               <div className="flex items-center space-x-2">
+                <Button
+                  onClick={() => handleViewDetails(project)}
+                  variant="ghost"
+                  className="p-2"
+                  style={{ color: colors.textMuted }}
+                >
+                  <Eye className="w-4 h-4" />
+                </Button>
                 <Button
                   onClick={() => handleEdit(project)}
                   variant="ghost"
@@ -4295,9 +4602,8 @@ export default function ProjectManager() {
       {/* Contact Creation Modal */}
       {showContactModal && contactModalData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border" style={{ 
-            backgroundColor: colors.backgroundSecondary,
-            borderColor: colors.grayLight
+          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border border-gray-200/10" style={{ 
+            backgroundColor: colors.backgroundSecondary
           }}>
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -4346,7 +4652,6 @@ export default function ProjectManager() {
                     className="w-full p-3 rounded-lg border border-gray-200/10"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: colors.grayLight,
                       color: colors.textPrimary
                     }}
                   />
@@ -4364,7 +4669,6 @@ export default function ProjectManager() {
                     className="w-full p-3 rounded-lg border border-gray-200/10"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: colors.grayLight,
                       color: colors.textPrimary
                     }}
                   />
@@ -4381,7 +4685,6 @@ export default function ProjectManager() {
                     className="w-full p-3 rounded-lg border border-gray-200/10"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: colors.grayLight,
                       color: colors.textPrimary
                     }}
                   />
@@ -4398,7 +4701,6 @@ export default function ProjectManager() {
                     className="w-full p-3 rounded-lg border border-gray-200/10"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: colors.grayLight,
                       color: colors.textPrimary
                     }}
                   />
@@ -4415,7 +4717,6 @@ export default function ProjectManager() {
                     className="w-full p-3 rounded-lg border border-gray-200/10"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: colors.grayLight,
                       color: colors.textPrimary
                     }}
                   />
@@ -4432,14 +4733,13 @@ export default function ProjectManager() {
                     className="w-full p-3 rounded-lg border border-gray-200/10 resize-none"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: colors.grayLight,
                       color: colors.textPrimary
                     }}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t" style={{ borderColor: colors.grayLight }}>
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200/10">
                 <Button
                   onClick={() => {
                     setShowContactModal(false);
@@ -4474,6 +4774,215 @@ export default function ProjectManager() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Consultant Creation Modal */}
+      {showConsultantModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border border-gray-200/10" style={{ 
+            backgroundColor: colors.backgroundSecondary
+          }}>
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                  Create New Consultant
+                </h3>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  Add a new consultant to the system
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowConsultantModal(false);
+                  setConsultantFormData({
+                    name: '',
+                    officeAddress: '',
+                    phone: '',
+                    email: '',
+                    isActive: true,
+                    selectedTypes: [],
+                  });
+                }}
+                variant="ghost"
+                className="p-1"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    <span style={{ color: colors.error }}>*</span> Consultant Name
+                  </label>
+                  <Input
+                    type="text"
+                    value={consultantFormData.name}
+                    onChange={(e) => setConsultantFormData({ ...consultantFormData, name: e.target.value })}
+                    required
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Email
+                  </label>
+                  <Input
+                    type="email"
+                    value={consultantFormData.email}
+                    onChange={(e) => setConsultantFormData({ ...consultantFormData, email: e.target.value })}
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Phone
+                  </label>
+                  <Input
+                    type="tel"
+                    value={consultantFormData.phone}
+                    onChange={(e) => setConsultantFormData({ ...consultantFormData, phone: e.target.value })}
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Office Address
+                  </label>
+                  <Input
+                    type="text"
+                    value={consultantFormData.officeAddress}
+                    onChange={(e) => setConsultantFormData({ ...consultantFormData, officeAddress: e.target.value })}
+                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Consultant Types */}
+              <div>
+                <div className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  <span style={{ color: colors.error }}>*</span> Consultant Types
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  {consultantTypes.map(type => {
+                    const isSelected = consultantFormData.selectedTypes?.includes(type.id) || false;
+                    
+                    return (
+                      <div 
+                        key={type.id} 
+                        className="flex items-center space-x-2 cursor-pointer p-3 rounded-lg transition-all duration-200 border"
+                        style={{
+                          borderColor: isSelected ? colors.primary : 'rgba(229, 231, 235, 0.1)',
+                          backgroundColor: isSelected ? `${colors.primary}20` : colors.backgroundPrimary,
+                        }}
+                        onClick={() => handleConsultantTypeToggle(type.id)}
+                      >
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => handleConsultantTypeToggle(type.id)}
+                            className="sr-only"
+                            id={`consultant-type-${type.id}`}
+                          />
+                          <div 
+                            className={`w-4 h-4 rounded border-2 flex items-center justify-center transition-all duration-200 ${
+                              isSelected ? 'border-opacity-100' : 'border-opacity-50'
+                            }`}
+                            style={{
+                              borderColor: colors.primary,
+                              backgroundColor: isSelected ? colors.primary : 'transparent',
+                            }}
+                          >
+                            {isSelected && (
+                              <svg 
+                                className="w-2 h-2" 
+                                fill="none" 
+                                stroke="currentColor" 
+                                viewBox="0 0 24 24"
+                                style={{ color: colors.textPrimary }}
+                              >
+                                <path 
+                                  strokeLinecap="round" 
+                                  strokeLinejoin="round" 
+                                  strokeWidth={2} 
+                                  d="M5 13l4 4L19 7" 
+                                />
+                              </svg>
+                            )}
+                          </div>
+                        </div>
+                        <label 
+                          htmlFor={`consultant-type-${type.id}`}
+                          className="text-sm font-medium cursor-pointer"
+                          style={{ color: colors.textPrimary }}
+                        >
+                          {type.type}
+                        </label>
+                      </div>
+                    );
+                  })}
+                </div>
+                {(!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0) && (
+                  <p className="text-sm mt-2" style={{ color: colors.error }}>
+                    Please select at least one consultant type
+                  </p>
+                )}
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200/10">
+                <Button
+                  onClick={() => {
+                    setShowConsultantModal(false);
+                    setConsultantFormData({
+                      name: '',
+                      officeAddress: '',
+                      phone: '',
+                      email: '',
+                      isActive: true,
+                      selectedTypes: [],
+                    });
+                  }}
+                  variant="ghost"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleConsultantSubmit}
+                  className="flex items-center space-x-2"
+                  style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                  disabled={!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0}
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Create Consultant</span>
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+        </>
       )}
     </div>
   );

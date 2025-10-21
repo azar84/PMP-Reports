@@ -9,7 +9,6 @@ const contactSchema = z.object({
   phone: z.string().optional(),
   position: z.string().optional(),
   notes: z.string().optional(),
-  isPrimary: z.boolean().optional().default(false),
   isActive: z.boolean().optional().default(true),
   entityType: z.enum(['client', 'consultant']),
   entityId: z.number(),
@@ -18,10 +17,11 @@ const contactSchema = z.object({
 // GET - Fetch single contact
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const contactId = parseInt(params.id);
+    const { id } = await params;
+    const contactId = parseInt(id);
     
     if (isNaN(contactId)) {
       return NextResponse.json(
@@ -54,10 +54,11 @@ export async function GET(
 // PUT - Update contact
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const contactId = parseInt(params.id);
+    const { id } = await params;
+    const contactId = parseInt(id);
     
     if (isNaN(contactId)) {
       return NextResponse.json(
@@ -93,10 +94,11 @@ export async function PUT(
 // DELETE - Delete contact
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const contactId = parseInt(params.id);
+    const { id } = await params;
+    const contactId = parseInt(id);
     
     if (isNaN(contactId)) {
       return NextResponse.json(

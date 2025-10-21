@@ -314,15 +314,16 @@ model Contact {
 }
 
 model ProjectContact {
-  id          Int       @id @default(autoincrement())
-  projectId   Int
-  contactId   Int
-  isPrimary   Boolean   @default(false) // Primary contact for this specific project
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  id            Int       @id @default(autoincrement())
+  projectId     Int
+  contactId     Int
+  isPrimary     Boolean   @default(false) // Primary contact for this specific project
+  consultantType String?  // 'pmc', 'design', 'supervision', 'cost' - tracks which consultant type this contact belongs to
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
   
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  contact     Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
   
   @@unique([projectId, contactId]) // Prevent duplicate project-contact relationships
   @@map("project_contacts")
@@ -351,6 +352,7 @@ model Project {
   endDate                  DateTime?
   duration                 String?   // Duration in a readable format (e.g., "6 months", "2 years")
   eot                      String?   // Extension of Time
+  projectValue             Decimal?  // Project value/budget
   lastUpdate               DateTime  @default(now()) @updatedAt
   createdAt                DateTime  @default(now())
   updatedAt                DateTime  @updatedAt

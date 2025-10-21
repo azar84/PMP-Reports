@@ -62,6 +62,29 @@ async function main() {
     console.log('ℹ️  Design system already exists, skipping creation.');
   }
 
+  // Create default consultant types if they don't exist
+  const defaultConsultantTypes = [
+    { type: 'Project Management', description: 'Project Management Consultant (PMC)' },
+    { type: 'Design', description: 'Design Consultant' },
+    { type: 'Cost', description: 'Cost Consultant' },
+    { type: 'Supervision', description: 'Supervision Consultant' },
+  ];
+
+  for (const consultantType of defaultConsultantTypes) {
+    const existingType = await prisma.consultantType.findFirst({
+      where: { type: consultantType.type },
+    });
+
+    if (!existingType) {
+      await prisma.consultantType.create({
+        data: consultantType,
+      });
+      console.log(`✅ Default consultant type created: ${consultantType.type}`);
+    } else {
+      console.log(`ℹ️  Consultant type '${consultantType.type}' already exists, skipping creation.`);
+    }
+  }
+
   console.log('🎉 Database seeding completed successfully!');
 }
 

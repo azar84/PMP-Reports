@@ -6,6 +6,7 @@ const projectContactSchema = z.object({
   projectId: z.number(),
   contactId: z.number(),
   isPrimary: z.boolean().optional().default(false),
+  consultantType: z.string().optional(),
 });
 
 // GET - Fetch project contacts for a specific project
@@ -66,11 +67,12 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // If this contact is being marked as primary, unmark other primary contacts for this project
+    // If this contact is being marked as primary, unmark other primary contacts for the same consultant type
     if (validatedData.isPrimary) {
       await prisma.projectContact.updateMany({
         where: {
           projectId: validatedData.projectId,
+          consultantType: validatedData.consultantType, // Only same consultant type
           isPrimary: true,
         },
         data: {
@@ -106,7 +108,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
-    const { id, isPrimary } = body;
+    const { id, isPrimary, consultantType } = body;
 
     if (!id) {
       return NextResponse.json(
@@ -115,16 +117,18 @@ export async function PUT(request: NextRequest) {
       );
     }
 
-    // If this contact is being marked as primary, unmark other primary contacts for this project
+    // If this contact is being marked as primary, unmark other primary contacts for the same consultant type
     if (isPrimary) {
       const projectContact = await prisma.projectContact.findUnique({
         where: { id: parseInt(id) },
       });
 
       if (projectContact) {
+        // Only unmark primary contacts for the same consultant type
         await prisma.projectContact.updateMany({
           where: {
             projectId: projectContact.projectId,
+            consultantType: projectContact.consultantType, // Only same consultant type
             isPrimary: true,
           },
           data: {
@@ -134,9 +138,13 @@ export async function PUT(request: NextRequest) {
       }
     }
 
+    const updateData: any = {};
+    if (isPrimary !== undefined) updateData.isPrimary = isPrimary;
+    if (consultantType !== undefined) updateData.consultantType = consultantType;
+
     const updatedProjectContact = await prisma.projectContact.update({
       where: { id: parseInt(id) },
-      data: { isPrimary },
+      data: updateData,
       include: {
         contact: true,
       },
