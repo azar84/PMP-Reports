@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
               projectId_contactId_consultantType: {
                 projectId: project.id,
                 contactId: contact.contactId,
-                consultantType: contact.consultantType || null,
+                consultantType: contact.consultantType || 'pmc', // Default to 'pmc' if not specified
               },
             },
             update: {
