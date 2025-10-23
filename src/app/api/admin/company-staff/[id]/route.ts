@@ -13,10 +13,11 @@ const staffSchema = z.object({
 // GET - Fetch single company staff
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const staffId = parseInt(params.id);
+    const { id } = await params;
+    const staffId = parseInt(id);
     
     if (isNaN(staffId)) {
       return NextResponse.json(
@@ -28,20 +29,15 @@ export async function GET(
     const staff = await prisma.companyStaff.findUnique({
       where: { id: staffId },
       include: {
-        projectsAsDirector: {
-          select: {
-            id: true,
-            projectName: true,
-            startDate: true,
-            endDate: true,
-          },
-        },
-        projectsAsManager: {
-          select: {
-            id: true,
-            projectName: true,
-            startDate: true,
-            endDate: true,
+        projectStaff: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
+            },
           },
         },
       },
@@ -67,10 +63,11 @@ export async function GET(
 // PUT - Update company staff
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const staffId = parseInt(params.id);
+    const { id } = await params;
+    const staffId = parseInt(id);
     
     if (isNaN(staffId)) {
       return NextResponse.json(
@@ -86,16 +83,15 @@ export async function PUT(
       where: { id: staffId },
       data: validatedData,
       include: {
-        projectsAsDirector: {
-          select: {
-            id: true,
-            projectName: true,
-          },
-        },
-        projectsAsManager: {
-          select: {
-            id: true,
-            projectName: true,
+        projectStaff: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
+            },
           },
         },
       },
@@ -120,10 +116,11 @@ export async function PUT(
 // DELETE - Delete company staff
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const staffId = parseInt(params.id);
+    const { id } = await params;
+    const staffId = parseInt(id);
     
     if (isNaN(staffId)) {
       return NextResponse.json(
@@ -132,19 +129,16 @@ export async function DELETE(
       );
     }
 
-    // Check if staff has associated projects
-    const projectsCount = await prisma.project.count({
+    // Check if staff has associated project assignments
+    const projectStaffCount = await prisma.projectStaff.count({
       where: {
-        OR: [
-          { projectDirectorId: staffId },
-          { projectManagerId: staffId },
-        ],
+        staffId: staffId,
       },
     });
 
-    if (projectsCount > 0) {
+    if (projectStaffCount > 0) {
       return NextResponse.json(
-        { success: false, error: 'Cannot delete staff with associated projects' },
+        { success: false, error: 'Cannot delete staff with project assignments. Please remove all project assignments first.' },
         { status: 400 }
       );
     }

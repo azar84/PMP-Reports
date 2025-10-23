@@ -7,6 +7,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import ProjectChecklist from './ProjectChecklist';
+import ProjectStaff from './ProjectStaff';
 import { 
   Plus, 
   Edit, 
@@ -24,7 +25,8 @@ import {
   Calculator,
   Eye,
   FileText,
-  ClipboardList
+  ClipboardList,
+  UserCheck
 } from 'lucide-react';
 
 interface Project {
@@ -42,10 +44,19 @@ interface Project {
   supervisionConsultant?: { id: number; name: string };
   costConsultantId?: number;
   costConsultant?: { id: number; name: string };
-  projectDirectorId?: number;
-  projectDirector?: { id: number; staffName: string };
-  projectManagerId?: number;
-  projectManager?: { id: number; staffName: string };
+  projectDirectorId?: number; // For project creation
+  projectManagerId?: number; // For project creation
+  projectStaff?: Array<{
+    id: number;
+    designation: string;
+    utilization: number;
+    status: string;
+    staff: {
+      id: number;
+      staffName: string;
+      position?: string;
+    };
+  }>;
   startDate?: string;
   endDate?: string;
   duration?: string;
@@ -109,7 +120,7 @@ export default function ProjectManager() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showDetailView, setShowDetailView] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'checklist'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'checklist' | 'staff'>('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -229,6 +240,14 @@ export default function ProjectManager() {
     email: '',
     phone: '',
   });
+  const [additionalStaffPositions, setAdditionalStaffPositions] = useState<Array<{
+    designation: string;
+    utilization: number;
+    startDate: string;
+    endDate: string;
+    status: string;
+    notes: string;
+  }>>([]);
   const [clientFormData, setClientFormData] = useState<Partial<Client>>({
     name: '',
     officeAddress: '',
@@ -555,8 +574,6 @@ export default function ProjectManager() {
       designConsultantId: project.designConsultantId || undefined,
       supervisionConsultantId: project.supervisionConsultantId || undefined,
       costConsultantId: project.costConsultantId || undefined,
-      projectDirectorId: project.projectDirectorId || undefined,
-      projectManagerId: project.projectManagerId || undefined,
       startDate: project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : '',
       endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '',
       duration: project.duration || '',
@@ -1024,6 +1041,31 @@ export default function ProjectManager() {
     }
   };
 
+  // Handle adding staff position
+  const addStaffPosition = () => {
+    const newPosition = {
+      designation: '',
+      utilization: 100,
+      startDate: '',
+      endDate: '',
+      status: 'Active',
+      notes: '',
+    };
+    setAdditionalStaffPositions([...additionalStaffPositions, newPosition]);
+  };
+
+  // Handle removing staff position
+  const removeStaffPosition = (index: number) => {
+    setAdditionalStaffPositions(additionalStaffPositions.filter((_, i) => i !== index));
+  };
+
+  // Handle updating staff position
+  const updateStaffPosition = (index: number, field: string, value: any) => {
+    setAdditionalStaffPositions(additionalStaffPositions.map((position, i) => 
+      i === index ? { ...position, [field]: value } : position
+    ));
+  };
+
   const filteredProjects = projects.filter(project =>
     project.projectCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
     project.projectName.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -1110,6 +1152,23 @@ export default function ProjectManager() {
               <div className="flex items-center space-x-2">
                 <ClipboardList className="w-4 h-4" />
                 <span>Checklist</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('staff')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'staff' 
+                  ? 'border-current' 
+                  : 'border-transparent hover:border-gray-300'
+              }`}
+              style={{ 
+                color: activeTab === 'staff' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'staff' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Users className="w-4 h-4" />
+                <span>Staff</span>
               </div>
             </button>
           </div>
@@ -1255,38 +1314,25 @@ export default function ProjectManager() {
               </Card>
             )}
 
-            {/* Project Team - Only Staff */}
-            {(selectedProject.projectDirector || selectedProject.projectManager) && (
+            {/* Project Team - Director and Manager Only */}
+            {selectedProject.projectStaff && selectedProject.projectStaff.length > 0 && (
               <Card className="p-6">
                 <h2 className="text-xl font-semibold mb-6 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
                   <Users className="w-5 h-5" />
                   <span>Project Team</span>
                 </h2>
                 <div className="space-y-4">
-                  {selectedProject.projectDirector && (
-                    <div className="flex items-center space-x-3">
+                  {selectedProject.projectStaff
+                    .filter(staff => staff.designation === 'Project Director' || staff.designation === 'Project Manager')
+                    .map((staffAssignment) => (
+                    <div key={staffAssignment.id} className="flex items-center space-x-3">
                       <User className="w-5 h-5" style={{ color: colors.textMuted }} />
                       <div>
-                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Project Director</span>
-                        <p style={{ color: colors.textPrimary }}>{selectedProject.projectDirector.staffName}</p>
-                        {selectedProject.projectDirector.position && (
-                          <p className="text-sm" style={{ color: colors.textMuted }}>{selectedProject.projectDirector.position}</p>
-                        )}
+                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>{staffAssignment.designation}</span>
+                        <p style={{ color: colors.textPrimary }}>{staffAssignment.staff.staffName}</p>
                       </div>
                     </div>
-                  )}
-                  {selectedProject.projectManager && (
-                    <div className="flex items-center space-x-3">
-                      <User className="w-5 h-5" style={{ color: colors.textMuted }} />
-                      <div>
-                        <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>Project Manager</span>
-                        <p style={{ color: colors.textPrimary }}>{selectedProject.projectManager.staffName}</p>
-                        {selectedProject.projectManager.position && (
-                          <p className="text-sm" style={{ color: colors.textMuted }}>{selectedProject.projectManager.position}</p>
-                        )}
-                      </div>
-                    </div>
-                  )}
+                  ))}
                 </div>
               </Card>
             )}
@@ -1544,7 +1590,7 @@ export default function ProjectManager() {
             </div>
           )}
             </div>
-          ) : (
+          ) : activeTab === 'checklist' ? (
             <div>
               {selectedProject && (
                 <ProjectChecklist 
@@ -1553,7 +1599,16 @@ export default function ProjectManager() {
                 />
               )}
             </div>
-          )}
+          ) : activeTab === 'staff' ? (
+            <div>
+              {selectedProject && (
+                <ProjectStaff 
+                  projectId={selectedProject.id} 
+                  projectName={selectedProject.projectName} 
+                />
+              )}
+            </div>
+          ) : null}
         </div>
       ) : (
         // Project List View
@@ -1627,8 +1682,6 @@ export default function ProjectManager() {
                   designConsultantId: undefined,
                   supervisionConsultantId: undefined,
                   costConsultantId: undefined,
-                  projectDirectorId: undefined,
-                  projectManagerId: undefined,
                   startDate: '',
                   endDate: '',
                   duration: '',
@@ -4223,68 +4276,84 @@ export default function ProjectManager() {
                 </div>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Project Director
-                </label>
-                  <Button
-                    type="button"
-                    onClick={() => setShowStaffForm(true)}
-                    variant="ghost"
-                    className="text-xs px-2 py-1"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Staff
-                  </Button>
+              {/* Project Director and Manager Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center space-x-2 mb-4">
+                    <Users className="w-5 h-5" style={{ color: colors.primary }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Project Leadership</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Project Director */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Project Director
+                      </label>
+                      <select
+                        value={formData.projectDirectorId || ''}
+                        onChange={(e) => setFormData({ ...formData, projectDirectorId: e.target.value ? parseInt(e.target.value) : undefined })}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select Project Director (Optional)</option>
+                        {staff.map(staffMember => (
+                          <option key={staffMember.id} value={staffMember.id}>{staffMember.staffName}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Project Manager */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Project Manager
+                      </label>
+                      <select
+                        value={formData.projectManagerId || ''}
+                        onChange={(e) => setFormData({ ...formData, projectManagerId: e.target.value ? parseInt(e.target.value) : undefined })}
+                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select Project Manager (Optional)</option>
+                        {staff.map(staffMember => (
+                          <option key={staffMember.id} value={staffMember.id}>{staffMember.staffName}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
-                <select
-                  value={formData.projectDirectorId || ''}
-                  onChange={(e) => setFormData({ ...formData, projectDirectorId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select Project Director</option>
-                  {staff.map(staffMember => (
-                    <option key={staffMember.id} value={staffMember.id}>{staffMember.staffName}</option>
-                  ))}
-                </select>
               </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Project Manager
-                </label>
-                  <Button
-                    type="button"
-                    onClick={() => setShowStaffForm(true)}
-                    variant="ghost"
-                    className="text-xs px-2 py-1"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    <Plus className="w-3 h-3 mr-1" />
-                    Add Staff
-                  </Button>
+              {/* Additional Staff Section */}
+              <div className="md:col-span-2">
+                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center space-x-2">
+                      <Users className="w-5 h-5" style={{ color: colors.primary }} />
+                      <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Additional Staff</h3>
+                    </div>
+                    <Button
+                      onClick={() => setShowStaffForm(true)}
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                    >
+                      <Plus className="w-4 h-4 mr-1" />
+                      Add Staff Member
+                    </Button>
+                  </div>
+                  
+                  <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                    Add new staff members to your company database. These staff members can then be assigned to projects later.
+                  </p>
                 </div>
-                <select
-                  value={formData.projectManagerId || ''}
-                  onChange={(e) => setFormData({ ...formData, projectManagerId: e.target.value ? parseInt(e.target.value) : undefined })}
-                  className="w-full p-3 rounded-lg border border-gray-200/10"
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
-                  }}
-                >
-                  <option value="">Select Project Manager</option>
-                  {staff.map(staffMember => (
-                    <option key={staffMember.id} value={staffMember.id}>{staffMember.staffName}</option>
-                  ))}
-                </select>
               </div>
 
               {/* Staff Creation Form */}
@@ -4296,6 +4365,7 @@ export default function ProjectManager() {
                     </h4>
                     <Button
                       onClick={() => setShowStaffForm(false)}
+                      type="button"
                       variant="ghost"
                       className="p-1"
                     >
@@ -4552,19 +4622,17 @@ export default function ProjectManager() {
                     </div>
                   )}
 
-                  {project.projectDirector && (
+                  {project.projectStaff && project.projectStaff.length > 0 && (
                     <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
-                      <span style={{ color: colors.textSecondary }}>Director:</span>
-                      <span style={{ color: colors.textPrimary }}>{project.projectDirector.staffName}</span>
-                    </div>
-                  )}
-
-                  {project.projectManager && (
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
-                      <span style={{ color: colors.textSecondary }}>Manager:</span>
-                      <span style={{ color: colors.textPrimary }}>{project.projectManager.staffName}</span>
+                      <Users className="w-4 h-4" style={{ color: colors.textMuted }} />
+                      <span style={{ color: colors.textSecondary }}>Team:</span>
+                      <span style={{ color: colors.textPrimary }}>
+                        {project.projectStaff
+                          .filter(staff => staff.designation === 'Project Director' || staff.designation === 'Project Manager')
+                          .map(staff => `${staff.designation}: ${staff.staff.staffName}`)
+                          .join(', ')
+                        }
+                      </span>
                     </div>
                   )}
 

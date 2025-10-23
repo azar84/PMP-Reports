@@ -80,8 +80,11 @@ export async function GET() {
         designConsultant: true,
         supervisionConsultant: true,
         costConsultant: true,
-        projectDirector: true,
-        projectManager: true,
+        projectStaff: {
+          include: {
+            staff: true,
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
@@ -104,8 +107,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const validatedData = projectSchema.parse(body);
 
-    // Extract contacts from validated data
-    const { contacts, ...projectData } = validatedData;
+    // Extract contacts and staff fields from validated data
+    const { contacts, projectDirectorId, projectManagerId, ...projectData } = validatedData;
 
     // Convert date strings to DateTime objects if provided
     const projectDataWithDates = {
@@ -125,8 +128,11 @@ export async function POST(request: NextRequest) {
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
-          projectDirector: true,
-          projectManager: true,
+          projectStaff: {
+            include: {
+              staff: true,
+            },
+          },
         },
       });
 
@@ -194,6 +200,31 @@ export async function POST(request: NextRequest) {
             });
           }
         }
+      }
+
+      // Create ProjectStaff entries for director and manager if provided
+      if (projectDirectorId) {
+        await tx.projectStaff.create({
+          data: {
+            projectId: project.id,
+            staffId: projectDirectorId,
+            designation: 'Project Director',
+            utilization: 100,
+            status: 'Active',
+          },
+        });
+      }
+
+      if (projectManagerId) {
+        await tx.projectStaff.create({
+          data: {
+            projectId: project.id,
+            staffId: projectManagerId,
+            designation: 'Project Manager',
+            utilization: 100,
+            status: 'Active',
+          },
+        });
       }
 
       return project;

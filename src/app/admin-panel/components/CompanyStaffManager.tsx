@@ -29,8 +29,17 @@ interface CompanyStaff {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  projectsAsDirector: Array<{ id: number; projectName: string }>;
-  projectsAsManager: Array<{ id: number; projectName: string }>;
+  projectStaff: Array<{
+    id: number;
+    designation: string;
+    utilization: number;
+    status: string;
+    project: {
+      id: number;
+      projectName: string;
+      projectCode: string;
+    };
+  }>;
 }
 
 export default function CompanyStaffManager() {
@@ -131,7 +140,16 @@ export default function CompanyStaffManager() {
   };
 
   const getTotalProjects = (staffMember: CompanyStaff) => {
-    return staffMember.projectsAsDirector.length + staffMember.projectsAsManager.length;
+    return staffMember.projectStaff?.length || 0;
+  };
+
+  const getProjectAssignments = (staffMember: CompanyStaff) => {
+    const assignments = staffMember.projectStaff || [];
+    const designations = assignments.reduce((acc, assignment) => {
+      acc[assignment.designation] = (acc[assignment.designation] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+    return designations;
   };
 
   const filteredStaff = staff.filter(staffMember =>
@@ -391,22 +409,20 @@ export default function CompanyStaffManager() {
                       </span>
                       {getTotalProjects(staffMember) > 0 && (
                         <div className="flex flex-wrap gap-1 justify-center">
-                          {staffMember.projectsAsDirector.length > 0 && (
+                          {Object.entries(getProjectAssignments(staffMember)).map(([designation, count]) => (
                             <span 
+                              key={designation}
                               className="px-1 py-0.5 text-xs rounded"
-                              style={{ backgroundColor: colors.info, color: '#FFFFFF' }}
+                              style={{ 
+                                backgroundColor: designation.toLowerCase().includes('director') ? colors.info : 
+                                               designation.toLowerCase().includes('manager') ? colors.success : 
+                                               colors.primary, 
+                                color: '#FFFFFF' 
+                              }}
                             >
-                              {staffMember.projectsAsDirector.length} Director
+                              {count} {designation}
                             </span>
-                          )}
-                          {staffMember.projectsAsManager.length > 0 && (
-                            <span 
-                              className="px-1 py-0.5 text-xs rounded"
-                              style={{ backgroundColor: colors.success, color: '#FFFFFF' }}
-                            >
-                              {staffMember.projectsAsManager.length} Manager
-                            </span>
-                          )}
+                          ))}
                         </div>
                       )}
                     </div>

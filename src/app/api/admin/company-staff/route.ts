@@ -15,18 +15,7 @@ export async function GET() {
   try {
     const staff = await prisma.companyStaff.findMany({
       include: {
-        projectsAsDirector: {
-          select: {
-            id: true,
-            projectName: true,
-          },
-        },
-        projectsAsManager: {
-          select: {
-            id: true,
-            projectName: true,
-          },
-        },
+        projectStaff: true,
       },
       orderBy: {
         createdAt: 'desc',
@@ -52,16 +41,15 @@ export async function POST(request: NextRequest) {
     const staff = await prisma.companyStaff.create({
       data: validatedData,
       include: {
-        projectsAsDirector: {
-          select: {
-            id: true,
-            projectName: true,
-          },
-        },
-        projectsAsManager: {
-          select: {
-            id: true,
-            projectName: true,
+        projectStaff: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
+            },
           },
         },
       },

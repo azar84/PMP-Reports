@@ -25,9 +25,13 @@ export async function GET(
         designConsultant: true,
         supervisionConsultant: true,
         costConsultant: true,
-        projectDirector: true,
-        projectManager: true,
+        projectStaff: {
+          include: {
+            staff: true,
+          },
+        },
         projectContacts: true,
+        projectChecklistItems: true,
       },
     });
 
@@ -66,29 +70,107 @@ export async function PUT(
 
     const body = await request.json();
     
+    // Extract staff fields that need special handling
+    const { projectDirectorId, projectManagerId, ...validBody } = body;
+    
     // Convert date strings to DateTime objects if provided
     const projectData = {
-      ...body,
-      startDate: body.startDate ? new Date(body.startDate) : null,
-      endDate: body.endDate ? new Date(body.endDate) : null,
+      ...validBody,
+      startDate: validBody.startDate ? new Date(validBody.startDate) : null,
+      endDate: validBody.endDate ? new Date(validBody.endDate) : null,
     };
 
-    const project = await prisma.project.update({
-      where: { id: projectId },
-      data: projectData,
-      include: {
-        client: true,
-        projectManagementConsultant: true,
-        designConsultant: true,
-        supervisionConsultant: true,
-        costConsultant: true,
-        projectDirector: true,
-        projectManager: true,
-        projectContacts: true,
-      },
+    // Use transaction to update project and handle staff assignments atomically
+    const result = await prisma.$transaction(async (tx) => {
+      // Update the project
+      const project = await tx.project.update({
+        where: { id: projectId },
+        data: projectData,
+        include: {
+          client: true,
+          projectManagementConsultant: true,
+          designConsultant: true,
+          supervisionConsultant: true,
+          costConsultant: true,
+          projectStaff: {
+            include: {
+              staff: true,
+            },
+          },
+          projectContacts: true,
+          projectChecklistItems: true,
+        },
+      });
+
+      // Handle Project Director assignment
+      if (projectDirectorId !== undefined) {
+        // First, remove any existing Project Director assignment
+        await tx.projectStaff.deleteMany({
+          where: {
+            projectId: projectId,
+            designation: 'Project Director',
+          },
+        });
+
+        // If a new director is provided, create the assignment
+        if (projectDirectorId) {
+          await tx.projectStaff.create({
+            data: {
+              projectId: projectId,
+              staffId: projectDirectorId,
+              designation: 'Project Director',
+              utilization: 100,
+              status: 'Active',
+            },
+          });
+        }
+      }
+
+      // Handle Project Manager assignment
+      if (projectManagerId !== undefined) {
+        // First, remove any existing Project Manager assignment
+        await tx.projectStaff.deleteMany({
+          where: {
+            projectId: projectId,
+            designation: 'Project Manager',
+          },
+        });
+
+        // If a new manager is provided, create the assignment
+        if (projectManagerId) {
+          await tx.projectStaff.create({
+            data: {
+              projectId: projectId,
+              staffId: projectManagerId,
+              designation: 'Project Manager',
+              utilization: 100,
+              status: 'Active',
+            },
+          });
+        }
+      }
+
+      // Return updated project with fresh staff data
+      return await tx.project.findUnique({
+        where: { id: projectId },
+        include: {
+          client: true,
+          projectManagementConsultant: true,
+          designConsultant: true,
+          supervisionConsultant: true,
+          costConsultant: true,
+          projectStaff: {
+            include: {
+              staff: true,
+            },
+          },
+          projectContacts: true,
+          projectChecklistItems: true,
+        },
+      });
     });
 
-    return NextResponse.json({ success: true, data: project });
+    return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Error updating project:', error);
     return NextResponse.json(

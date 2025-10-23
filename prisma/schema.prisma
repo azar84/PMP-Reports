@@ -289,8 +289,9 @@ model CompanyStaff {
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
-  projectsAsDirector Project[] @relation("ProjectDirector") // Staff can be project director on multiple projects
-  projectsAsManager  Project[] @relation("ProjectManager") // Staff can be project manager on multiple projects
+  projectStaff ProjectStaff[] // Staff assignments to projects
+  projectsAsDirector Project[] @relation("ProjectDirector") // Projects where this staff is director
+  projectsAsManager Project[] @relation("ProjectManager") // Projects where this staff is manager
 
   @@map("company_staff")
 }
@@ -358,6 +359,7 @@ model Project {
   updatedAt                DateTime  @updatedAt
   projectContacts          ProjectContact[] // Many-to-many with contacts
   projectChecklistItems    ProjectChecklistItem[] // Project checklist items
+  projectStaff             ProjectStaff[] // Project staff assignments
 
   @@map("projects")
 }
@@ -383,6 +385,29 @@ model ProjectChecklistItem {
   updatedAt     DateTime  @updatedAt
   
   @@map("project_checklist_items")
+}
+
+model ProjectStaff {
+  id            Int       @id @default(autoincrement())
+  projectId     Int       // FK to Project
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  staffId       Int?      // FK to CompanyStaff (nullable for unassigned positions)
+  staff         CompanyStaff? @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  
+  // Staff assignment details
+  designation   String    // Role/designation (e.g., "Project Director", "Project Manager", "Engineer", "Architect")
+  utilization   Int       @default(100) // Utilization percentage (0-100)
+  startDate     DateTime? // When staff starts on this project
+  endDate       DateTime? // When staff ends on this project
+  status        String    @default("Active") // Status: "Active", "Inactive", "Completed"
+  notes         String?   // Additional notes
+  
+  // Metadata
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@unique([projectId, staffId, designation]) // Prevent duplicate assignments for same role
+  @@map("project_staff")
 }
 
 model ChecklistTemplate {
