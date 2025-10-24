@@ -2,11 +2,10 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 
-// Schema for updating project staff
+// Schema for updating project staff assignment
 const updateProjectStaffSchema = z.object({
   staffId: z.number().int().positive().nullable().optional(),
-  designation: z.string().min(1, 'Designation is required').optional(),
-  utilization: z.number().int().min(0).max(100).optional(),
+  utilization: z.number().int().min(0).optional(), // Staff utilization percentage
   startDate: z.string().optional().nullable().or(z.literal('')),
   endDate: z.string().optional().nullable().or(z.literal('')),
   status: z.string().optional(),
@@ -25,6 +24,7 @@ export async function GET(
       where: { id: projectStaffId },
       include: {
         staff: true,
+        position: true,
         project: {
           select: {
             id: true,
@@ -94,6 +94,7 @@ export async function PUT(
       data: updateData,
       include: {
         staff: true,
+        position: true,
         project: {
           select: {
             id: true,

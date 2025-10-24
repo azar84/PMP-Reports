@@ -17,7 +17,12 @@ import {
   Search,
   X,
   Save,
-  Users
+  Users,
+  Eye,
+  Calendar,
+  Clock,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 interface CompanyStaff {
@@ -29,15 +34,21 @@ interface CompanyStaff {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  totalUtilization?: number;
+  remainingCapacity?: number;
   projectStaff: Array<{
     id: number;
-    designation: string;
     utilization: number;
     status: string;
     project: {
       id: number;
       projectName: string;
       projectCode: string;
+    };
+    position: {
+      id: number;
+      designation: string;
+      requiredUtilization: number;
     };
   }>;
 }
@@ -52,6 +63,7 @@ export default function CompanyStaffManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<CompanyStaff | null>(null);
+  const [viewingStaff, setViewingStaff] = useState<CompanyStaff | null>(null);
   const [formData, setFormData] = useState<Partial<CompanyStaff>>({
     staffName: '',
     email: '',
@@ -146,7 +158,7 @@ export default function CompanyStaffManager() {
   const getProjectAssignments = (staffMember: CompanyStaff) => {
     const assignments = staffMember.projectStaff || [];
     const designations = assignments.reduce((acc, assignment) => {
-      acc[assignment.designation] = (acc[assignment.designation] || 0) + 1;
+      acc[assignment.position.designation] = (acc[assignment.position.designation] || 0) + 1;
       return acc;
     }, {} as Record<string, number>);
     return designations;
@@ -357,7 +369,7 @@ export default function CompanyStaffManager() {
                   Phone
                 </th>
                 <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Projects
+                  Total Utilization
                 </th>
                 <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Status
@@ -405,25 +417,17 @@ export default function CompanyStaffManager() {
                   <td className="px-6 py-4 text-center">
                     <div className="flex flex-col items-center space-y-1">
                       <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                        {getTotalProjects(staffMember)}
+                        {staffMember.totalUtilization || 0}%
                       </span>
-                      {getTotalProjects(staffMember) > 0 && (
-                        <div className="flex flex-wrap gap-1 justify-center">
-                          {Object.entries(getProjectAssignments(staffMember)).map(([designation, count]) => (
-                            <span 
-                              key={designation}
-                              className="px-1 py-0.5 text-xs rounded"
-                              style={{ 
-                                backgroundColor: designation.toLowerCase().includes('director') ? colors.info : 
-                                               designation.toLowerCase().includes('manager') ? colors.success : 
-                                               colors.primary, 
-                                color: '#FFFFFF' 
-                              }}
-                            >
-                              {count} {designation}
-                            </span>
-                          ))}
-                        </div>
+                      {staffMember.remainingCapacity !== undefined && staffMember.remainingCapacity > 0 && (
+                        <span className="text-xs" style={{ color: colors.textMuted }}>
+                          {staffMember.remainingCapacity}% available
+                        </span>
+                      )}
+                      {staffMember.totalUtilization && staffMember.totalUtilization > 100 && (
+                        <span className="text-xs px-1 py-0.5 rounded" style={{ backgroundColor: colors.warning, color: '#FFFFFF' }}>
+                          Over-allocated
+                        </span>
                       )}
                     </div>
                   </td>
@@ -441,10 +445,20 @@ export default function CompanyStaffManager() {
                   <td className="px-6 py-4 text-center">
                     <div className="flex items-center justify-center space-x-2">
                       <Button
+                        onClick={() => setViewingStaff(staffMember)}
+                        variant="ghost"
+                        className="p-2"
+                        style={{ color: colors.info }}
+                        title="View Details"
+                      >
+                        <Eye className="w-4 h-4" />
+                      </Button>
+                      <Button
                         onClick={() => handleEdit(staffMember)}
                         variant="ghost"
                         className="p-2"
                         style={{ color: colors.primary }}
+                        title="Edit Staff"
                       >
                         <Edit className="w-4 h-4" />
                       </Button>
@@ -453,6 +467,7 @@ export default function CompanyStaffManager() {
                         variant="ghost"
                         className="p-2"
                         style={{ color: colors.error }}
+                        title="Delete Staff"
                       >
                         <Trash2 className="w-4 h-4" />
                       </Button>
@@ -475,6 +490,355 @@ export default function CompanyStaffManager() {
             {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first staff member'}
           </p>
         </Card>
+      )}
+
+      {/* Staff Details Modal */}
+      {viewingStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-2">
+          <div 
+            className="rounded-xl shadow-2xl w-full max-w-7xl h-[95vh] overflow-hidden flex flex-col"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-8 border-b-2"
+              style={{ 
+                borderColor: colors.border,
+                backgroundColor: colors.backgroundPrimary
+              }}
+            >
+              <div className="flex items-center space-x-4">
+                <div 
+                  className="p-4 rounded-xl shadow-lg"
+                  style={{ backgroundColor: colors.primary }}
+                >
+                  <User className="w-8 h-8 text-white" />
+                </div>
+                <div>
+                  <h2 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>
+                    {viewingStaff.staffName}
+                  </h2>
+                  <p className="text-sm" style={{ color: colors.textMuted }}>
+                    {viewingStaff.position || 'Staff Member'} • ID: #{viewingStaff.id}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setViewingStaff(null)}
+                className="p-3 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105"
+                style={{ color: colors.textMuted }}
+              >
+                <X className="w-6 h-6" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="flex-1 overflow-hidden">
+              <div className="h-full flex">
+                {/* Left Sidebar - Basic Info & Summary */}
+                <div className="w-1/3 p-8 border-r-2 overflow-y-auto" style={{ borderColor: colors.border }}>
+                  {/* Contact Information */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                      <Mail className="w-4 h-4" />
+                      <span>Contact Information</span>
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center space-x-3">
+                          <Mail className="w-4 h-4" style={{ color: colors.primary }} />
+                          <div>
+                            <p className="text-xs font-medium" style={{ color: colors.textMuted }}>Email</p>
+                            <p className="text-sm" style={{ color: colors.textPrimary }}>
+                              {viewingStaff.email || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center space-x-3">
+                          <Phone className="w-4 h-4" style={{ color: colors.primary }} />
+                          <div>
+                            <p className="text-xs font-medium" style={{ color: colors.textMuted }}>Phone</p>
+                            <p className="text-sm" style={{ color: colors.textPrimary }}>
+                              {viewingStaff.phone || 'Not provided'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center space-x-3">
+                          <Briefcase className="w-4 h-4" style={{ color: colors.primary }} />
+                          <div>
+                            <p className="text-xs font-medium" style={{ color: colors.textMuted }}>Position</p>
+                            <p className="text-sm" style={{ color: colors.textPrimary }}>
+                              {viewingStaff.position || 'Not specified'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Utilization Summary */}
+                  <div className="mb-8">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                      <Clock className="w-4 h-4" />
+                      <span>Workload Summary</span>
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="p-6 rounded-xl text-center" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-center space-x-2 mb-2">
+                          <Clock className="w-4 h-4" style={{ color: colors.primary }} />
+                          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Total Utilization
+                          </span>
+                        </div>
+                        <div className="text-2xl font-bold mb-2" style={{ color: colors.primary }}>
+                          {viewingStaff.totalUtilization || 0}%
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className="h-3 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: `${Math.min(viewingStaff.totalUtilization || 0, 100)}%`,
+                              backgroundColor: (viewingStaff.totalUtilization || 0) > 100 ? colors.warning : colors.primary
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+                      
+                      <div className="p-6 rounded-xl text-center" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-center space-x-2 mb-2">
+                          <CheckCircle className="w-4 h-4" style={{ color: colors.success }} />
+                          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Available Capacity
+                          </span>
+                        </div>
+                        <div className="text-2xl font-bold mb-2" style={{ color: colors.success }}>
+                          {viewingStaff.remainingCapacity || 100}%
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-3">
+                          <div 
+                            className="h-3 rounded-full transition-all duration-500"
+                            style={{ 
+                              width: `${viewingStaff.remainingCapacity || 100}%`,
+                              backgroundColor: colors.success
+                            }}
+                          ></div>
+                        </div>
+                      </div>
+
+                      <div className="p-6 rounded-xl text-center" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-center space-x-2 mb-2">
+                          <Users className="w-4 h-4" style={{ color: colors.info }} />
+                          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                            Active Projects
+                          </span>
+                        </div>
+                        <div className="text-2xl font-bold" style={{ color: colors.info }}>
+                          {viewingStaff.projectStaff.length}
+                        </div>
+                      </div>
+                    </div>
+
+                    {viewingStaff.totalUtilization && viewingStaff.totalUtilization > 100 && (
+                      <div className="mt-6 p-4 rounded-xl flex items-center space-x-3" style={{ backgroundColor: colors.warning + '20' }}>
+                        <AlertCircle className="w-6 h-6" style={{ color: colors.warning }} />
+                        <div>
+                          <p className="font-semibold" style={{ color: colors.warning }}>
+                            Over-allocated
+                          </p>
+                          <p className="text-sm" style={{ color: colors.warning }}>
+                            {viewingStaff.totalUtilization - 100}% over capacity
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Status & Metadata */}
+                  <div>
+                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                      <Calendar className="w-4 h-4" />
+                      <span>Status & Metadata</span>
+                    </h3>
+                    <div className="space-y-4">
+                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Status</span>
+                          <span 
+                            className="px-2 py-1 rounded-full text-xs font-semibold"
+                            style={{ 
+                              backgroundColor: viewingStaff.isActive ? colors.success : colors.error,
+                              color: '#FFFFFF'
+                            }}
+                          >
+                            {viewingStaff.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Created</span>
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            {new Date(viewingStaff.createdAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Last Updated</span>
+                          <span className="text-xs" style={{ color: colors.textSecondary }}>
+                            {new Date(viewingStaff.updatedAt).toLocaleDateString()}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Right Content - Project Assignments */}
+                <div className="flex-1 p-8 overflow-y-auto">
+                  <div className="flex items-center justify-between mb-8">
+                    <h3 className="text-xl font-semibold flex items-center space-x-3" style={{ color: colors.textPrimary }}>
+                      <Briefcase className="w-5 h-5" />
+                      <span>Project Assignments</span>
+                    </h3>
+                    <div className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                      {viewingStaff.projectStaff.length} project{viewingStaff.projectStaff.length !== 1 ? 's' : ''}
+                    </div>
+                  </div>
+
+                  {viewingStaff.projectStaff.length > 0 ? (
+                    <div className="grid gap-6">
+                      {viewingStaff.projectStaff.map((assignment, index) => (
+                        <div 
+                          key={assignment.id}
+                          className="p-6 rounded-xl border-2 shadow-lg hover:shadow-xl transition-all duration-200"
+                          style={{ 
+                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.border
+                          }}
+                        >
+                          <div className="flex items-start justify-between mb-6">
+                            <div className="flex items-start space-x-4">
+                              <div 
+                                className="p-3 rounded-xl shadow-md"
+                                style={{ backgroundColor: colors.primary }}
+                              >
+                                <Briefcase className="w-6 h-6 text-white" />
+                              </div>
+                              <div>
+                                <h4 className="text-lg font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                                  {assignment.project.projectName}
+                                </h4>
+                                <p className="text-sm font-medium mb-1" style={{ color: colors.textMuted }}>
+                                  {assignment.project.projectCode}
+                                </p>
+                                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                  {assignment.position.designation}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <div className="text-xl font-bold mb-1" style={{ color: colors.primary }}>
+                                {assignment.utilization}%
+                              </div>
+                              <div className="text-xs font-medium" style={{ color: colors.textMuted }}>
+                                utilization
+                              </div>
+                              <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-1">
+                                <div 
+                                  className="h-1.5 rounded-full"
+                                  style={{ 
+                                    width: `${Math.min(assignment.utilization, 100)}%`,
+                                    backgroundColor: colors.primary
+                                  }}
+                                ></div>
+                              </div>
+                            </div>
+                          </div>
+                          
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
+                              <div className="flex items-center space-x-2 mb-1">
+                                <CheckCircle className="w-3 h-3" style={{ color: colors.info }} />
+                                <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>Status</span>
+                              </div>
+                              <span 
+                                className="px-2 py-0.5 rounded-full text-xs font-semibold"
+                                style={{ 
+                                  backgroundColor: assignment.status === 'Active' ? colors.success : 
+                                                 assignment.status === 'Completed' ? colors.info : colors.warning,
+                                  color: '#FFFFFF'
+                                }}
+                              >
+                                {assignment.status}
+                              </span>
+                            </div>
+                            
+                            <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
+                              <div className="flex items-center space-x-2 mb-1">
+                                <Briefcase className="w-3 h-3" style={{ color: colors.info }} />
+                                <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>Position</span>
+                              </div>
+                              <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                {assignment.position.designation}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center h-64 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <Briefcase className="w-16 h-16 mb-6" style={{ color: colors.textMuted }} />
+                      <h4 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                        No Project Assignments
+                      </h4>
+                      <p className="text-sm text-center max-w-md" style={{ color: colors.textSecondary }}>
+                        This staff member is not currently assigned to any projects
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div 
+              className="flex items-center justify-between p-8 border-t-2"
+              style={{ 
+                borderColor: colors.border,
+                backgroundColor: colors.backgroundPrimary
+              }}
+            >
+              <div className="text-xs" style={{ color: colors.textMuted }}>
+                Last updated: {new Date(viewingStaff.updatedAt).toLocaleString()}
+              </div>
+              <div className="flex items-center space-x-3">
+                <Button
+                  onClick={() => setViewingStaff(null)}
+                  variant="ghost"
+                  className="px-4 py-2 text-sm"
+                >
+                  Close
+                </Button>
+                <Button
+                  onClick={() => {
+                    setViewingStaff(null);
+                    handleEdit(viewingStaff);
+                  }}
+                  className="px-6 py-2 text-sm font-semibold"
+                  style={{ backgroundColor: colors.primary }}
+                >
+                  Edit Staff Member
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

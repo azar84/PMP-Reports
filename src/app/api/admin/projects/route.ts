@@ -80,9 +80,13 @@ export async function GET() {
         designConsultant: true,
         supervisionConsultant: true,
         costConsultant: true,
-        projectStaff: {
+        projectPositions: {
           include: {
-            staff: true,
+            staffAssignments: {
+              include: {
+                staff: true,
+              },
+            },
           },
         },
       },
@@ -128,9 +132,13 @@ export async function POST(request: NextRequest) {
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
-          projectStaff: {
+          projectPositions: {
             include: {
-              staff: true,
+              staffAssignments: {
+                include: {
+                  staff: true,
+                },
+              },
             },
           },
         },
@@ -202,13 +210,21 @@ export async function POST(request: NextRequest) {
         }
       }
 
-      // Create ProjectStaff entries for director and manager if provided
+      // Create ProjectPosition entries for director and manager if provided
       if (projectDirectorId) {
+        const directorPosition = await tx.projectPosition.create({
+          data: {
+            projectId: project.id,
+            designation: 'Project Director',
+            requiredUtilization: 100,
+          },
+        });
+        
         await tx.projectStaff.create({
           data: {
             projectId: project.id,
+            positionId: directorPosition.id,
             staffId: projectDirectorId,
-            designation: 'Project Director',
             utilization: 100,
             status: 'Active',
             startDate: projectDataWithDates.startDate,
@@ -218,11 +234,19 @@ export async function POST(request: NextRequest) {
       }
 
       if (projectManagerId) {
+        const managerPosition = await tx.projectPosition.create({
+          data: {
+            projectId: project.id,
+            designation: 'Project Manager',
+            requiredUtilization: 100,
+          },
+        });
+        
         await tx.projectStaff.create({
           data: {
             projectId: project.id,
+            positionId: managerPosition.id,
             staffId: projectManagerId,
-            designation: 'Project Manager',
             utilization: 100,
             status: 'Active',
             startDate: projectDataWithDates.startDate,
@@ -231,7 +255,7 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      // Create default staff positions for the project from positions pool
+      // Create default positions for the project from positions pool
       const activePositions = await tx.position.findMany({
         where: { isActive: true },
         orderBy: { name: 'asc' }
@@ -245,16 +269,11 @@ export async function POST(request: NextRequest) {
           continue;
         }
 
-        await tx.projectStaff.create({
+        await tx.projectPosition.create({
           data: {
             projectId: project.id,
-            staffId: null, // No staff assigned initially
             designation: position.name,
-            utilization: 100,
-            status: 'Active',
-            startDate: projectDataWithDates.startDate,
-            endDate: projectDataWithDates.endDate,
-            notes: null,
+            requiredUtilization: 100, // Default to 100% requirement
           },
         });
       }

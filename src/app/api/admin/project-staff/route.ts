@@ -2,19 +2,25 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
 
-// Schema for project staff validation
-const projectStaffSchema = z.object({
+// Schema for creating a project position
+const createPositionSchema = z.object({
   projectId: z.number().int().positive(),
-  staffId: z.number().int().positive().nullable(),
   designation: z.string().min(1, 'Designation is required'),
-  utilization: z.number().int().min(0).max(100).default(100),
+  requiredUtilization: z.number().int().min(0).default(100), // Required total utilization for this position
+});
+
+// Schema for assigning staff to a position
+const assignStaffSchema = z.object({
+  positionId: z.number().int().positive(),
+  staffId: z.number().int().positive(),
+  utilization: z.number().int().min(0).default(100), // Staff utilization percentage
   startDate: z.string().optional().nullable().or(z.literal('')),
   endDate: z.string().optional().nullable().or(z.literal('')),
   status: z.string().default('Active'),
   notes: z.string().optional().nullable().or(z.literal('')),
 });
 
-// GET - Fetch project staff
+// GET - Fetch project positions with their staff assignments
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -27,10 +33,17 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const projectStaff = await prisma.projectStaff.findMany({
+    const projectPositions = await prisma.projectPosition.findMany({
       where: { projectId: parseInt(projectId) },
       include: {
-        staff: true,
+        staffAssignments: {
+          include: {
+            staff: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
         project: {
           select: {
             id: true,
@@ -41,12 +54,11 @@ export async function GET(request: NextRequest) {
       },
       orderBy: [
         { designation: 'asc' },
-        { staff: { staffName: 'asc' } },
       ],
     });
 
     // Custom sorting: Project Director first, then Project Manager, then alphabetical
-    const sortedProjectStaff = projectStaff.sort((a, b) => {
+    const sortedPositions = projectPositions.sort((a, b) => {
       // Project Director always first
       if (a.designation === 'Project Director' && b.designation !== 'Project Director') {
         return -1;
@@ -69,69 +81,140 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({
       success: true,
-      data: sortedProjectStaff,
-      message: 'Project staff retrieved successfully',
+      data: sortedPositions,
+      message: 'Project positions retrieved successfully',
     });
   } catch (error) {
-    console.error('Error fetching project staff:', error);
+    console.error('Error fetching project positions:', error);
     return NextResponse.json(
-      { success: false, error: 'Failed to fetch project staff' },
+      { success: false, error: 'Failed to fetch project positions' },
       { status: 500 }
     );
   }
 }
 
-// POST - Add staff to project
+// POST - Create a new position or assign staff to existing position
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const validatedData = projectStaffSchema.parse(body);
+    
+    // Check if this is a position creation or staff assignment
+    if (body.positionId) {
+      // This is a staff assignment to an existing position
+      const validatedData = assignStaffSchema.parse(body);
 
-    // Check if there's already a position with the same designation for this project
-    // For unassigned positions (staffId = null), we allow multiple
-    // For assigned positions, we check if the same staff is already assigned to the same designation
-    const existingAssignment = await prisma.projectStaff.findFirst({
-      where: {
-        projectId: validatedData.projectId,
-        designation: validatedData.designation,
-        staffId: validatedData.staffId, // This will be null for unassigned positions
-      },
-    });
+      // Check if the same staff member is already assigned to this project
+      const existingStaffAssignment = await prisma.projectStaff.findFirst({
+        where: {
+          projectId: {
+            // We need to get the projectId from the position
+            in: await prisma.projectPosition.findMany({
+              where: { id: validatedData.positionId },
+              select: { projectId: true },
+            }).then(positions => positions.map(p => p.projectId)),
+          },
+          staffId: validatedData.staffId,
+        },
+      });
 
-    if (existingAssignment) {
-      return NextResponse.json(
-        { success: false, error: 'Staff member is already assigned to this project with the same designation' },
-        { status: 400 }
-      );
-    }
+      if (existingStaffAssignment) {
+        return NextResponse.json(
+          { success: false, error: 'This staff member is already assigned to this project' },
+          { status: 400 }
+        );
+      }
 
-    const projectStaff = await prisma.projectStaff.create({
-      data: {
-        ...validatedData,
-        startDate: validatedData.startDate && validatedData.startDate !== '' ? new Date(validatedData.startDate) : null,
-        endDate: validatedData.endDate && validatedData.endDate !== '' ? new Date(validatedData.endDate) : null,
-        notes: validatedData.notes && validatedData.notes !== '' ? validatedData.notes : null,
-        updatedAt: new Date(),
-      },
-      include: {
-        staff: true,
-        project: {
-          select: {
-            id: true,
-            projectName: true,
-            projectCode: true,
+      // Get the position to get the projectId
+      const position = await prisma.projectPosition.findUnique({
+        where: { id: validatedData.positionId },
+        select: { projectId: true },
+      });
+
+      if (!position) {
+        return NextResponse.json(
+          { success: false, error: 'Position not found' },
+          { status: 404 }
+        );
+      }
+
+      const staffAssignment = await prisma.projectStaff.create({
+        data: {
+          projectId: position.projectId,
+          positionId: validatedData.positionId,
+          staffId: validatedData.staffId,
+          utilization: validatedData.utilization,
+          startDate: validatedData.startDate && validatedData.startDate !== '' ? new Date(validatedData.startDate) : null,
+          endDate: validatedData.endDate && validatedData.endDate !== '' ? new Date(validatedData.endDate) : null,
+          status: validatedData.status,
+          notes: validatedData.notes && validatedData.notes !== '' ? validatedData.notes : null,
+        },
+        include: {
+          staff: true,
+          position: true,
+          project: {
+            select: {
+              id: true,
+              projectName: true,
+              projectCode: true,
+            },
           },
         },
-      },
-    });
+      });
 
-    return NextResponse.json({
-      success: true,
-      data: projectStaff,
-      message: 'Staff added to project successfully',
-    });
+      return NextResponse.json({
+        success: true,
+        data: staffAssignment,
+        message: 'Staff assigned to position successfully',
+      });
+    } else {
+      // This is creating a new position
+      const validatedData = createPositionSchema.parse(body);
+
+      // Check if position already exists for this project
+      const existingPosition = await prisma.projectPosition.findFirst({
+        where: {
+          projectId: validatedData.projectId,
+          designation: validatedData.designation,
+        },
+      });
+
+      if (existingPosition) {
+        return NextResponse.json(
+          { success: false, error: 'This position already exists for this project' },
+          { status: 400 }
+        );
+      }
+
+      const position = await prisma.projectPosition.create({
+        data: {
+          projectId: validatedData.projectId,
+          designation: validatedData.designation,
+          requiredUtilization: validatedData.requiredUtilization,
+        },
+        include: {
+          staffAssignments: {
+            include: {
+              staff: true,
+            },
+          },
+          project: {
+            select: {
+              id: true,
+              projectName: true,
+              projectCode: true,
+            },
+          },
+        },
+      });
+
+      return NextResponse.json({
+        success: true,
+        data: position,
+        message: 'Position created successfully',
+      });
+    }
   } catch (error) {
-    console.error('Error adding staff to project:', error);
+    console.error('Error creating position or assigning staff:', error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { success: false, error: 'Validation error', details: error.errors },
@@ -139,7 +222,7 @@ export async function POST(request: NextRequest) {
       );
     }
     return NextResponse.json(
-      { success: false, error: 'Failed to add staff to project' },
+      { success: false, error: 'Failed to create position or assign staff' },
       { status: 500 }
     );
   }

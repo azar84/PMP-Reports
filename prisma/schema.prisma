@@ -364,6 +364,7 @@ model Project {
   updatedAt                DateTime  @updatedAt
   projectContacts          ProjectContact[] // Many-to-many with contacts
   projectChecklistItems    ProjectChecklistItem[] // Project checklist items
+  projectPositions         ProjectPosition[] // Project positions
   projectStaff             ProjectStaff[] // Project staff assignments
 
   @@map("projects")
@@ -392,16 +393,37 @@ model ProjectChecklistItem {
   @@map("project_checklist_items")
 }
 
+model ProjectPosition {
+  id            Int       @id @default(autoincrement())
+  projectId     Int       // FK to Project
+  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  
+  // Position details
+  designation   String    // Role/designation (e.g., "Project Director", "Project Manager", "Engineer", "Architect")
+  requiredUtilization Int @default(100) // Required total utilization for this position (e.g., 100 for 100%)
+  
+  // Metadata
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  // Relations
+  staffAssignments ProjectStaff[]
+  
+  @@unique([projectId, designation]) // Prevent duplicate positions in same project
+  @@map("project_positions")
+}
+
 model ProjectStaff {
   id            Int       @id @default(autoincrement())
   projectId     Int       // FK to Project
   project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  positionId    Int       // FK to ProjectPosition
+  position      ProjectPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
   staffId       Int?      // FK to CompanyStaff (nullable for unassigned positions)
   staff         CompanyStaff? @relation(fields: [staffId], references: [id], onDelete: Cascade)
   
   // Staff assignment details
-  designation   String    // Role/designation (e.g., "Project Director", "Project Manager", "Engineer", "Architect")
-  utilization   Int       @default(100) // Utilization percentage (0-100)
+  utilization   Int       @default(100) // Utilization percentage (0 to infinity)
   startDate     DateTime? // When staff starts on this project
   endDate       DateTime? // When staff ends on this project
   status        String    @default("Active") // Status: "Active", "Inactive", "Completed"
@@ -411,7 +433,7 @@ model ProjectStaff {
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
   
-  @@unique([projectId, staffId, designation]) // Prevent duplicate assignments for same role
+  @@unique([projectId, staffId]) // Prevent same staff from being added to same project twice
   @@map("project_staff")
 }
 

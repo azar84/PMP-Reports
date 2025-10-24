@@ -25,9 +25,13 @@ export async function GET(
         designConsultant: true,
         supervisionConsultant: true,
         costConsultant: true,
-        projectStaff: {
+        projectPositions: {
           include: {
-            staff: true,
+            staffAssignments: {
+              include: {
+                staff: true,
+              },
+            },
           },
         },
         projectContacts: true,
@@ -92,9 +96,13 @@ export async function PUT(
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
-          projectStaff: {
+          projectPositions: {
             include: {
-              staff: true,
+              staffAssignments: {
+                include: {
+                  staff: true,
+                },
+              },
             },
           },
           projectContacts: true,
@@ -104,11 +112,29 @@ export async function PUT(
 
       // Handle Project Director assignment
       if (projectDirectorId !== undefined) {
-        // First, remove any existing Project Director assignment
-        await tx.projectStaff.deleteMany({
+        // Find or create the Project Director position
+        let directorPosition = await tx.projectPosition.findFirst({
           where: {
             projectId: projectId,
             designation: 'Project Director',
+          },
+        });
+
+        if (!directorPosition) {
+          directorPosition = await tx.projectPosition.create({
+            data: {
+              projectId: projectId,
+              designation: 'Project Director',
+              requiredUtilization: 100,
+            },
+          });
+        }
+
+        // Remove any existing staff assignments for this position
+        await tx.projectStaff.deleteMany({
+          where: {
+            projectId: projectId,
+            positionId: directorPosition.id,
           },
         });
 
@@ -117,8 +143,8 @@ export async function PUT(
           await tx.projectStaff.create({
             data: {
               projectId: projectId,
+              positionId: directorPosition.id,
               staffId: projectDirectorId,
-              designation: 'Project Director',
               utilization: 100,
               status: 'Active',
               startDate: projectData.startDate,
@@ -130,11 +156,29 @@ export async function PUT(
 
       // Handle Project Manager assignment
       if (projectManagerId !== undefined) {
-        // First, remove any existing Project Manager assignment
-        await tx.projectStaff.deleteMany({
+        // Find or create the Project Manager position
+        let managerPosition = await tx.projectPosition.findFirst({
           where: {
             projectId: projectId,
             designation: 'Project Manager',
+          },
+        });
+
+        if (!managerPosition) {
+          managerPosition = await tx.projectPosition.create({
+            data: {
+              projectId: projectId,
+              designation: 'Project Manager',
+              requiredUtilization: 100,
+            },
+          });
+        }
+
+        // Remove any existing staff assignments for this position
+        await tx.projectStaff.deleteMany({
+          where: {
+            projectId: projectId,
+            positionId: managerPosition.id,
           },
         });
 
@@ -143,8 +187,8 @@ export async function PUT(
           await tx.projectStaff.create({
             data: {
               projectId: projectId,
+              positionId: managerPosition.id,
               staffId: projectManagerId,
-              designation: 'Project Manager',
               utilization: 100,
               status: 'Active',
               startDate: projectData.startDate,
@@ -163,9 +207,13 @@ export async function PUT(
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
-          projectStaff: {
+          projectPositions: {
             include: {
-              staff: true,
+              staffAssignments: {
+                include: {
+                  staff: true,
+                },
+              },
             },
           },
           projectContacts: true,

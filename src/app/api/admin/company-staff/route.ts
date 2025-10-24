@@ -15,14 +15,43 @@ export async function GET() {
   try {
     const staff = await prisma.companyStaff.findMany({
       include: {
-        projectStaff: true,
+        projectStaff: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
+            },
+            position: {
+              select: {
+                id: true,
+                designation: true,
+                requiredUtilization: true,
+              },
+            },
+          },
+        },
       },
       orderBy: {
         createdAt: 'desc',
       },
     });
 
-    return NextResponse.json({ success: true, data: staff });
+    // Calculate total utilization for each staff member
+    const staffWithUtilization = staff.map(member => {
+      const totalUtilization = member.projectStaff.reduce((sum, assignment) => sum + assignment.utilization, 0);
+      const remainingCapacity = Math.max(0, 100 - totalUtilization);
+      
+      return {
+        ...member,
+        totalUtilization,
+        remainingCapacity,
+      };
+    });
+
+    return NextResponse.json({ success: true, data: staffWithUtilization });
   } catch (error) {
     console.error('Error fetching company staff:', error);
     return NextResponse.json(
@@ -48,6 +77,13 @@ export async function POST(request: NextRequest) {
                 id: true,
                 projectName: true,
                 projectCode: true,
+              },
+            },
+            position: {
+              select: {
+                id: true,
+                designation: true,
+                requiredUtilization: true,
               },
             },
           },
