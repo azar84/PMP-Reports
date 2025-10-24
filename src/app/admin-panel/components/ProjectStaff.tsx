@@ -20,7 +20,10 @@ import {
   Briefcase,
   Crown,
   UserCheck,
-  UserX
+  UserX,
+  CheckCircle,
+  Users2,
+  UserPlus
 } from 'lucide-react';
 
 interface Staff {
@@ -369,6 +372,33 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     );
   });
 
+  // Calculate project-specific statistics
+  const calculateProjectStatistics = () => {
+    const allAssignments = projectPositions.flatMap(position => position.staffAssignments || []);
+    
+    // Calculate required staff (sum of requiredUtilization divided by 100)
+    const requiredStaff = projectPositions.reduce((sum, position) => {
+      return sum + (position.requiredUtilization / 100);
+    }, 0);
+    
+    // Calculate assigned staff (sum of assigned utilization divided by 100)
+    const assignedStaff = allAssignments.reduce((sum, assignment) => {
+      return sum + (assignment.utilization / 100);
+    }, 0);
+    
+    // Calculate involved staff (unique staff working on this project)
+    const involvedStaffIds = new Set(allAssignments.map(assignment => assignment.staffId));
+    const involvedStaff = involvedStaffIds.size;
+    
+    return {
+      requiredStaff: Math.round(requiredStaff * 100) / 100,
+      assignedStaff: Math.round(assignedStaff * 100) / 100,
+      involvedStaff
+    };
+  };
+
+  const stats = calculateProjectStatistics();
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -396,6 +426,60 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
           <Plus className="w-4 h-4" />
           <span>Add Position</span>
         </Button>
+      </div>
+
+      {/* Project Statistics */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
+          <div className="flex items-center space-x-3">
+            <Users2 className="w-6 h-6" style={{ color: colors.primary }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                Required Staff
+              </p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                {stats.requiredStaff}
+              </p>
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                FTE equivalent
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
+          <div className="flex items-center space-x-3">
+            <UserCheck className="w-6 h-6" style={{ color: colors.success }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                Assigned Staff
+              </p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                {stats.assignedStaff}
+              </p>
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                FTE equivalent
+              </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
+          <div className="flex items-center space-x-3">
+            <UserPlus className="w-6 h-6" style={{ color: colors.info }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                Involved Staff
+              </p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                {stats.involvedStaff}
+              </p>
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                Unique staff
+              </p>
+            </div>
+          </div>
+        </Card>
       </div>
 
       {/* Current Project Staff */}
