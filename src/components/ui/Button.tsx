@@ -27,7 +27,7 @@ const dynamicButtonStyles = `
 
   .btn-secondary {
     background-color: var(--color-secondary);
-    color: var(--color-bg-primary);
+    color: var(--color-text-primary);
     border: 1px solid var(--color-secondary);
   }
   .btn-secondary:hover:not(:disabled) {

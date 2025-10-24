@@ -55,7 +55,7 @@ interface Project {
       id: number;
       staffName: string;
       position?: string;
-    };
+    } | null;
   }>;
   startDate?: string;
   endDate?: string;
@@ -1125,8 +1125,18 @@ export default function ProjectManager() {
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'overview' 
                   ? 'border-current' 
-                  : 'border-transparent hover:border-gray-300'
+                  : 'border-transparent'
               }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'overview') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'overview') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
               style={{ 
                 color: activeTab === 'overview' ? colors.primary : colors.textSecondary,
                 borderBottomColor: activeTab === 'overview' ? colors.primary : 'transparent'
@@ -1142,8 +1152,18 @@ export default function ProjectManager() {
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'checklist' 
                   ? 'border-current' 
-                  : 'border-transparent hover:border-gray-300'
+                  : 'border-transparent'
               }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'checklist') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'checklist') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
               style={{ 
                 color: activeTab === 'checklist' ? colors.primary : colors.textSecondary,
                 borderBottomColor: activeTab === 'checklist' ? colors.primary : 'transparent'
@@ -1159,8 +1179,18 @@ export default function ProjectManager() {
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'staff' 
                   ? 'border-current' 
-                  : 'border-transparent hover:border-gray-300'
+                  : 'border-transparent'
               }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'staff') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'staff') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
               style={{ 
                 color: activeTab === 'staff' ? colors.primary : colors.textSecondary,
                 borderBottomColor: activeTab === 'staff' ? colors.primary : 'transparent'
@@ -1324,12 +1354,13 @@ export default function ProjectManager() {
                 <div className="space-y-4">
                   {selectedProject.projectStaff
                     .filter(staff => staff.designation === 'Project Director' || staff.designation === 'Project Manager')
+                    .filter(staff => staff.staff) // Only show assigned staff
                     .map((staffAssignment) => (
                     <div key={staffAssignment.id} className="flex items-center space-x-3">
                       <User className="w-5 h-5" style={{ color: colors.textMuted }} />
                       <div>
                         <span className="text-sm font-medium block" style={{ color: colors.textSecondary }}>{staffAssignment.designation}</span>
-                        <p style={{ color: colors.textPrimary }}>{staffAssignment.staff.staffName}</p>
+                        <p style={{ color: colors.textPrimary }}>{staffAssignment.staff?.staffName}</p>
                       </div>
                     </div>
                   ))}
@@ -1604,7 +1635,9 @@ export default function ProjectManager() {
               {selectedProject && (
                 <ProjectStaff 
                   projectId={selectedProject.id} 
-                  projectName={selectedProject.projectName} 
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
                 />
               )}
             </div>
@@ -1644,7 +1677,8 @@ export default function ProjectManager() {
           className="pl-10"
           style={{
             backgroundColor: colors.backgroundSecondary,
-            color: colors.textPrimary
+            color: colors.textPrimary,
+            borderColor: colors.borderLight
           }}
         />
       </div>
@@ -1709,7 +1743,8 @@ export default function ProjectManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
                   }}
                 />
               </div>
@@ -1725,14 +1760,15 @@ export default function ProjectManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
                   }}
                 />
               </div>
 
               {/* Client Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center space-x-2 mb-4">
                     <Building2 className="w-5 h-5" style={{ color: colors.primary }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Client</h3>
@@ -1747,9 +1783,8 @@ export default function ProjectManager() {
                         <Button
                           type="button"
                           onClick={() => setShowClientForm(true)}
-                          variant="ghost"
-                          className="text-xs px-2 py-1"
-                          style={{ color: colors.textPrimary }}
+                          variant="secondary"
+                          size="sm"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           New Client
@@ -1764,10 +1799,11 @@ export default function ProjectManager() {
                           setContactSearchTerm('');
                           setShowContactDropdown(false);
                         }}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select Client</option>
@@ -1801,9 +1837,8 @@ export default function ProjectManager() {
                                 entityId: formData.clientId,
                               });
                             }}
-                            variant="ghost"
-                            className="text-xs px-2 py-1"
-                            style={{ color: colors.textPrimary }}
+                            variant="secondary"
+                            size="sm"
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Add Contact
@@ -1822,7 +1857,8 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                       key={index}
-                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                      style={{ borderColor: colors.borderLight }}
                                     >
                                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -1875,7 +1911,8 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -1920,10 +1957,11 @@ export default function ProjectManager() {
                               value={contactSearchTerm}
                               onChange={(e) => setContactSearchTerm(e.target.value)}
                               onFocus={() => setShowContactDropdown(true)}
-                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              className="w-full p-3 pr-10 rounded-lg border"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                color: colors.textPrimary
+                                color: colors.textPrimary,
+                                borderColor: colors.borderLight
                               }}
                             />
                             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
@@ -1932,15 +1970,15 @@ export default function ProjectManager() {
                           {/* Contact Dropdown */}
                           {showContactDropdown && (
                             <div 
-                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
-                              style={{ backgroundColor: colors.backgroundPrimary }}
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}
                             >
                               {getFilteredContacts(formData.clientId).length > 0 ? (
                                 getFilteredContacts(formData.clientId).map(contact => (
                                   <div
                                     key={contact.id}
-                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
-                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b last:border-b-0"
+                                    style={{ borderBottomColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
                                       const isAssigned = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'client' && pc.contact.entityId === formData.clientId) ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'client' && pc.entityId === formData.clientId));
@@ -2018,7 +2056,7 @@ export default function ProjectManager() {
 
                     {/* Client Contact Creation Form */}
                     {showClientContactForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Add Client Contact
@@ -2046,7 +2084,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2063,7 +2102,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2079,7 +2119,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2095,7 +2136,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2111,7 +2153,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2127,7 +2170,8 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2137,8 +2181,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handleClientContactSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Add Contact</span>
@@ -2159,7 +2203,7 @@ export default function ProjectManager() {
 
                     {/* Client Creation Form */}
                     {showClientForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Create New Client
@@ -2187,7 +2231,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2203,7 +2248,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2219,7 +2265,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2235,7 +2282,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2245,8 +2293,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handleClientSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Create Client</span>
@@ -2270,7 +2318,7 @@ export default function ProjectManager() {
 
               {/* PMC Consultant Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center space-x-2 mb-4">
                     <HardHat className="w-5 h-5" style={{ color: colors.success }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Project Management Consultant</h3>
@@ -2285,9 +2333,8 @@ export default function ProjectManager() {
                         <Button
                           type="button"
                           onClick={() => setShowConsultantModal(true)}
-                          variant="ghost"
-                          className="text-xs px-2 py-1"
-                          style={{ color: colors.textPrimary }}
+                          variant="secondary"
+                          size="sm"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           New Consultant
@@ -2301,10 +2348,11 @@ export default function ProjectManager() {
                           setPMCContactSearchTerm('');
                           setShowPMCContactDropdown(false);
                         }}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select PMC</option>
@@ -2344,9 +2392,8 @@ export default function ProjectManager() {
                               });
                               setShowContactModal(true);
                             }}
-                            variant="ghost"
-                            className="text-xs px-2 py-1"
-                            style={{ color: colors.textPrimary }}
+                            variant="secondary"
+                            size="sm"
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Add Contact
@@ -2365,7 +2412,8 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                       key={index}
-                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                      style={{ borderColor: colors.borderLight }}
                                     >
                                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -2418,7 +2466,8 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -2463,10 +2512,11 @@ export default function ProjectManager() {
                               value={pmcContactSearchTerm}
                               onChange={(e) => setPMCContactSearchTerm(e.target.value)}
                               onFocus={() => setShowPMCContactDropdown(true)}
-                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              className="w-full p-3 pr-10 rounded-lg border"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                color: colors.textPrimary
+                                color: colors.textPrimary,
+                                borderColor: colors.borderLight
                               }}
                             />
                             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
@@ -2475,15 +2525,15 @@ export default function ProjectManager() {
                           {/* Contact Dropdown */}
                           {showPMCContactDropdown && (
                             <div 
-                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
-                              style={{ backgroundColor: colors.backgroundPrimary }}
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}
                             >
                               {getFilteredConsultantContacts(formData.projectManagementConsultantId, pmcContactSearchTerm).length > 0 ? (
                                 getFilteredConsultantContacts(formData.projectManagementConsultantId, pmcContactSearchTerm).map(contact => (
                                   <div
                                     key={contact.id}
-                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
-                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b last:border-b-0"
+                                    style={{ borderBottomColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
                                       const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.projectManagementConsultantId && pc.consultantType === 'pmc'));
@@ -2563,7 +2613,7 @@ export default function ProjectManager() {
 
                     {/* PMC Contact Creation Form */}
                     {showPMCContactForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Add PMC Contact
@@ -2591,7 +2641,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2608,7 +2659,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2624,7 +2676,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2640,7 +2693,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2656,7 +2710,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2672,7 +2727,8 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2708,8 +2764,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handlePMCContactSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Add Contact</span>
@@ -2730,7 +2786,7 @@ export default function ProjectManager() {
 
                     {/* Consultant Contact Creation Form */}
                     {showConsultantContactForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Add Consultant Contact
@@ -2758,7 +2814,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2775,7 +2832,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2791,7 +2849,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2807,7 +2866,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2823,7 +2883,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2839,7 +2900,8 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2875,8 +2937,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handleConsultantContactSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Add Contact</span>
@@ -2897,7 +2959,7 @@ export default function ProjectManager() {
 
                     {/* Design Contact Creation Form */}
                     {showDesignContactForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Add Design Contact
@@ -2925,7 +2987,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2942,7 +3005,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2958,7 +3022,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2974,7 +3039,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -2990,7 +3056,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3006,7 +3073,8 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3042,8 +3110,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handleDesignContactSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Add Contact</span>
@@ -3064,7 +3132,7 @@ export default function ProjectManager() {
 
                     {/* Cost Contact Creation Form */}
                     {showCostContactForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Add Cost Contact
@@ -3092,7 +3160,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3109,7 +3178,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3125,7 +3195,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3141,7 +3212,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3157,7 +3229,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3173,7 +3246,8 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3209,8 +3283,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handleCostContactSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Add Contact</span>
@@ -3231,7 +3305,7 @@ export default function ProjectManager() {
 
                     {/* Supervision Contact Creation Form */}
                     {showSupervisionContactForm && (
-                      <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                             Add Supervision Contact
@@ -3259,7 +3333,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3276,7 +3351,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3292,7 +3368,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3308,7 +3385,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3324,7 +3402,8 @@ export default function ProjectManager() {
                                 className="text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3340,7 +3419,8 @@ export default function ProjectManager() {
                                 className="w-full p-2 rounded-lg border resize-none text-sm"
                                 style={{
                                   backgroundColor: colors.backgroundSecondary,
-                                  color: colors.textPrimary
+                                  color: colors.textPrimary,
+                                  borderColor: colors.borderLight
                                 }}
                               />
                             </div>
@@ -3376,8 +3456,8 @@ export default function ProjectManager() {
                             <Button
                               type="button"
                               onClick={handleSupervisionContactSubmit}
-                              className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                              variant="primary"
+                              size="sm"
                             >
                               <Plus className="w-3 h-3" />
                               <span>Add Contact</span>
@@ -3402,7 +3482,7 @@ export default function ProjectManager() {
 
               {/* Design Consultant Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center space-x-2 mb-4">
                     <DraftingCompass className="w-5 h-5" style={{ color: colors.info }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Design Consultant</h3>
@@ -3417,9 +3497,8 @@ export default function ProjectManager() {
                         <Button
                           type="button"
                           onClick={() => setShowConsultantModal(true)}
-                          variant="ghost"
-                          className="text-xs px-2 py-1"
-                          style={{ color: colors.textPrimary }}
+                          variant="secondary"
+                          size="sm"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           New Consultant
@@ -3433,10 +3512,11 @@ export default function ProjectManager() {
                           setDesignContactSearchTerm('');
                           setShowDesignContactDropdown(false);
                         }}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select Design Consultant</option>
@@ -3476,9 +3556,8 @@ export default function ProjectManager() {
                               });
                               setShowContactModal(true);
                             }}
-                            variant="ghost"
-                            className="text-xs px-2 py-1"
-                            style={{ color: colors.textPrimary }}
+                            variant="secondary"
+                            size="sm"
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Add Contact
@@ -3497,7 +3576,8 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                       key={index}
-                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                      className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                      style={{ borderColor: colors.borderLight }}
                                     >
                                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3550,7 +3630,8 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3595,10 +3676,11 @@ export default function ProjectManager() {
                               value={designContactSearchTerm}
                               onChange={(e) => setDesignContactSearchTerm(e.target.value)}
                               onFocus={() => setShowDesignContactDropdown(true)}
-                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              className="w-full p-3 pr-10 rounded-lg border"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                color: colors.textPrimary
+                                color: colors.textPrimary,
+                                borderColor: colors.borderLight
                               }}
                             />
                             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
@@ -3607,15 +3689,15 @@ export default function ProjectManager() {
                           {/* Contact Dropdown */}
                           {showDesignContactDropdown && (
                             <div 
-                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
-                              style={{ backgroundColor: colors.backgroundPrimary }}
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}
                             >
                               {getFilteredConsultantContacts(formData.designConsultantId, designContactSearchTerm).length > 0 ? (
                                 getFilteredConsultantContacts(formData.designConsultantId, designContactSearchTerm).map(contact => (
                                   <div
                                     key={contact.id}
-                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
-                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b last:border-b-0"
+                                    style={{ borderBottomColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
                                       const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.designConsultantId && pc.consultantType === 'design') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.designConsultantId && pc.consultantType === 'design'));
@@ -3698,7 +3780,7 @@ export default function ProjectManager() {
 
               {/* Cost Consultant Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center space-x-2 mb-4">
                     <Calculator className="w-5 h-5" style={{ color: colors.warning }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Cost Consultant</h3>
@@ -3713,9 +3795,8 @@ export default function ProjectManager() {
                         <Button
                           type="button"
                           onClick={() => setShowConsultantModal(true)}
-                          variant="ghost"
-                          className="text-xs px-2 py-1"
-                          style={{ color: colors.textPrimary }}
+                          variant="secondary"
+                          size="sm"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           New Consultant
@@ -3729,10 +3810,11 @@ export default function ProjectManager() {
                           setCostContactSearchTerm('');
                           setShowCostContactDropdown(false);
                         }}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select Cost Consultant</option>
@@ -3772,9 +3854,8 @@ export default function ProjectManager() {
                               });
                               setShowContactModal(true);
                             }}
-                            variant="ghost"
-                            className="text-xs px-2 py-1"
-                            style={{ color: colors.textPrimary }}
+                            variant="secondary"
+                            size="sm"
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Add Contact
@@ -3793,7 +3874,8 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                     key={index}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3846,7 +3928,8 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -3891,10 +3974,11 @@ export default function ProjectManager() {
                               value={costContactSearchTerm}
                               onChange={(e) => setCostContactSearchTerm(e.target.value)}
                               onFocus={() => setShowCostContactDropdown(true)}
-                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              className="w-full p-3 pr-10 rounded-lg border"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                color: colors.textPrimary
+                                color: colors.textPrimary,
+                                borderColor: colors.borderLight
                               }}
                             />
                             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
@@ -3903,15 +3987,15 @@ export default function ProjectManager() {
                           {/* Contact Dropdown */}
                           {showCostContactDropdown && (
                             <div 
-                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
-                              style={{ backgroundColor: colors.backgroundPrimary }}
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}
                             >
                               {getFilteredConsultantContacts(formData.costConsultantId, costContactSearchTerm).length > 0 ? (
                                 getFilteredConsultantContacts(formData.costConsultantId, costContactSearchTerm).map(contact => (
                                   <div
                                     key={contact.id}
-                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
-                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b last:border-b-0"
+                                    style={{ borderBottomColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
                                       const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.costConsultantId && pc.consultantType === 'cost') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.costConsultantId && pc.consultantType === 'cost'));
@@ -3988,7 +4072,7 @@ export default function ProjectManager() {
 
               {/* Supervision Consultant Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center space-x-2 mb-4">
                     <Eye className="w-5 h-5" style={{ color: colors.error }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Supervision Consultant</h3>
@@ -4003,9 +4087,8 @@ export default function ProjectManager() {
                         <Button
                           type="button"
                           onClick={() => setShowConsultantModal(true)}
-                          variant="ghost"
-                          className="text-xs px-2 py-1"
-                          style={{ color: colors.textPrimary }}
+                          variant="secondary"
+                          size="sm"
                         >
                           <Plus className="w-3 h-3 mr-1" />
                           New Consultant
@@ -4019,10 +4102,11 @@ export default function ProjectManager() {
                           setSupervisionContactSearchTerm('');
                           setShowSupervisionContactDropdown(false);
                         }}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select Supervision Consultant</option>
@@ -4062,9 +4146,8 @@ export default function ProjectManager() {
                               });
                               setShowContactModal(true);
                             }}
-                            variant="ghost"
-                            className="text-xs px-2 py-1"
-                            style={{ color: colors.textPrimary }}
+                            variant="secondary"
+                            size="sm"
                           >
                             <Plus className="w-3 h-3 mr-1" />
                             Add Contact
@@ -4083,7 +4166,8 @@ export default function ProjectManager() {
                                 return contact ? (
                                   <div
                                     key={index}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -4136,7 +4220,8 @@ export default function ProjectManager() {
                                 .map(projectContact => (
                                   <div
                                     key={projectContact.id}
-                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border border-gray-200/10"
+                                    className="flex items-center space-x-3 py-2 px-3 rounded-lg border"
+                                    style={{ borderColor: colors.borderLight }}
                                   >
                                     <User className="w-4 h-4" style={{ color: colors.textMuted }} />
                                     <span className="flex-1" style={{ color: colors.textPrimary }}>
@@ -4181,10 +4266,11 @@ export default function ProjectManager() {
                               value={supervisionContactSearchTerm}
                               onChange={(e) => setSupervisionContactSearchTerm(e.target.value)}
                               onFocus={() => setShowSupervisionContactDropdown(true)}
-                              className="w-full p-3 pr-10 rounded-lg border border-gray-200/10"
+                              className="w-full p-3 pr-10 rounded-lg border"
                               style={{
                                 backgroundColor: colors.backgroundPrimary,
-                                color: colors.textPrimary
+                                color: colors.textPrimary,
+                                borderColor: colors.borderLight
                               }}
                             />
                             <Search className="absolute right-3 top-1/2 transform -translate-y-1/2 w-4 h-4" style={{ color: colors.textMuted }} />
@@ -4193,15 +4279,15 @@ export default function ProjectManager() {
                           {/* Contact Dropdown */}
                           {showSupervisionContactDropdown && (
                             <div 
-                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-gray-200/10 shadow-lg"
-                              style={{ backgroundColor: colors.backgroundPrimary }}
+                              className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
+                              style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}
                             >
                               {getFilteredConsultantContacts(formData.supervisionConsultantId, supervisionContactSearchTerm).length > 0 ? (
                                 getFilteredConsultantContacts(formData.supervisionConsultantId, supervisionContactSearchTerm).map(contact => (
                                   <div
                                     key={contact.id}
-                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b border-gray-200/10 last:border-b-0"
-                                    style={{ backgroundColor: colors.backgroundPrimary }}
+                                    className="flex items-center justify-between p-3 hover:opacity-75 cursor-pointer border-b last:border-b-0"
+                                    style={{ borderBottomColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
                                     onClick={() => {
                                       const isAssignedToThisType = projectContacts.some(pc => pc.contact.id === contact.id && pc.contact.entityType === 'consultant' && pc.contact.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision') ||
                                                        (!editingProject && pendingContacts.some(pc => pc.contactId === contact.id && pc.entityType === 'consultant' && pc.entityId === formData.supervisionConsultantId && pc.consultantType === 'supervision'));
@@ -4278,7 +4364,7 @@ export default function ProjectManager() {
 
               {/* Project Director and Manager Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center space-x-2 mb-4">
                     <Users className="w-5 h-5" style={{ color: colors.primary }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Project Leadership</h3>
@@ -4293,10 +4379,11 @@ export default function ProjectManager() {
                       <select
                         value={formData.projectDirectorId || ''}
                         onChange={(e) => setFormData({ ...formData, projectDirectorId: e.target.value ? parseInt(e.target.value) : undefined })}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select Project Director (Optional)</option>
@@ -4314,10 +4401,11 @@ export default function ProjectManager() {
                       <select
                         value={formData.projectManagerId || ''}
                         onChange={(e) => setFormData({ ...formData, projectManagerId: e.target.value ? parseInt(e.target.value) : undefined })}
-                        className="w-full p-3 rounded-lg border border-gray-200/10"
+                        className="w-full p-3 rounded-lg border"
                         style={{
                           backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary
+                          color: colors.textPrimary,
+                          borderColor: colors.borderLight
                         }}
                       >
                         <option value="">Select Project Manager (Optional)</option>
@@ -4332,7 +4420,7 @@ export default function ProjectManager() {
 
               {/* Additional Staff Section */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundSecondary }}>
+                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
                   <div className="flex items-center justify-between mb-4">
                     <div className="flex items-center space-x-2">
                       <Users className="w-5 h-5" style={{ color: colors.primary }} />
@@ -4341,9 +4429,8 @@ export default function ProjectManager() {
                     <Button
                       onClick={() => setShowStaffForm(true)}
                       type="button"
-                      variant="ghost"
+                      variant="secondary"
                       size="sm"
-                      className="text-blue-600 hover:text-blue-700 hover:bg-blue-50"
                     >
                       <Plus className="w-4 h-4 mr-1" />
                       Add Staff Member
@@ -4358,7 +4445,7 @@ export default function ProjectManager() {
 
               {/* Staff Creation Form */}
               {showStaffForm && (
-                <div className="mt-4 p-4 rounded-lg border border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                       Add Company Staff
@@ -4387,7 +4474,8 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            color: colors.textPrimary
+                            color: colors.textPrimary,
+                            borderColor: colors.borderLight
                           }}
                         />
                       </div>
@@ -4403,7 +4491,8 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            color: colors.textPrimary
+                            color: colors.textPrimary,
+                            borderColor: colors.borderLight
                           }}
                         />
                       </div>
@@ -4419,7 +4508,8 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            color: colors.textPrimary
+                            color: colors.textPrimary,
+                            borderColor: colors.borderLight
                           }}
                         />
                       </div>
@@ -4435,7 +4525,8 @@ export default function ProjectManager() {
                           className="text-sm"
                           style={{
                             backgroundColor: colors.backgroundSecondary,
-                            color: colors.textPrimary
+                            color: colors.textPrimary,
+                            borderColor: colors.borderLight
                           }}
                         />
                       </div>
@@ -4475,7 +4566,8 @@ export default function ProjectManager() {
                   onChange={(e) => handleDateChange('startDate', e.target.value)}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
                   }}
                 />
               </div>
@@ -4490,7 +4582,8 @@ export default function ProjectManager() {
                   onChange={(e) => handleDateChange('endDate', e.target.value)}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
                   }}
                 />
               </div>
@@ -4507,7 +4600,8 @@ export default function ProjectManager() {
                   style={{
                     backgroundColor: colors.backgroundSecondary,
                     color: colors.textSecondary,
-                    cursor: 'not-allowed'
+                    cursor: 'not-allowed',
+                    borderColor: colors.borderLight
                   }}
                 />
                 <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
@@ -4525,7 +4619,8 @@ export default function ProjectManager() {
                   onChange={(e) => setFormData({ ...formData, eot: e.target.value })}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
                   }}
                 />
               </div>
@@ -4543,7 +4638,8 @@ export default function ProjectManager() {
                   step="0.01"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
                   }}
                 />
               </div>
@@ -4557,10 +4653,11 @@ export default function ProjectManager() {
                 value={formData.projectDescription}
                 onChange={(e) => setFormData({ ...formData, projectDescription: e.target.value })}
                 rows={3}
-                className="w-full p-3 rounded-lg border border-gray-200/10 resize-none"
+                className="w-full p-3 rounded-lg border resize-none"
                 style={{
                   backgroundColor: colors.backgroundPrimary,
-                  color: colors.textPrimary
+                  color: colors.textPrimary,
+                  borderColor: colors.borderLight
                 }}
               />
             </div>
@@ -4629,7 +4726,8 @@ export default function ProjectManager() {
                       <span style={{ color: colors.textPrimary }}>
                         {project.projectStaff
                           .filter(staff => staff.designation === 'Project Director' || staff.designation === 'Project Manager')
-                          .map(staff => `${staff.designation}: ${staff.staff.staffName}`)
+                          .filter(staff => staff.staff) // Only show assigned staff
+                          .map(staff => `${staff.designation}: ${staff.staff?.staffName}`)
                           .join(', ')
                         }
                       </span>
@@ -4727,8 +4825,9 @@ export default function ProjectManager() {
       {/* Contact Creation Modal */}
       {showContactModal && contactModalData && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border border-gray-200/10" style={{ 
-            backgroundColor: colors.backgroundSecondary
+          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border" style={{ 
+            backgroundColor: colors.backgroundSecondary,
+            borderColor: colors.borderLight
           }}>
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -4774,10 +4873,11 @@ export default function ProjectManager() {
                     value={modalContactFormData.firstName}
                     onChange={(e) => setModalContactFormData({ ...modalContactFormData, firstName: e.target.value })}
                     required
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4791,10 +4891,11 @@ export default function ProjectManager() {
                     value={modalContactFormData.lastName}
                     onChange={(e) => setModalContactFormData({ ...modalContactFormData, lastName: e.target.value })}
                     required
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4807,10 +4908,11 @@ export default function ProjectManager() {
                     type="email"
                     value={modalContactFormData.email}
                     onChange={(e) => setModalContactFormData({ ...modalContactFormData, email: e.target.value })}
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4823,10 +4925,11 @@ export default function ProjectManager() {
                     type="tel"
                     value={modalContactFormData.phone}
                     onChange={(e) => setModalContactFormData({ ...modalContactFormData, phone: e.target.value })}
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4839,10 +4942,11 @@ export default function ProjectManager() {
                     type="text"
                     value={modalContactFormData.position}
                     onChange={(e) => setModalContactFormData({ ...modalContactFormData, position: e.target.value })}
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4855,16 +4959,17 @@ export default function ProjectManager() {
                     value={modalContactFormData.notes}
                     onChange={(e) => setModalContactFormData({ ...modalContactFormData, notes: e.target.value })}
                     rows={3}
-                    className="w-full p-3 rounded-lg border border-gray-200/10 resize-none"
+                    className="w-full p-3 rounded-lg border resize-none"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200/10">
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t" style={{ borderTopColor: colors.borderLight }}>
                 <Button
                   onClick={() => {
                     setShowContactModal(false);
@@ -4889,8 +4994,8 @@ export default function ProjectManager() {
                 </Button>
                 <Button
                   onClick={handleModalContactSubmit}
-                  className="flex items-center space-x-2"
-                  style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                  variant="primary"
+                  size="md"
                 >
                   <Plus className="w-4 h-4" />
                   <span>Add Contact</span>
@@ -4904,8 +5009,9 @@ export default function ProjectManager() {
       {/* Consultant Creation Modal */}
       {showConsultantModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border border-gray-200/10" style={{ 
-            backgroundColor: colors.backgroundSecondary
+          <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border" style={{ 
+            backgroundColor: colors.backgroundSecondary,
+            borderColor: colors.borderLight
           }}>
             <div className="flex items-center justify-between mb-6">
               <div>
@@ -4946,10 +5052,11 @@ export default function ProjectManager() {
                     value={consultantFormData.name}
                     onChange={(e) => setConsultantFormData({ ...consultantFormData, name: e.target.value })}
                     required
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4962,10 +5069,11 @@ export default function ProjectManager() {
                     type="email"
                     value={consultantFormData.email}
                     onChange={(e) => setConsultantFormData({ ...consultantFormData, email: e.target.value })}
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4978,10 +5086,11 @@ export default function ProjectManager() {
                     type="tel"
                     value={consultantFormData.phone}
                     onChange={(e) => setConsultantFormData({ ...consultantFormData, phone: e.target.value })}
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -4994,10 +5103,11 @@ export default function ProjectManager() {
                     type="text"
                     value={consultantFormData.officeAddress}
                     onChange={(e) => setConsultantFormData({ ...consultantFormData, officeAddress: e.target.value })}
-                    className="w-full p-3 rounded-lg border border-gray-200/10"
+                    className="w-full p-3 rounded-lg border"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
                     }}
                   />
                 </div>
@@ -5017,7 +5127,7 @@ export default function ProjectManager() {
                         key={type.id} 
                         className="flex items-center space-x-2 cursor-pointer p-3 rounded-lg transition-all duration-200 border"
                         style={{
-                          borderColor: isSelected ? colors.primary : 'rgba(229, 231, 235, 0.1)',
+                          borderColor: isSelected ? colors.primary : colors.borderLight,
                           backgroundColor: isSelected ? `${colors.primary}20` : colors.backgroundPrimary,
                         }}
                         onClick={() => handleConsultantTypeToggle(type.id)}
@@ -5075,7 +5185,7 @@ export default function ProjectManager() {
                 )}
               </div>
 
-              <div className="flex items-center justify-end space-x-3 pt-4 border-t border-gray-200/10">
+              <div className="flex items-center justify-end space-x-3 pt-4 border-t" style={{ borderTopColor: colors.borderLight }}>
                 <Button
                   onClick={() => {
                     setShowConsultantModal(false);
@@ -5095,8 +5205,8 @@ export default function ProjectManager() {
                 </Button>
                 <Button
                   onClick={handleConsultantSubmit}
-                  className="flex items-center space-x-2"
-                  style={{ backgroundColor: colors.success, color: colors.textPrimary }}
+                  variant="primary"
+                  size="md"
                   disabled={!consultantFormData.selectedTypes || consultantFormData.selectedTypes.length === 0}
                 >
                   <Plus className="w-4 h-4" />
