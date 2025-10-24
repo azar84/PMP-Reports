@@ -1111,7 +1111,7 @@ export default function ProjectManager() {
                 handleEdit(selectedProject);
               }}
               className="flex items-center space-x-2"
-              style={{ backgroundColor: colors.primary, color: 'white' }}
+              style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
             >
               <Edit className="w-4 h-4" />
               <span>Edit Project</span>
@@ -1300,7 +1300,7 @@ export default function ProjectManager() {
                               {projectContact.isPrimary && (
                                 <span 
                                   className="px-2 py-1 text-xs rounded-full" 
-                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                  style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                                 >
                                   Primary
                                 </span>
@@ -1390,7 +1390,7 @@ export default function ProjectManager() {
                               {projectContact && projectContact.isPrimary && (
                                 <span 
                                   className="px-2 py-1 text-xs rounded-full" 
-                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                  style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                                 >
                                   Primary
                                 </span>
@@ -1450,7 +1450,7 @@ export default function ProjectManager() {
                               {projectContact && projectContact.isPrimary && (
                                 <span 
                                   className="px-2 py-1 text-xs rounded-full" 
-                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                  style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                                 >
                                   Primary
                                 </span>
@@ -1510,7 +1510,7 @@ export default function ProjectManager() {
                               {projectContact && projectContact.isPrimary && (
                                 <span 
                                   className="px-2 py-1 text-xs rounded-full" 
-                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                  style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                                 >
                                   Primary
                                 </span>
@@ -1570,7 +1570,7 @@ export default function ProjectManager() {
                               {projectContact && projectContact.isPrimary && (
                                 <span 
                                   className="px-2 py-1 text-xs rounded-full" 
-                                  style={{ backgroundColor: colors.primary, color: 'white' }}
+                                  style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                                 >
                                   Primary
                                 </span>
@@ -1626,7 +1626,7 @@ export default function ProjectManager() {
             <Button
               onClick={() => setShowForm(true)}
               className="flex items-center space-x-2"
-              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+              style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
             >
               <Plus className="w-4 h-4" />
               <span>Add Project</span>
@@ -1843,7 +1843,7 @@ export default function ProjectManager() {
                                           }}
                                           className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                           style={{
-                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.borderLight,
                                             backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                             accentColor: colors.primary
                                           }}
@@ -1891,7 +1891,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -2246,7 +2246,7 @@ export default function ProjectManager() {
                               type="button"
                               onClick={handleClientSubmit}
                               className="flex items-center space-x-2 text-sm px-3 py-1"
-                              style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+                              style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                             >
                               <Plus className="w-3 h-3" />
                               <span>Create Client</span>
@@ -2386,7 +2386,7 @@ export default function ProjectManager() {
                                           }}
                                           className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                           style={{
-                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.borderLight,
                                             backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                             accentColor: colors.primary
                                           }}
@@ -2434,7 +2434,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -3518,7 +3518,7 @@ export default function ProjectManager() {
                                           }}
                                           className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                           style={{
-                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                            borderColor: pendingContact.isPrimary ? colors.primary : colors.borderLight,
                                             backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                             accentColor: colors.primary
                                           }}
@@ -3566,7 +3566,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -3814,7 +3814,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: pendingContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -3862,7 +3862,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -4104,7 +4104,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: pendingContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: pendingContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: pendingContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -4152,7 +4152,7 @@ export default function ProjectManager() {
                                         }}
                                         className="w-4 h-4 rounded-full border-2 focus:ring-2 focus:ring-offset-0"
                                         style={{
-                                          borderColor: projectContact.isPrimary ? colors.primary : colors.grayLight,
+                                          borderColor: projectContact.isPrimary ? colors.primary : colors.borderLight,
                                           backgroundColor: projectContact.isPrimary ? colors.primary : colors.backgroundPrimary,
                                           accentColor: colors.primary
                                         }}
@@ -4446,7 +4446,7 @@ export default function ProjectManager() {
                         type="button"
                         onClick={handleStaffSubmit}
                         className="flex items-center space-x-2 text-sm px-3 py-1"
-                        style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+                        style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
                       >
                         <Plus className="w-3 h-3" />
                         <span>Add Staff</span>
@@ -4569,7 +4569,7 @@ export default function ProjectManager() {
               <Button
                 type="submit"
                 className="flex items-center space-x-2"
-                style={{ backgroundColor: colors.primary, color: colors.textPrimary }}
+                style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
               >
                 <Save className="w-4 h-4" />
                 <span>{editingProject ? 'Update Project' : 'Create Project'}</span>

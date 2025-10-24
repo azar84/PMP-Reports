@@ -88,33 +88,41 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(
               rightIcon && 'pr-10'
             )}
             style={{
-              backgroundColor: variant === 'filled' ? 'var(--color-bg-secondary, #F9FAFB)' : 'transparent',
-              borderColor: hasError ? 'var(--color-error, #EF4444)' : 'var(--color-border-light, rgba(229, 231, 235, 0.1))',
-              color: 'var(--color-text-primary, #1F2937)'
+              backgroundColor: variant === 'filled' ? 'var(--color-bg-secondary)' : 'var(--color-bg-primary)',
+              borderColor: hasError ? 'var(--color-error)' : 'var(--color-border-light)',
+              color: 'var(--color-text-primary)',
+              border: '1px solid var(--color-border-light)'
             }}
             ref={ref}
             {...props}
           />
           <style jsx>{`
             input::placeholder {
-              color: var(--color-text-muted, #9CA3AF) !important;
+              color: var(--color-text-muted) !important;
               opacity: 1;
             }
             input::-webkit-input-placeholder {
-              color: var(--color-text-muted, #9CA3AF) !important;
+              color: var(--color-text-muted) !important;
               opacity: 1;
             }
             input::-moz-placeholder {
-              color: var(--color-text-muted, #9CA3AF) !important;
+              color: var(--color-text-muted) !important;
               opacity: 1;
             }
             input:-ms-input-placeholder {
-              color: var(--color-text-muted, #9CA3AF) !important;
+              color: var(--color-text-muted) !important;
               opacity: 1;
             }
             input:-moz-placeholder {
-              color: var(--color-text-muted, #9CA3AF) !important;
+              color: var(--color-text-muted) !important;
               opacity: 1;
+            }
+            input:hover {
+              background-color: var(--color-bg-secondary) !important;
+            }
+            input:focus {
+              border-color: var(--color-border-strong) !important;
+              box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1) !important;
             }
           `}</style>
           

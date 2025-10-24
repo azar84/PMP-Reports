@@ -950,7 +950,7 @@ export default function ConsultantManager() {
                                 required
                                 style={{
                                   backgroundColor: colors.backgroundPrimary,
-                                  borderColor: colors.grayLight,
+                                  borderColor: colors.borderLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -967,7 +967,7 @@ export default function ConsultantManager() {
                                 required
                                 style={{
                                   backgroundColor: colors.backgroundPrimary,
-                                  borderColor: colors.grayLight,
+                                  borderColor: colors.borderLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -983,7 +983,7 @@ export default function ConsultantManager() {
                                 onChange={(e) => setContactFormData({ ...contactFormData, email: e.target.value })}
                                 style={{
                                   backgroundColor: colors.backgroundPrimary,
-                                  borderColor: colors.grayLight,
+                                  borderColor: colors.borderLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -999,7 +999,7 @@ export default function ConsultantManager() {
                                 onChange={(e) => setContactFormData({ ...contactFormData, phone: e.target.value })}
                                 style={{
                                   backgroundColor: colors.backgroundPrimary,
-                                  borderColor: colors.grayLight,
+                                  borderColor: colors.borderLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1015,7 +1015,7 @@ export default function ConsultantManager() {
                                 onChange={(e) => setContactFormData({ ...contactFormData, position: e.target.value })}
                                 style={{
                                   backgroundColor: colors.backgroundPrimary,
-                                  borderColor: colors.grayLight,
+                                  borderColor: colors.borderLight,
                                   color: colors.textPrimary
                                 }}
                               />
@@ -1032,7 +1032,7 @@ export default function ConsultantManager() {
                                 className="w-full p-3 rounded-lg border resize-none"
                                 style={{
                                   backgroundColor: colors.backgroundPrimary,
-                                  borderColor: colors.grayLight,
+                                  borderColor: colors.borderLight,
                                   color: colors.textPrimary
                                 }}
                               />

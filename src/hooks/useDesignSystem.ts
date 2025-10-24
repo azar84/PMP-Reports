@@ -16,9 +16,8 @@ interface DesignSystem {
   errorColor: string;
   infoColor: string;
   // Neutral Colors
-  grayLight: string;
-  grayMedium: string;
-  grayDark: string;
+  borderLight: string;
+  borderStrong: string;
   // Background Colors
   backgroundPrimary: string;
   backgroundSecondary: string;
@@ -136,11 +135,16 @@ export const getThemeDefaults = (designSystem: DesignSystem | null) => {
       backgroundPrimary: '#1A1A1A',
       backgroundSecondary: '#2A2A2A',
       backgroundDark: '#0A0A0A',
-      textPrimary: '#FFFFFF',
-      textSecondary: '#A0A0A0',
-      textMuted: '#707070',
-      grayMedium: '#2C2C2C',
-      grayDark: '#1F2937'
+      headerBackgroundColor: '#2A2A2A',
+      sidebarHeaderBackgroundColor: '#2A2A2A',
+      sidebarBackgroundColor: '#0A0A0A',
+      textPrimary: '#4B5563',
+      textSecondary: '#9CA3AF',
+      textMuted: '#D1D5DB',
+      headerTextColor: '#4B5563',
+      sidebarTextColor: '#4B5563',
+      sidebarHeaderColor: '#4B5563',
+      borderStrong: '#1F2937'
     };
   }
 
@@ -149,9 +153,16 @@ export const getThemeDefaults = (designSystem: DesignSystem | null) => {
     secondaryColor: designSystem.secondaryColor,
     backgroundPrimary: designSystem.backgroundPrimary,
     backgroundSecondary: designSystem.backgroundSecondary,
+    backgroundDark: designSystem.backgroundDark,
+    headerBackgroundColor: designSystem.headerBackgroundColor,
+    sidebarHeaderBackgroundColor: designSystem.sidebarHeaderBackgroundColor,
+    sidebarBackgroundColor: designSystem.sidebarBackgroundColor,
     textPrimary: designSystem.textPrimary,
     textSecondary: designSystem.textSecondary,
-    textMuted: designSystem.textMuted
+    textMuted: designSystem.textMuted,
+    headerTextColor: designSystem.headerTextColor,
+    sidebarTextColor: designSystem.sidebarTextColor,
+    sidebarHeaderColor: designSystem.sidebarHeaderColor
   };
 };
 
@@ -162,24 +173,35 @@ export const getAdminPanelColors = (designSystem?: DesignSystem | null) => {
       textPrimary: designSystem.textPrimary,
       textSecondary: designSystem.textSecondary,
       textMuted: designSystem.textMuted,
+      headerTextColor: designSystem.headerTextColor,
+      sidebarTextColor: designSystem.sidebarTextColor,
+      sidebarHeaderColor: designSystem.sidebarHeaderColor,
+      headerBackgroundColor: designSystem.headerBackgroundColor,
+      sidebarHeaderBackgroundColor: designSystem.sidebarHeaderBackgroundColor,
+      sidebarBackgroundColor: designSystem.sidebarBackgroundColor,
       background: designSystem.backgroundPrimary,
       backgroundSecondary: designSystem.backgroundSecondary,
-      border: designSystem.grayLight || '#E5E7EB'
+      border: designSystem.borderLight || '#E5E7EB'
     };
   }
 
   // Fallback to design system defaults (dark theme)
   return {
-    textPrimary: '#FFFFFF',
-    textSecondary: '#A0A0A0',
-    textMuted: '#707070',
+    textPrimary: '#4B5563',
+    textSecondary: '#9CA3AF',
+    textMuted: '#D1D5DB',
+    headerTextColor: '#4B5563',
+    sidebarTextColor: '#4B5563',
+    sidebarHeaderColor: '#4B5563',
+    headerBackgroundColor: '#2A2A2A',
+    sidebarHeaderBackgroundColor: '#2A2A2A',
+    sidebarBackgroundColor: '#0A0A0A',
     background: '#1A1A1A',
     backgroundSecondary: '#2A2A2A',
     backgroundDark: '#0A0A0A',
     border: '#1F2937',
     primary: '#3B82F6',
-    grayMedium: '#2C2C2C',
-    grayDark: '#1F2937'
+    borderStrong: '#1F2937'
   };
 };
 
@@ -208,11 +230,10 @@ export const getAdminPanelColorsWithDesignSystem = (designSystem: DesignSystem |
     info: designSystem?.infoColor || '#3B82F6',
     
     // Neutral Colors
-    grayLight: designSystem?.grayLight || '#E5E7EB',
-    grayMedium: designSystem?.grayMedium || '#9CA3AF',
-    grayDark: designSystem?.grayDark || '#374151',
+    borderLight: designSystem?.borderLight || '#E5E7EB',
+    borderStrong: designSystem?.borderStrong || '#374151',
     
     // Border Colors
-    border: designSystem?.grayLight || '#E5E7EB'
+    border: designSystem?.borderLight || '#E5E7EB'
   };
 }; 

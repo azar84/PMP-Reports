@@ -16,8 +16,8 @@ interface DesignSystem {
   errorColor: string;
   infoColor: string;
   // Neutral Colors
-  grayLight: string;
-  grayMedium: string;
+  borderLight: string;
+  borderStrong: string;
 
   // Background Colors
   backgroundPrimary: string;
@@ -119,20 +119,25 @@ const applyDesignSystemToRoot = (ds: DesignSystem) => {
   root.style.setProperty('--font-weight-bold', ds.fontWeightBold);
   
   // Text colors
-  root.style.setProperty('--color-text-primary', ds.textPrimary);
-  root.style.setProperty('--color-text-secondary', ds.textSecondary);
-  root.style.setProperty('--color-text-muted', ds.textMuted);
+    root.style.setProperty('--color-text-primary', ds.textPrimary);
+    root.style.setProperty('--color-text-secondary', ds.textSecondary);
+    root.style.setProperty('--color-text-muted', ds.textMuted);
+    root.style.setProperty('--color-header-text-color', ds.headerTextColor);
+    root.style.setProperty('--color-sidebar-text-color', ds.sidebarTextColor);
+    root.style.setProperty('--color-sidebar-header-color', ds.sidebarHeaderColor);
   
   // Background colors
   root.style.setProperty('--color-bg-primary', ds.backgroundPrimary);
   root.style.setProperty('--color-bg-secondary', ds.backgroundSecondary);
   root.style.setProperty('--color-bg-dark', ds.backgroundDark || '#1F2937');
+  root.style.setProperty('--color-header-bg', ds.headerBackgroundColor);
+  root.style.setProperty('--color-sidebar-header-bg', ds.sidebarHeaderBackgroundColor);
+  root.style.setProperty('--color-sidebar-bg', ds.sidebarBackgroundColor);
   
   // Neutral colors
-  root.style.setProperty('--color-gray-light', ds.grayLight);
-  root.style.setProperty('--color-gray-medium', ds.grayMedium);
-  root.style.setProperty('--color-gray-dark', ds.grayMedium);
-  root.style.setProperty('--color-border-medium', ds.grayMedium);
+  root.style.setProperty('--color-border-light', ds.borderLight);
+  root.style.setProperty('--color-border-strong', ds.borderStrong);
+  root.style.setProperty('--color-border-medium', ds.borderStrong);
   
   // Update gradients to use new colors
   root.style.setProperty('--gradient-hero', `linear-gradient(135deg, ${ds.primaryColor} 0%, ${ds.secondaryColor} 100%)`);

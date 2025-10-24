@@ -469,8 +469,8 @@ export default function AdminPanel() {
     <div 
       className="min-h-screen flex"
       style={{ 
-        backgroundColor: colors.backgroundDark,
-        color: colors.textPrimary
+        backgroundColor: 'var(--color-bg-dark)',
+        color: 'var(--color-text-primary)'
       }}
     >
       {/* Sidebar */}
@@ -479,8 +479,8 @@ export default function AdminPanel() {
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
         } lg:relative lg:translate-x-0 lg:static lg:inset-0`}
         style={{ 
-          backgroundColor: colors.backgroundDark,
-          borderRight: `1px solid ${colors.grayDark}`
+          backgroundColor: 'var(--color-sidebar-bg)',
+          borderRight: '1px solid var(--color-border-strong)'
         }}
       >
         <div className="flex flex-col h-full">
@@ -488,9 +488,9 @@ export default function AdminPanel() {
           <div 
             className="flex items-center justify-between p-6 sticky top-0 z-10"
             style={{ 
-              borderBottom: `1px solid ${colors.grayDark}`,
+              borderBottom: '1px solid var(--color-border-light)',
               height: '80px', // Match header exactly
-              backgroundColor: colors.backgroundSecondary
+              backgroundColor: 'var(--color-sidebar-header-bg)'
             }}
           >
             <div className="flex items-center space-x-3">
@@ -503,7 +503,7 @@ export default function AdminPanel() {
               ) : (
                         <div 
                           className="w-8 h-8 rounded-lg flex items-center justify-center"
-                          style={{ backgroundColor: colors.primary }}
+                          style={{ backgroundColor: colors.secondary }}
                         >
                           <span 
                             className="font-bold text-sm"
@@ -515,7 +515,7 @@ export default function AdminPanel() {
               )}
               <span 
                 className="font-bold text-lg"
-                style={{ color: colors.textPrimary }}
+                style={{ color: 'var(--color-sidebar-header-color)' }}
               >
                 {siteSettings?.footerCompanyName || 'Company Name'}
               </span>
@@ -524,7 +524,7 @@ export default function AdminPanel() {
               onClick={() => setSidebarOpen(false)}
               className="lg:hidden p-2 rounded-lg"
               style={{ 
-                color: colors.textSecondary
+                color: 'var(--color-sidebar-header-color)'
               }}
             >
               <X className="w-5 h-5" />
@@ -543,9 +543,9 @@ export default function AdminPanel() {
                         className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors relative"
                         style={{ 
                           backgroundColor: activeSection === item.id 
-                            ? colors.grayMedium
+                            ? colors.borderStrong
                             : 'transparent',
-                          color: colors.textPrimary
+                          color: 'var(--color-sidebar-text-color)'
                         }}
               >
                 {activeSection === item.id && (
@@ -561,7 +561,7 @@ export default function AdminPanel() {
                   style={{ 
                     color: activeSection === item.id 
                       ? colors.primary
-                      : colors.textPrimary
+                      : 'var(--color-sidebar-text-color)'
                   }}
                 />
                 <span 
@@ -577,14 +577,14 @@ export default function AdminPanel() {
           <div 
             className="p-4"
             style={{ 
-              borderTop: `1px solid ${colors.grayDark}`
+              borderTop: `1px solid ${colors.borderStrong}`
             }}
           >
             <div className="flex items-center justify-between">
               <div className="flex items-center space-x-3">
                 <div 
                   className="w-8 h-8 rounded-full flex items-center justify-center"
-                  style={{ backgroundColor: colors.primary }}
+                  style={{ backgroundColor: colors.secondary }}
                 >
                   <span 
                     className="font-medium text-sm"
@@ -626,8 +626,8 @@ export default function AdminPanel() {
         <header 
           className="border-b p-6 lg:hidden sticky top-0 z-20"
           style={{ 
-            backgroundColor: colors.backgroundSecondary,
-            borderBottomColor: colors.grayDark,
+            backgroundColor: 'var(--color-header-bg)',
+            borderBottomColor: 'var(--color-border-light)',
             height: '80px' // Match sidebar logo section exactly
           }}
         >
@@ -674,15 +674,15 @@ export default function AdminPanel() {
         <header 
           className="hidden lg:flex items-center justify-between px-6 py-6 border-b sticky top-0 z-20"
           style={{ 
-            backgroundColor: colors.backgroundSecondary,
-            borderBottomColor: colors.grayDark,
+            backgroundColor: 'var(--color-header-bg)',
+            borderBottomColor: 'var(--color-border-light)',
             height: '80px' // Match sidebar logo section exactly
           }}
         >
           <div className="flex items-center space-x-3">
             <h1 
               className="text-lg font-bold uppercase"
-              style={{ color: colors.textPrimary }}
+              style={{ color: 'var(--color-header-text-color)' }}
             >
               {activeSection === 'dashboard' ? 'DASHBOARD' : activeSection.toUpperCase().replace('-', ' ')}
             </h1>
@@ -693,12 +693,12 @@ export default function AdminPanel() {
               <button
                 className="p-2 rounded-lg transition-colors relative"
                 style={{ 
-                  color: colors.textSecondary,
+                  color: 'var(--color-text-secondary)',
                   backgroundColor: 'transparent'
                 }}
                 onClick={() => setShowNotifications(true)}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                  e.currentTarget.style.backgroundColor = 'var(--color-bg-dark)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.backgroundColor = 'transparent';
@@ -741,19 +741,19 @@ export default function AdminPanel() {
             <div 
               className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
               style={{ 
-                backgroundColor: colors.info,
-                color: colors.textPrimary
+                backgroundColor: colors.secondary,
+                color: 'var(--color-text-primary)'
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                e.currentTarget.style.backgroundColor = 'var(--color-bg-dark)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = colors.info;
+                e.currentTarget.style.backgroundColor = colors.secondary;
               }}
             >
               <span 
                 className="font-medium text-sm"
-                style={{ color: colors.textPrimary }}
+                style={{ color: 'var(--color-text-primary)' }}
               >
                 {user.email?.charAt(0).toUpperCase()}
               </span>

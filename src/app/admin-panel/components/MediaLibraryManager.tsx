@@ -374,7 +374,7 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
           <div 
             className="w-80 border-r p-4"
             style={{ 
-              borderColor: colors.grayLight,
+              borderColor: colors.borderLight,
               backgroundColor: colors.backgroundSecondary
             }}
           >
@@ -475,7 +475,7 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
             <div 
               className="p-4 border-b"
               style={{ 
-                borderColor: colors.grayLight,
+                borderColor: colors.borderLight,
                 backgroundColor: designSystem?.backgroundSecondary || colors.backgroundSecondary
               }}
             >
@@ -595,7 +595,7 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
                       </div>
                       <div 
                         className="w-full rounded-full h-2"
-                        style={{ backgroundColor: colors.grayLight }}
+                        style={{ backgroundColor: colors.borderLight }}
                       >
                         <div 
                           className={`h-2 rounded-full transition-all duration-300 ${
@@ -719,18 +719,18 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
                             : ''
                         }`}
                         style={{
-                          borderColor: isSelected ? colors.primary : (colors.grayLight),
+                          borderColor: isSelected ? colors.primary : (colors.borderLight),
                           backgroundColor: isSelected ? (designSystem?.backgroundSecondary || colors.backgroundSecondary) : (designSystem?.backgroundPrimary || colors.backgroundPrimary)
                         }}
                         onMouseEnter={(e) => {
                           if (!isSelected) {
                             e.currentTarget.style.borderColor = designSystem?.textSecondary || colors.textSecondary;
-                            e.currentTarget.style.boxShadow = `0 10px 15px -3px ${colors.grayDark}33`;
+                            e.currentTarget.style.boxShadow = `0 10px 15px -3px ${colors.borderStrong}33`;
                           }
                         }}
                         onMouseLeave={(e) => {
                           if (!isSelected) {
-                            e.currentTarget.style.borderColor = colors.grayLight;
+                            e.currentTarget.style.borderColor = colors.borderLight;
                             e.currentTarget.style.boxShadow = 'none';
                           }
                         }}
@@ -1049,7 +1049,7 @@ const UrlImportModal: React.FC<{
       >
         <div 
           className="p-6 border-b"
-          style={{ borderColor: colors.grayLight }}
+          style={{ borderColor: colors.borderLight }}
         >
           <div className="flex items-center justify-between">
             <h3 

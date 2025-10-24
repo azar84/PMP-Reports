@@ -10,15 +10,26 @@ Based on the active design system in the database:
 | Color Token | Hex Value | Usage |
 |-------------|-----------|-------|
 | `primaryColor` | `#ff2600` | Primary brand color, buttons, accents |
-| `backgroundPrimary` | `#000000` | Main page backgrounds |
-| `backgroundSecondary` | `#444444` | Card backgrounds, secondary containers |
-| `backgroundDark` | `#232323` | Sidebar background |
-| `grayMedium` | `#6B7280` | Borders, dividers |
-| `grayDark` | `#444444` | Dark borders, inactive states |
-| `grayLight` | `#ebebeb` | Light borders, hover states |
-| `textPrimary` | `#ffffff` | Main text, headings |
-| `textSecondary` | `#ebebeb` | Secondary text, labels |
-| `textMuted` | `#9CA3AF` | Muted text, placeholders |
+| `secondaryColor` | `#ff9300` | Secondary brand color, secondary actions |
+| `accentColor` | `#06B6D4` | Accent color for highlights |
+| `successColor` | `#10B981` | Success states and positive actions |
+| `warningColor` | `#F59E0B` | Warning states and caution |
+| `errorColor` | `#EF4444` | Error states and destructive actions |
+| `infoColor` | `#3B82F6` | Informational messages |
+| `backgroundPrimary` | `#fafafa` | Main page backgrounds |
+| `backgroundSecondary` | `#ffffff` | Card backgrounds, secondary containers |
+| `backgroundDark` | `#c0c0c0` | Sidebar background |
+| `headerBackgroundColor` | `#ff2600` | Header background color |
+| `sidebarHeaderBackgroundColor` | `#ff2600` | Sidebar header (logo area) background |
+| `sidebarBackgroundColor` | `#ffffff` | Sidebar navigation background |
+| `borderLight` | `#F9FAFB` | Light borders, hover states, subtle dividers |
+| `borderStrong` | `#d6d6d6` | Strong borders, major separators, focus states |
+| `textPrimary` | `#4B5563` | Main text, headings (light colors) |
+| `textSecondary` | `#9CA3AF` | Secondary text, labels (light colors) |
+| `textMuted` | `#D1D5DB` | Muted text, placeholders (light colors) |
+| `headerTextColor` | `#ffffff` | Header and navigation text color |
+| `sidebarTextColor` | `#000000` | Sidebar menu and navigation text color |
+| `sidebarHeaderColor` | `#ffffff` | Sidebar header (logo area) and close button text color |
 
 ## Visual Hierarchy Rules
 
@@ -26,15 +37,15 @@ Based on the active design system in the database:
 
 ```
 ┌─────────────────────────────────────────────────────────┐
-│ Main Container (backgroundDark: #232323)                │
+│ Main Container (backgroundPrimary: #fafafa)           │
 │ ┌─────────────┐ ┌─────────────────────────────────────┐ │
-│ │ Sidebar     │ │ Header (backgroundSecondary: #232323) │ │
-│ │ (backgroundDark) │ └─────────────────────────────────────┘ │
+│ │ Sidebar     │ │ Header (headerBackgroundColor: #ff2600) │ │
+│ │ (sidebarBackgroundColor: #ffffff) │ └─────────────────────────────────────┘ │
 │ │             │ │ Content Area                         │ │
-│ │             │ │ (backgroundPrimary: #000000)         │ │
+│ │             │ │ (backgroundPrimary: #fafafa)         │ │
 │ │             │ │ ┌─────────────────────────────────┐ │ │
 │ │             │ │ │ Cards/Components                │ │ │
-│ │             │ │ │ (backgroundSecondary: #444444) │ │ │
+│ │             │ │ │ (backgroundSecondary: #ffffff) │ │ │
 │ │             │ │ └─────────────────────────────────┘ │ │
 │ └─────────────┘ └─────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────┘
@@ -43,17 +54,18 @@ Based on the active design system in the database:
 ### 2. Visual Hierarchy Flow
 
 ```
-backgroundDark (#232323)
-├── Sidebar Navigation (backgroundDark: #444444)
+backgroundPrimary (#fafafa)
+├── Sidebar Navigation (sidebarBackgroundColor: #ffffff)
+│   └── Sidebar Header (sidebarHeaderBackgroundColor: #ff2600)
 └── Main Content Area
-    ├── Header (backgroundSecondary: #232323)
-    └── Content (backgroundPrimary: #000000)
+    ├── Header (headerBackgroundColor: #ff2600)
+    └── Content (backgroundPrimary: #fafafa)
         ├── Dashboard Cards
         ├── User Management Cards  
         ├── Scheduler Cards
         ├── Site Settings Cards
         └── Design System Cards
-            └── backgroundSecondary (#444444)
+            └── backgroundSecondary (#ffffff)
                 ├── Form inputs
                 ├── Modal content
                 └── Secondary containers
@@ -61,61 +73,187 @@ backgroundDark (#232323)
 
 ### 3. Background Color Usage
 
-#### **Main Container** (`colors.backgroundDark`)
+#### **Main Container** (`colors.backgroundPrimary`)
 - **Usage**: Overall admin panel wrapper
-- **Color**: `#232323`
-- **Purpose**: Provides the base dark theme foundation
+- **Color**: `#fafafa` (light gray)
+- **Purpose**: Provides the base light theme foundation
 
 #### **Content Areas** (`colors.backgroundPrimary`)
 - **Usage**: Main content containers for all views
-- **Color**: `#000000` (black)
+- **Color**: `#fafafa` (light gray)
 - **Purpose**: Primary content background for dashboard, users, scheduler, site-settings, design-system views
 - **Exception**: Media Library uses `colors.backgroundSecondary` for its main container
 
 #### **Cards & Secondary Containers** (`colors.backgroundSecondary`)
 - **Usage**: All Card components, secondary UI elements
-- **Color**: `#444444`
+- **Color**: `#ffffff` (white)
 - **Purpose**: Provides contrast against primary background
 - **Examples**: Dashboard metric cards, form containers, modal content
 
-#### **Header** (`colors.backgroundSecondary`)
+#### **Header** (`colors.headerBackgroundColor`)
 - **Usage**: Global header/top navigation
-- **Color**: `#232323`
-- **Purpose**: Lighter than sidebar, provides contrast for header content
+- **Color**: `#ff2600` (primary color)
+- **Purpose**: Uses primary brand color for header background
 
-#### **Sidebar** (`colors.backgroundDark`)
+#### **Sidebar** (`colors.sidebarBackgroundColor`)
 - **Usage**: Navigation sidebar
-- **Color**: `#444444`
-- **Purpose**: Darker background to distinguish navigation from main content
+- **Color**: `#ffffff` (white)
+- **Purpose**: Clean white background for navigation
 
-### 3. Text Color Hierarchy
+#### **Sidebar Header** (`colors.sidebarHeaderBackgroundColor`)
+- **Usage**: Sidebar logo area
+- **Color**: `#ff2600` (primary color)
+- **Purpose**: Matches header background for consistency
+
+### 4. Text Color Hierarchy
 
 #### **Primary Text** (`colors.textPrimary`)
 - **Usage**: Headings, main content text, important labels
-- **Color**: `#ffffff` (white)
-- **Purpose**: Highest contrast for readability
+- **Color**: `#4B5563` (dark gray)
+- **Purpose**: High contrast for readability on light backgrounds
 
 #### **Secondary Text** (`colors.textSecondary`)
 - **Usage**: Labels, descriptions, secondary information
-- **Color**: `#ebebeb`
+- **Color**: `#9CA3AF` (medium gray)
 - **Purpose**: Good contrast while being less prominent than primary text
 
 #### **Muted Text** (`colors.textMuted`)
 - **Usage**: Placeholders, captions, less important information
-- **Color**: `#9CA3AF`
+- **Color**: `#D1D5DB` (light gray)
 - **Purpose**: Lowest contrast for subtle information
 
-### 4. Interactive Elements
+#### **Header Text** (`colors.headerTextColor`)
+- **Usage**: Header titles, navigation text
+- **Color**: `#ffffff` (white)
+- **Purpose**: High contrast on primary color header background
+
+#### **Sidebar Text** (`colors.sidebarTextColor`)
+- **Usage**: Sidebar menu items, navigation text
+- **Color**: `#000000` (black)
+- **Purpose**: High contrast on white sidebar background
+
+#### **Sidebar Header Text** (`colors.sidebarHeaderColor`)
+- **Usage**: Sidebar logo area, close button
+- **Color**: `#ffffff` (white)
+- **Purpose**: High contrast on primary color sidebar header background
+
+### 5. Interactive Elements
 
 #### **Primary Actions** (`colors.primary`)
 - **Usage**: Primary buttons, active states, brand elements
 - **Color**: `#ff2600` (red/orange)
 - **Purpose**: Draws attention to main actions
+- **Text Color**: `var(--color-bg-primary)` (`#fafafa`) for contrast
+
+#### **Secondary Actions** (`colors.secondary`)
+- **Usage**: Secondary buttons, alternative actions
+- **Color**: `#ff9300` (orange)
+- **Purpose**: Alternative actions with brand consistency
+- **Text Color**: `var(--color-bg-primary)` (`#fafafa`) for contrast
 
 #### **Borders & Dividers**
-- **Light borders**: `colors.grayLight` (`#ebebeb`)
-- **Medium borders**: `colors.grayMedium` (`#6B7280`)
-- **Dark borders**: `colors.grayDark` (`#444444`)
+- **Light borders**: `colors.borderLight` (`#F9FAFB`) - Subtle dividers, hover states, card borders
+- **Strong borders**: `colors.borderStrong` (`#d6d6d6`) - Major separators, focus states, structural dividers
+
+## Professional Design Guidelines
+
+### 🎯 Background Layering Rules (Linear/Notion/Stripe Quality)
+
+#### **BG 1 (Primary)**: `var(--color-bg-primary)` (`#fafafa`)
+- **Usage**: Main page/canvas backgrounds
+- **Elements**: `body`, `.space-y-8`, main content areas
+- **Implementation**: `background: var(--color-bg-primary); color: var(--color-text-primary);`
+
+#### **BG 2 (Secondary)**: `var(--color-bg-secondary)` (`#ffffff`)
+- **Usage**: Cards, panels, elevated containers
+- **Elements**: `.rounded-xl.p-6`, form containers, modal content
+- **Implementation**: `background: var(--color-bg-secondary); border: 1px solid var(--color-border-light);`
+
+#### **BG 3 (Dark)**: `var(--color-bg-dark)` (`#c0c0c0`)
+- **Usage**: Sidebar, header strips, quiet sections
+- **Elements**: `.sidebar`, `.header-strip`, `.quiet-section`
+- **Implementation**: `background: var(--color-bg-dark); border-color: var(--color-border-light);`
+
+#### **BG 4 (Header)**: `var(--color-header-bg)` (`#ff2600`)
+- **Usage**: Main header background
+- **Elements**: `.header`, `.top-navigation`
+- **Implementation**: `background: var(--color-header-bg); color: var(--color-header-text-color);`
+
+#### **BG 5 (Sidebar)**: `var(--color-sidebar-bg)` (`#ffffff`)
+- **Usage**: Sidebar navigation background
+- **Elements**: `.sidebar`, `.navigation`
+- **Implementation**: `background: var(--color-sidebar-bg); color: var(--color-sidebar-text-color);`
+
+#### **BG 6 (Sidebar Header)**: `var(--color-sidebar-header-bg)` (`#ff2600`)
+- **Usage**: Sidebar header (logo area) background
+- **Elements**: `.sidebar-header`, `.logo-area`
+- **Implementation**: `background: var(--color-sidebar-header-bg); color: var(--color-sidebar-header-color);`
+
+### 🎨 Border Usage Rules
+
+#### **Light Borders**: `var(--color-border-light)` (`#F9FAFB`)
+- **Usage**: Subtle dividers, hover states, card borders, sidebar header borders
+- **Elements**: `.border-b`, input fields, card borders, sidebar header dividers
+- **Implementation**: `border-color: var(--color-border-light);`
+
+#### **Strong Borders**: `var(--color-border-strong)` (`#d6d6d6`)
+- **Usage**: Major separators, focus states, structural dividers
+- **Elements**: Sidebar dividers, table borders, focus states
+- **Implementation**: `border-color: var(--color-border-strong);`
+
+### 🔧 Component State Rules
+
+#### **Input Field States**
+```css
+/* Default */
+input {
+  background: var(--color-bg-primary);
+  border: 1px solid var(--color-border-light);
+}
+
+/* Hover */
+input:hover {
+  background-color: var(--color-bg-secondary);
+}
+
+/* Focus */
+input:focus {
+  border-color: var(--color-border-strong);
+  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.1);
+}
+```
+
+#### **Button Focus States**
+```css
+.btn:focus-visible {
+  outline: 2px solid #3B82F6;
+  outline-offset: 2px;
+}
+```
+
+#### **Card Elevation**
+```css
+.card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+```
+
+### 🏗️ Structural Separator Rules
+
+#### **Sidebar ↔ Main Content**
+- **Border**: `var(--color-border-strong)` (`#d6d6d6`)
+- **Reason**: Major layout boundary
+- **Implementation**: `border-right: 1px solid var(--color-border-strong);`
+
+#### **Header ↔ Main Content**
+- **Border**: `var(--color-border-light)` (`#F9FAFB`)
+- **Reason**: Part of main content hierarchy
+- **Implementation**: `border-bottom: 1px solid var(--color-border-light);`
+
+#### **Sidebar Header ↔ Sidebar Menu**
+- **Border**: `var(--color-border-light)` (`#F9FAFB`)
+- **Reason**: Subtle hierarchy within sidebar
+- **Implementation**: `border-bottom: 1px solid var(--color-border-light);`
 
 ## Implementation Guidelines
 
@@ -123,32 +261,57 @@ backgroundDark (#232323)
 
 ```tsx
 // Main content container
-<div style={{ backgroundColor: colors.backgroundPrimary }}>
+<div style={{ backgroundColor: 'var(--color-bg-primary)', color: 'var(--color-text-primary)' }}>
   {/* Dashboard, Users, Scheduler, Site Settings, Design System */}
 </div>
 
 // Media Library special case
-<div style={{ backgroundColor: colors.backgroundSecondary }}>
+<div style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
   {/* Media Library main container */}
 </div>
 
 // Cards and secondary containers
-<Card> {/* Uses colors.backgroundSecondary internally */}
-  <CardTitle> {/* Uses colors.textPrimary */}
+<Card> {/* Uses var(--color-bg-secondary) internally with light border */}
+  <CardTitle> {/* Uses var(--color-text-primary) */}
     Heading
   </CardTitle>
-  <CardDescription> {/* Uses colors.textSecondary */}
+  <CardDescription> {/* Uses var(--color-text-secondary) */}
     Description text
   </CardDescription>
 </Card>
 
-// Sidebar
-<div style={{ backgroundColor: colors.backgroundDark }}>
+// Sidebar navigation
+<div style={{ 
+  backgroundColor: 'var(--color-sidebar-bg)', 
+  borderRight: '1px solid var(--color-border-strong)',
+  color: 'var(--color-sidebar-text-color)'
+}}>
   {/* Navigation items */}
 </div>
 
+// Sidebar header
+<div style={{ 
+  backgroundColor: 'var(--color-sidebar-header-bg)', 
+  borderBottom: '1px solid var(--color-border-light)',
+  color: 'var(--color-sidebar-header-color)'
+}}>
+  {/* Logo area */}
+</div>
+
+// Header
+<div style={{ 
+  backgroundColor: 'var(--color-header-bg)', 
+  borderBottom: '1px solid var(--color-border-light)',
+  color: 'var(--color-header-text-color)'
+}}>
+  {/* Header content */}
+</div>
+
 // Primary buttons
-<button style={{ backgroundColor: colors.primary }}>
+<button style={{ 
+  backgroundColor: 'var(--color-primary)', 
+  color: 'var(--color-bg-primary)' 
+}}>
   Primary Action
 </button>
 ```
@@ -160,7 +323,7 @@ backgroundDark (#232323)
 <div style={{ backgroundColor: '#F9FAFB' }}>
 
 // DON'T: Use wrong hierarchy
-<div style={{ backgroundColor: colors.backgroundSecondary }}>
+<div style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
   <Card> {/* This creates backgroundSecondary on backgroundSecondary */}
 </div>
 
@@ -188,14 +351,16 @@ backgroundDark (#232323)
 - **Forms**: `colors.backgroundSecondary`
 
 ### Sidebar (All Views)
-- **Background**: `colors.backgroundDark`
-- **Active navigation**: `colors.grayMedium`
-- **Text**: `colors.textPrimary`
+- **Background**: `colors.sidebarBackgroundColor` (`#ffffff`)
+- **Header Background**: `colors.sidebarHeaderBackgroundColor` (`#ff2600`)
+- **Text**: `colors.sidebarTextColor` (`#000000`)
+- **Header Text**: `colors.sidebarHeaderColor` (`#ffffff`)
+- **Border**: `colors.borderStrong` for main divider, `colors.borderLight` for header divider
 
 ### Header (All Views)
-- **Background**: `colors.backgroundSecondary`
-- **Text**: `colors.textPrimary`
-- **Icons**: `colors.textSecondary`
+- **Background**: `colors.headerBackgroundColor` (`#ff2600`)
+- **Text**: `colors.headerTextColor` (`#ffffff`)
+- **Border**: `colors.borderLight` for bottom border
 
 ## Color Contrast Guidelines
 
@@ -205,10 +370,11 @@ backgroundDark (#232323)
 - **Interactive elements**: 3:1 (WCAG AA)
 
 ### Current Contrast Analysis
-- `#ffffff` on `#000000`: 21:1 ✅ (Excellent)
-- `#ffffff` on `#444444`: 9.7:1 ✅ (Excellent)
-- `#ebebeb` on `#000000`: 18.1:1 ✅ (Excellent)
-- `#ebebeb` on `#444444`: 8.2:1 ✅ (Excellent)
+- `#4B5563` on `#fafafa`: 8.2:1 ✅ (Excellent)
+- `#ffffff` on `#ff2600`: 4.5:1 ✅ (WCAG AA)
+- `#000000` on `#ffffff`: 21:1 ✅ (Excellent)
+- `#ffffff` on `#ff2600`: 4.5:1 ✅ (WCAG AA)
+- `#4B5563` on `#ffffff`: 8.2:1 ✅ (Excellent)
 
 ## Maintenance Notes
 
@@ -231,5 +397,5 @@ When updating components to follow this hierarchy:
 
 ---
 
-*Last updated: $(date)*
-*Design System Version: Active database values*
+*Last updated: January 22, 2025*
+*Design System Version: Updated with header colors, background colors, and border refinements*

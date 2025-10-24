@@ -16,6 +16,10 @@ const dynamicButtonStyles = `
     background-color: var(--color-primary-light);
     transform: scale(1.02);
   }
+  .btn-primary:focus-visible {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
+  }
   .btn-primary:active:not(:disabled) {
     background-color: var(--color-primary-dark);
     transform: scale(0.98);
@@ -29,6 +33,10 @@ const dynamicButtonStyles = `
   .btn-secondary:hover:not(:disabled) {
     background-color: var(--color-secondary-dark);
     transform: scale(1.02);
+  }
+  .btn-secondary:focus-visible {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
   }
 
   .btn-accent {
@@ -47,9 +55,13 @@ const dynamicButtonStyles = `
     border: 1px solid transparent;
   }
   .btn-ghost:hover:not(:disabled) {
-    background-color: var(--color-primary-light);
-    opacity: 0.1;
+    background-color: var(--color-bg-dark);
+    opacity: 0.6;
     transform: scale(1.02);
+  }
+  .btn-ghost:focus-visible {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
   }
 
   .btn-destructive {
@@ -90,6 +102,10 @@ const dynamicButtonStyles = `
   .btn-outline:hover:not(:disabled) {
     background-color: var(--color-primary-light);
     transform: scale(1.02);
+  }
+  .btn-outline:focus-visible {
+    outline: 2px solid #3B82F6;
+    outline-offset: 2px;
   }
 
   .btn-muted {

@@ -50,9 +50,11 @@ const Card = React.forwardRef<HTMLDivElement, CardProps>(
         ref={ref}
         className={cn(cardVariants({ variant, padding, hover, className }))}
         style={{
-          backgroundColor: variant === 'outlined' ? 'transparent' : colors.backgroundSecondary,
-          borderColor: colors.grayLight,
-          color: colors.textPrimary
+          backgroundColor: variant === 'outlined' ? 'transparent' : 'var(--color-bg-secondary)',
+          borderColor: 'var(--color-border-light)',
+          color: 'var(--color-text-primary)',
+          border: '1px solid var(--color-border-light)',
+          boxShadow: variant === 'outlined' ? 'none' : '0 1px 2px rgba(0, 0, 0, 0.03)'
         }}
         {...props}
       >
@@ -87,7 +89,7 @@ const CardTitle = React.forwardRef<
     <h3
       ref={ref}
       className={cn('font-semibold text-lg leading-none tracking-tight', className)}
-      style={{ color: colors.textPrimary }}
+      style={{ color: 'var(--color-text-primary)' }}
       {...props}
     >
       {children}
@@ -106,7 +108,7 @@ const CardDescription = React.forwardRef<
     <p
       ref={ref}
       className={cn('text-sm', className)}
-      style={{ color: colors.textSecondary }}
+      style={{ color: 'var(--color-text-secondary)' }}
       {...props}
     />
   );

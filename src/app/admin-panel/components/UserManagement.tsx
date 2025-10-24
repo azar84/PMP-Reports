@@ -447,7 +447,7 @@ export default function UserManagement() {
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: colors.grayLight }}
+                  style={{ borderColor: colors.borderLight }}
                 >
                   <option value="admin">Admin</option>
                   <option value="editor">Editor</option>
@@ -564,7 +564,7 @@ export default function UserManagement() {
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: colors.grayLight }}
+                  style={{ borderColor: colors.borderLight }}
                 >
                   <option value="admin">Admin</option>
                   <option value="editor">Editor</option>
@@ -755,7 +755,7 @@ export default function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: colors.grayLight }}>
+                          <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: colors.borderLight }}>
                             <User className="w-5 h-5" style={{ color: colors.textSecondary }} />
                           </div>
                         </div>

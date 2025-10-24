@@ -404,7 +404,7 @@ export default function ContactManager() {
                 className="w-full p-3 rounded-lg border resize-none"
                 style={{
                   backgroundColor: colors.backgroundPrimary,
-                  borderColor: colors.grayLight,
+                  borderColor: colors.borderLight,
                   color: colors.textPrimary
                 }}
               />

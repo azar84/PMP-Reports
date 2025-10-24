@@ -38,9 +38,8 @@ interface DesignSystem {
   errorColor: string;
   infoColor: string;
   // Neutral Colors
-  grayLight: string;
-  grayMedium: string;
-  grayDark: string;
+  borderLight: string;
+  borderStrong: string;
   // Background Colors
   backgroundPrimary: string;
   backgroundSecondary: string;
@@ -161,6 +160,13 @@ const DesignSystemManager: React.FC = () => {
     fetchDesignSystem();
   }, []);
 
+  // Apply design system whenever it changes
+  useEffect(() => {
+    if (designSystem) {
+      applyDesignSystemToRoot(designSystem);
+    }
+  }, [designSystem]);
+
   const fetchDesignSystem = async () => {
     try {
       setLoading(true);
@@ -169,6 +175,8 @@ const DesignSystemManager: React.FC = () => {
 
       if (result.success) {
         setDesignSystem(result.data);
+        // Apply design system to document root when loading
+        applyDesignSystemToRoot(result.data);
       } else {
         setMessage({ type: 'error', text: result.message || 'Failed to load design system' });
       }
@@ -267,17 +275,22 @@ const DesignSystemManager: React.FC = () => {
     root.style.setProperty('--color-error', ds.errorColor);
     root.style.setProperty('--color-info', ds.infoColor);
     
-    root.style.setProperty('--color-gray-light', ds.grayLight);
-    root.style.setProperty('--color-gray-medium', ds.grayMedium);
-    root.style.setProperty('--color-gray-dark', ds.grayDark);
+    root.style.setProperty('--color-border-light', ds.borderLight);
+    root.style.setProperty('--color-border-strong', ds.borderStrong);
     
     root.style.setProperty('--color-bg-primary', ds.backgroundPrimary);
     root.style.setProperty('--color-bg-secondary', ds.backgroundSecondary);
     root.style.setProperty('--color-bg-dark', ds.backgroundDark);
+    root.style.setProperty('--color-header-bg', ds.headerBackgroundColor);
+    root.style.setProperty('--color-sidebar-header-bg', ds.sidebarHeaderBackgroundColor);
+    root.style.setProperty('--color-sidebar-bg', ds.sidebarBackgroundColor);
     
     root.style.setProperty('--color-text-primary', ds.textPrimary);
     root.style.setProperty('--color-text-secondary', ds.textSecondary);
     root.style.setProperty('--color-text-muted', ds.textMuted);
+    root.style.setProperty('--color-header-text-color', ds.headerTextColor);
+    root.style.setProperty('--color-sidebar-text-color', ds.sidebarTextColor);
+    root.style.setProperty('--color-sidebar-header-color', ds.sidebarHeaderColor);
     
     root.style.setProperty('--font-family-sans', ds.fontFamily);
     root.style.setProperty('--font-family-mono', ds.fontFamilyMono);
@@ -337,11 +350,11 @@ const DesignSystemManager: React.FC = () => {
     return (
       <div className="p-8">
         <div className="animate-pulse">
-          <div className="h-8 rounded w-1/3 mb-6" style={{ backgroundColor: colors.grayLight }}></div>
+          <div className="h-8 rounded w-1/3 mb-6" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
           <div className="space-y-4">
-            <div className="h-32 rounded" style={{ backgroundColor: colors.grayLight }}></div>
-            <div className="h-32 rounded" style={{ backgroundColor: colors.grayLight }}></div>
-            <div className="h-32 rounded" style={{ backgroundColor: colors.grayLight }}></div>
+            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
+            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
+            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
           </div>
         </div>
       </div>
@@ -352,8 +365,8 @@ const DesignSystemManager: React.FC = () => {
     return (
       <div className="p-8">
         <div className="text-center">
-          <h2 className="text-2xl font-bold mb-4" style={{ color: colors.textPrimary }}>Design System Not Found</h2>
-          <p className="mb-6" style={{ color: colors.textSecondary }}>Unable to load the design system settings.</p>
+          <h2 className="text-2xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>Design System Not Found</h2>
+          <p className="mb-6" style={{ color: 'var(--color-text-secondary)' }}>Unable to load the design system settings.</p>
           <Button onClick={fetchDesignSystem}>
             Retry
           </Button>
@@ -372,12 +385,18 @@ const DesignSystemManager: React.FC = () => {
   ];
 
   return (
-    <div className="space-y-8">
+    <div 
+      className="space-y-8"
+      style={{
+        backgroundColor: 'var(--color-bg-primary)',
+        color: 'var(--color-text-primary)'
+      }}
+    >
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold" style={{ color: colors.textPrimary }}>Design System</h1>
-          <p className="mt-2" style={{ color: colors.textSecondary }}>Manage your website's visual identity and design tokens</p>
+          <h1 className="text-3xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Design System</h1>
+          <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>Manage your website's visual identity and design tokens</p>
         </div>
         <div className="flex items-center space-x-3">
           <Button
@@ -398,7 +417,7 @@ const DesignSystemManager: React.FC = () => {
           <Button
             onClick={handleSave}
             disabled={saving}
-            style={{ backgroundColor: colors.success, color: '#FFFFFF' }}
+            style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
           >
             <Save className="w-4 h-4" />
             <span>{saving ? 'Saving...' : 'Save Changes'}</span>
@@ -409,16 +428,16 @@ const DesignSystemManager: React.FC = () => {
       {/* Status Message */}
       {message && (
         <div className={`p-4 rounded-lg`} style={{
-          backgroundColor: message.type === 'success' ? colors.success : colors.error,
-          color: '#FFFFFF',
-          borderColor: message.type === 'success' ? colors.success : colors.error
+          backgroundColor: message.type === 'success' ? 'var(--color-success)' : 'var(--color-error)',
+          color: 'var(--color-bg-primary)',
+          borderColor: message.type === 'success' ? 'var(--color-success)' : 'var(--color-error)'
         }}>
           {message.text}
         </div>
       )}
 
       {/* Tabs */}
-      <div className="border-b" style={{ borderColor: colors.grayLight }}>
+      <div className="border-b" style={{ borderColor: 'var(--color-border-light)' }}>
         <nav className="-mb-px flex space-x-8">
           {tabs.map((tab) => {
             const Icon = tab.icon;
@@ -430,17 +449,17 @@ const DesignSystemManager: React.FC = () => {
                 className="group inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors"
                 style={{
                   borderColor: isActive 
-                    ? colors.primary 
+                    ? 'var(--color-primary)' 
                     : 'transparent',
                   color: isActive 
-                    ? colors.primary 
-                    : colors.textSecondary
+                    ? 'var(--color-primary)' 
+                    : 'var(--color-text-secondary)'
                 }}
               >
                 <Icon className="w-4 h-4 mr-2" style={{
                   color: isActive 
-                    ? colors.primary 
-                    : colors.textSecondary
+                    ? 'var(--color-primary)' 
+                    : 'var(--color-text-secondary)'
                 }} />
                 {tab.name}
               </button>
@@ -535,33 +554,35 @@ const DesignSystemManager: React.FC = () => {
               </div>
             </Card>
 
-            {/* Neutral Colors */}
+            {/* Border Colors */}
             <Card className="p-6">
               <h3 className="text-xl font-semibold mb-6" style={{ color: colors.textPrimary }}>
-                Neutral & Background Colors
+                Border Colors
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <ColorPicker
+                  label="Border Light"
+                  value={designSystem.borderLight}
+                  onChange={(value) => updateDesignSystem('borderLight', value)}
+                  description="Light border color for subtle elements"
+                  colors={colors}
+                />
+                <ColorPicker
+                  label="Border Strong"
+                  value={designSystem.borderStrong}
+                  onChange={(value) => updateDesignSystem('borderStrong', value)}
+                  description="Strong border color for emphasis"
+                  colors={colors}
+                />
+              </div>
+            </Card>
+
+            {/* Background Colors */}
+            <Card className="p-6">
+              <h3 className="text-xl font-semibold mb-6" style={{ color: colors.textPrimary }}>
+                Background Colors
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                <ColorPicker
-                  label="Light Gray"
-                  value={designSystem.grayLight}
-                  onChange={(value) => updateDesignSystem('grayLight', value)}
-                  description="Light gray for backgrounds"
-                  colors={colors}
-                />
-                <ColorPicker
-                  label="Medium Gray"
-                  value={designSystem.grayMedium}
-                  onChange={(value) => updateDesignSystem('grayMedium', value)}
-                  description="Medium gray for borders"
-                  colors={colors}
-                />
-                <ColorPicker
-                  label="Dark Gray"
-                  value={designSystem.grayDark}
-                  onChange={(value) => updateDesignSystem('grayDark', value)}
-                  description="Dark gray for text"
-                  colors={colors}
-                />
                 <ColorPicker
                   label="Primary Background"
                   value={designSystem.backgroundPrimary}
@@ -583,6 +604,27 @@ const DesignSystemManager: React.FC = () => {
                   description="Dark theme background"
                   colors={colors}
                 />
+                <ColorPicker
+                  label="Header Background"
+                  value={designSystem.headerBackgroundColor}
+                  onChange={(value) => updateDesignSystem('headerBackgroundColor', value)}
+                  description="Background color for main headers"
+                  colors={colors}
+                />
+                <ColorPicker
+                  label="Sidebar Header Background"
+                  value={designSystem.sidebarHeaderBackgroundColor}
+                  onChange={(value) => updateDesignSystem('sidebarHeaderBackgroundColor', value)}
+                  description="Background color for sidebar header (logo area)"
+                  colors={colors}
+                />
+                <ColorPicker
+                  label="Sidebar Background"
+                  value={designSystem.sidebarBackgroundColor}
+                  onChange={(value) => updateDesignSystem('sidebarBackgroundColor', value)}
+                  description="Background color for sidebar navigation"
+                  colors={colors}
+                />
               </div>
             </Card>
 
@@ -591,7 +633,7 @@ const DesignSystemManager: React.FC = () => {
               <h3 className="text-xl font-semibold mb-6" style={{ color: colors.textPrimary }}>
                 Text Colors
               </h3>
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                 <ColorPicker
                   label="Primary Text"
                   value={designSystem.textPrimary}
@@ -611,6 +653,27 @@ const DesignSystemManager: React.FC = () => {
                   value={designSystem.textMuted}
                   onChange={(value) => updateDesignSystem('textMuted', value)}
                   description="Muted text for captions"
+                  colors={colors}
+                />
+                <ColorPicker
+                  label="Header Text"
+                  value={designSystem.headerTextColor}
+                  onChange={(value) => updateDesignSystem('headerTextColor', value)}
+                  description="Text color for headers and navigation"
+                  colors={colors}
+                />
+                <ColorPicker
+                  label="Sidebar Text"
+                  value={designSystem.sidebarTextColor}
+                  onChange={(value) => updateDesignSystem('sidebarTextColor', value)}
+                  description="Text color for sidebar menu items"
+                  colors={colors}
+                />
+                <ColorPicker
+                  label="Sidebar Header"
+                  value={designSystem.sidebarHeaderColor}
+                  onChange={(value) => updateDesignSystem('sidebarHeaderColor', value)}
+                  description="Text color for sidebar header (logo area)"
                   colors={colors}
                 />
               </div>
@@ -1299,7 +1362,7 @@ const DesignSystemManager: React.FC = () => {
                     <div
                       className="p-6 rounded-lg"
                       style={{
-                        backgroundColor: previewMode === 'light' ? designSystem.backgroundSecondary : designSystem.grayDark,
+                        backgroundColor: previewMode === 'light' ? designSystem.backgroundSecondary : designSystem.borderStrong,
                         borderRadius: designSystem.borderRadiusLg,
                         boxShadow: designSystem.shadowSm
                       }}
@@ -1335,7 +1398,7 @@ const DesignSystemManager: React.FC = () => {
                     <div
                       className="p-6 rounded-lg"
                       style={{
-                        backgroundColor: previewMode === 'light' ? designSystem.backgroundSecondary : designSystem.grayDark,
+                        backgroundColor: previewMode === 'light' ? designSystem.backgroundSecondary : designSystem.borderStrong,
                         borderRadius: designSystem.borderRadiusLg,
                         boxShadow: designSystem.shadowSm
                       }}
@@ -1364,7 +1427,7 @@ const DesignSystemManager: React.FC = () => {
                         { name: 'Warning', color: designSystem.warningColor, cssVar: 'var(--color-warning)' },
                         { name: 'Error', color: designSystem.errorColor, cssVar: 'var(--color-error)' },
                         { name: 'Info', color: designSystem.infoColor, cssVar: 'var(--color-info)' },
-                        { name: 'Gray', color: designSystem.grayMedium, cssVar: designSystem.grayMedium },
+                        { name: 'Border', color: designSystem.borderStrong, cssVar: designSystem.borderStrong },
                       ].map((item) => (
                         <div key={item.name} className="text-center">
                           <div

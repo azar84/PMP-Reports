@@ -18,19 +18,24 @@ const DesignSystemSchema = z.object({
   infoColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   
   // Neutral Colors
-  grayLight: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
-  grayMedium: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
-  grayDark: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  borderLight: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  borderStrong: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   
   // Background Colors
   backgroundPrimary: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   backgroundSecondary: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   backgroundDark: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  headerBackgroundColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  sidebarHeaderBackgroundColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  sidebarBackgroundColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   
   // Text Colors
   textPrimary: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   textSecondary: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   textMuted: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  headerTextColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  sidebarTextColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
+  sidebarHeaderColor: z.string().trim().regex(/^#([0-9A-F]{3}|[0-9A-F]{6})$/i, 'Invalid hex color'),
   
   // Typography
   fontFamily: z.string().trim().min(1, 'Font family is required'),
