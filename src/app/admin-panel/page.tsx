@@ -480,7 +480,7 @@ export default function AdminPanel() {
         } lg:relative lg:translate-x-0 lg:static lg:inset-0`}
         style={{ 
           backgroundColor: 'var(--color-sidebar-bg)',
-          borderRight: '1px solid var(--color-border-strong)'
+          borderRight: '0.5px solid var(--color-border-strong)'
         }}
       >
         <div className="flex flex-col h-full">
@@ -488,7 +488,7 @@ export default function AdminPanel() {
           <div 
             className="flex items-center justify-between p-6 sticky top-0 z-10"
             style={{ 
-              borderBottom: '1px solid var(--color-border-light)',
+              borderBottom: '0.5px solid var(--color-border-light)',
               height: '80px', // Match header exactly
               backgroundColor: 'var(--color-sidebar-header-bg)'
             }}
@@ -577,7 +577,7 @@ export default function AdminPanel() {
           <div 
             className="p-4"
             style={{ 
-              borderTop: `1px solid ${colors.borderStrong}`
+              borderTop: `0.5px solid ${colors.borderStrong}`
             }}
           >
             <div className="flex items-center justify-between">
@@ -624,10 +624,10 @@ export default function AdminPanel() {
       <div className="flex-1 flex flex-col">
         {/* Header */}
         <header 
-          className="border-b p-6 lg:hidden sticky top-0 z-20"
+          className="p-6 lg:hidden sticky top-0 z-20"
           style={{ 
             backgroundColor: 'var(--color-header-bg)',
-            borderBottomColor: 'var(--color-border-light)',
+            borderBottom: '0.5px solid var(--color-border-light)',
             height: '80px' // Match sidebar logo section exactly
           }}
         >
@@ -672,10 +672,10 @@ export default function AdminPanel() {
 
         {/* Desktop Header */}
         <header 
-          className="hidden lg:flex items-center justify-between px-6 py-6 border-b sticky top-0 z-20"
+          className="hidden lg:flex items-center justify-between px-6 py-6 sticky top-0 z-20"
           style={{ 
             backgroundColor: 'var(--color-header-bg)',
-            borderBottomColor: 'var(--color-border-light)',
+            borderBottom: '0.5px solid var(--color-border-light)',
             height: '80px' // Match sidebar logo section exactly
           }}
         >

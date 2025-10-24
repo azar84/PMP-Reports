@@ -195,8 +195,24 @@ export async function PUT(request: NextRequest) {
     console.log('Validating design system data...');
     const validatedData = DesignSystemSchema.partial().parse(updateData);
 
+    // Check if the design system exists before updating
+    const existingDesignSystem = await prisma.designSystem.findUnique({
+      where: { id: typeof id === 'string' ? parseInt(id) : id }
+    });
+
+    if (!existingDesignSystem) {
+      console.error('Design system not found with ID:', id);
+      return NextResponse.json(
+        { 
+          success: false, 
+          message: 'Design system not found' 
+        },
+        { status: 404 }
+      );
+    }
+
     const designSystem = await prisma.designSystem.update({
-      where: { id: parseInt(id) },
+      where: { id: typeof id === 'string' ? parseInt(id) : id },
       data: validatedData
     });
 

@@ -22,10 +22,16 @@ interface DesignSystem {
   backgroundPrimary: string;
   backgroundSecondary: string;
   backgroundDark: string;
+  headerBackgroundColor: string;
+  sidebarHeaderBackgroundColor: string;
+  sidebarBackgroundColor: string;
   // Text Colors
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
+  headerTextColor: string;
+  sidebarTextColor: string;
+  sidebarHeaderColor: string;
   // Typography
   fontFamily: string;
   fontFamilyMono: string;
@@ -62,9 +68,14 @@ interface DesignSystem {
   breakpointLg: string;
   breakpointXl: string;
   breakpoint2xl: string;
-
+  // Theme Mode
+  themeMode: string;
   // Custom Variables
   customVariables?: string;
+  // System Fields
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export const useDesignSystem = () => {
@@ -213,10 +224,20 @@ export const getAdminPanelColorsWithDesignSystem = (designSystem: DesignSystem |
     textSecondary: designSystem?.textSecondary || '#6B7280',
     textMuted: designSystem?.textMuted || '#9CA3AF',
     
+    // Header and Sidebar Text Colors
+    headerTextColor: designSystem?.headerTextColor || designSystem?.textPrimary || '#1F2937',
+    sidebarTextColor: designSystem?.sidebarTextColor || designSystem?.textPrimary || '#1F2937',
+    sidebarHeaderColor: designSystem?.sidebarHeaderColor || designSystem?.textPrimary || '#1F2937',
+    
     // Background Colors
     backgroundPrimary: designSystem?.backgroundPrimary || '#FFFFFF',
     backgroundSecondary: designSystem?.backgroundSecondary || '#F9FAFB',
     backgroundDark: designSystem?.backgroundDark || '#1F2937',
+    
+    // Header and Sidebar Background Colors
+    headerBackgroundColor: designSystem?.headerBackgroundColor || designSystem?.primaryColor || '#5243E9',
+    sidebarHeaderBackgroundColor: designSystem?.sidebarHeaderBackgroundColor || designSystem?.primaryColor || '#5243E9',
+    sidebarBackgroundColor: designSystem?.sidebarBackgroundColor || designSystem?.backgroundSecondary || '#F9FAFB',
     
     // Brand Colors
     primary: designSystem?.primaryColor || '#5243E9',

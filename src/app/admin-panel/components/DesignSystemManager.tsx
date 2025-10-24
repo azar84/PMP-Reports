@@ -44,10 +44,16 @@ interface DesignSystem {
   backgroundPrimary: string;
   backgroundSecondary: string;
   backgroundDark: string;
+  headerBackgroundColor: string;
+  sidebarHeaderBackgroundColor: string;
+  sidebarBackgroundColor: string;
   // Text Colors
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
+  headerTextColor: string;
+  sidebarTextColor: string;
+  sidebarHeaderColor: string;
   // Typography
   fontFamily: string;
   fontFamilyMono: string;
@@ -84,8 +90,14 @@ interface DesignSystem {
   breakpointLg: string;
   breakpointXl: string;
   breakpoint2xl: string;
+  // Theme Mode
+  themeMode: string;
   // Custom Variables
   customVariables?: string;
+  // System Fields
+  isActive: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 interface ColorPickerProps {
@@ -163,7 +175,11 @@ const DesignSystemManager: React.FC = () => {
   // Apply design system whenever it changes
   useEffect(() => {
     if (designSystem) {
-      applyDesignSystemToRoot(designSystem);
+      try {
+        applyDesignSystemToRoot(designSystem);
+      } catch (error) {
+        console.error('Error applying design system in useEffect:', error);
+      }
     }
   }, [designSystem]);
 
@@ -176,7 +192,11 @@ const DesignSystemManager: React.FC = () => {
       if (result.success) {
         setDesignSystem(result.data);
         // Apply design system to document root when loading
-        applyDesignSystemToRoot(result.data);
+        try {
+          applyDesignSystemToRoot(result.data);
+        } catch (error) {
+          console.error('Error applying design system to root on load:', error);
+        }
       } else {
         setMessage({ type: 'error', text: result.message || 'Failed to load design system' });
       }
@@ -197,8 +217,9 @@ const DesignSystemManager: React.FC = () => {
 
       console.log('Saving design system data:', designSystem);
 
+      // Always use POST to create/update - let the API handle the logic
       const response = await fetch('/api/admin/design-system', {
-        method: designSystem.id ? 'PUT' : 'POST',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
@@ -212,7 +233,12 @@ const DesignSystemManager: React.FC = () => {
         setMessage({ type: 'success', text: 'Design system saved successfully!' });
         
         // Apply design system to document root for preview
-        applyDesignSystemToRoot(result.data);
+        try {
+          applyDesignSystemToRoot(result.data);
+        } catch (error) {
+          console.error('Error applying design system to root:', error);
+          // Don't show error to user as the save was successful
+        }
       } else {
         console.error('Design system save failed:', result);
         if (result.detailedErrors) {
@@ -261,66 +287,84 @@ const DesignSystemManager: React.FC = () => {
   };
 
   const applyDesignSystemToRoot = (ds: DesignSystem) => {
+    if (!ds) {
+      console.warn('Design system is null or undefined');
+      return;
+    }
+    
     const root = document.documentElement;
+    if (!root) {
+      console.warn('Document root element not found');
+      return;
+    }
     
-    // Apply CSS custom properties to the root element
-    root.style.setProperty('--color-primary', ds.primaryColor);
-    root.style.setProperty('--color-primary-light', ds.primaryColorLight);
-    root.style.setProperty('--color-primary-dark', ds.primaryColorDark);
-    root.style.setProperty('--color-secondary', ds.secondaryColor);
-    root.style.setProperty('--color-accent', ds.accentColor);
-    
-    root.style.setProperty('--color-success', ds.successColor);
-    root.style.setProperty('--color-warning', ds.warningColor);
-    root.style.setProperty('--color-error', ds.errorColor);
-    root.style.setProperty('--color-info', ds.infoColor);
-    
-    root.style.setProperty('--color-border-light', ds.borderLight);
-    root.style.setProperty('--color-border-strong', ds.borderStrong);
-    
-    root.style.setProperty('--color-bg-primary', ds.backgroundPrimary);
-    root.style.setProperty('--color-bg-secondary', ds.backgroundSecondary);
-    root.style.setProperty('--color-bg-dark', ds.backgroundDark);
-    root.style.setProperty('--color-header-bg', ds.headerBackgroundColor);
-    root.style.setProperty('--color-sidebar-header-bg', ds.sidebarHeaderBackgroundColor);
-    root.style.setProperty('--color-sidebar-bg', ds.sidebarBackgroundColor);
-    
-    root.style.setProperty('--color-text-primary', ds.textPrimary);
-    root.style.setProperty('--color-text-secondary', ds.textSecondary);
-    root.style.setProperty('--color-text-muted', ds.textMuted);
-    root.style.setProperty('--color-header-text-color', ds.headerTextColor);
-    root.style.setProperty('--color-sidebar-text-color', ds.sidebarTextColor);
-    root.style.setProperty('--color-sidebar-header-color', ds.sidebarHeaderColor);
-    
-    root.style.setProperty('--font-family-sans', ds.fontFamily);
-    root.style.setProperty('--font-family-mono', ds.fontFamilyMono);
-    root.style.setProperty('--font-size-base', ds.fontSizeBase);
-    root.style.setProperty('--line-height-base', ds.lineHeightBase);
-    root.style.setProperty('--font-weight-normal', ds.fontWeightNormal);
-    root.style.setProperty('--font-weight-medium', ds.fontWeightMedium);
-    root.style.setProperty('--font-weight-bold', ds.fontWeightBold);
-    
-    root.style.setProperty('--spacing-xs', ds.spacingXs);
-    root.style.setProperty('--spacing-sm', ds.spacingSm);
-    root.style.setProperty('--spacing-md', ds.spacingMd);
-    root.style.setProperty('--spacing-lg', ds.spacingLg);
-    root.style.setProperty('--spacing-xl', ds.spacingXl);
-    root.style.setProperty('--spacing-2xl', ds.spacing2xl);
-    
-    root.style.setProperty('--border-radius-sm', ds.borderRadiusSm);
-    root.style.setProperty('--border-radius-md', ds.borderRadiusMd);
-    root.style.setProperty('--border-radius-lg', ds.borderRadiusLg);
-    root.style.setProperty('--border-radius-xl', ds.borderRadiusXl);
-    root.style.setProperty('--border-radius-full', ds.borderRadiusFull);
-    
-    root.style.setProperty('--shadow-sm', ds.shadowSm);
-    root.style.setProperty('--shadow-md', ds.shadowMd);
-    root.style.setProperty('--shadow-lg', ds.shadowLg);
-    root.style.setProperty('--shadow-xl', ds.shadowXl);
-    
-    root.style.setProperty('--animation-fast', ds.animationFast);
-    root.style.setProperty('--animation-normal', ds.animationNormal);
-    root.style.setProperty('--animation-slow', ds.animationSlow);
+    try {
+      // Apply CSS custom properties to the root element
+      root.style.setProperty('--color-primary', ds.primaryColor);
+      root.style.setProperty('--color-primary-light', ds.primaryColorLight);
+      root.style.setProperty('--color-primary-dark', ds.primaryColorDark);
+      root.style.setProperty('--color-secondary', ds.secondaryColor);
+      root.style.setProperty('--color-accent', ds.accentColor);
+      
+      root.style.setProperty('--color-success', ds.successColor);
+      root.style.setProperty('--color-warning', ds.warningColor);
+      root.style.setProperty('--color-error', ds.errorColor);
+      root.style.setProperty('--color-info', ds.infoColor);
+      
+      root.style.setProperty('--color-border-light', ds.borderLight);
+      root.style.setProperty('--color-border-strong', ds.borderStrong);
+      
+      root.style.setProperty('--color-bg-primary', ds.backgroundPrimary);
+      root.style.setProperty('--color-bg-secondary', ds.backgroundSecondary);
+      root.style.setProperty('--color-bg-dark', ds.backgroundDark);
+      
+      // Header and sidebar background colors (with fallbacks)
+      root.style.setProperty('--color-header-bg', ds.headerBackgroundColor || ds.primaryColor);
+      root.style.setProperty('--color-sidebar-header-bg', ds.sidebarHeaderBackgroundColor || ds.primaryColor);
+      root.style.setProperty('--color-sidebar-bg', ds.sidebarBackgroundColor || ds.backgroundSecondary);
+      
+      root.style.setProperty('--color-text-primary', ds.textPrimary);
+      root.style.setProperty('--color-text-secondary', ds.textSecondary);
+      root.style.setProperty('--color-text-muted', ds.textMuted);
+      
+      // Header and sidebar text colors (with fallbacks)
+      root.style.setProperty('--color-header-text-color', ds.headerTextColor || ds.textPrimary);
+      root.style.setProperty('--color-sidebar-text-color', ds.sidebarTextColor || ds.textPrimary);
+      root.style.setProperty('--color-sidebar-header-color', ds.sidebarHeaderColor || ds.textPrimary);
+      
+      root.style.setProperty('--font-family-sans', ds.fontFamily);
+      root.style.setProperty('--font-family-mono', ds.fontFamilyMono);
+      root.style.setProperty('--font-size-base', ds.fontSizeBase);
+      root.style.setProperty('--line-height-base', ds.lineHeightBase);
+      root.style.setProperty('--font-weight-normal', ds.fontWeightNormal);
+      root.style.setProperty('--font-weight-medium', ds.fontWeightMedium);
+      root.style.setProperty('--font-weight-bold', ds.fontWeightBold);
+      
+      root.style.setProperty('--spacing-xs', ds.spacingXs);
+      root.style.setProperty('--spacing-sm', ds.spacingSm);
+      root.style.setProperty('--spacing-md', ds.spacingMd);
+      root.style.setProperty('--spacing-lg', ds.spacingLg);
+      root.style.setProperty('--spacing-xl', ds.spacingXl);
+      root.style.setProperty('--spacing-2xl', ds.spacing2xl);
+      
+      root.style.setProperty('--border-radius-sm', ds.borderRadiusSm);
+      root.style.setProperty('--border-radius-md', ds.borderRadiusMd);
+      root.style.setProperty('--border-radius-lg', ds.borderRadiusLg);
+      root.style.setProperty('--border-radius-xl', ds.borderRadiusXl);
+      root.style.setProperty('--border-radius-full', ds.borderRadiusFull);
+      
+      root.style.setProperty('--shadow-sm', ds.shadowSm);
+      root.style.setProperty('--shadow-md', ds.shadowMd);
+      root.style.setProperty('--shadow-lg', ds.shadowLg);
+      root.style.setProperty('--shadow-xl', ds.shadowXl);
+      
+      root.style.setProperty('--animation-fast', ds.animationFast);
+      root.style.setProperty('--animation-normal', ds.animationNormal);
+      root.style.setProperty('--animation-slow', ds.animationSlow);
+    } catch (error) {
+      console.error('Error setting CSS properties:', error);
+      throw error; // Re-throw to be caught by calling functions
+    }
   };
 
   const updateDesignSystem = (field: keyof DesignSystem, value: string | boolean) => {
@@ -344,6 +388,81 @@ const DesignSystemManager: React.FC = () => {
     linkElement.setAttribute('href', dataUri);
     linkElement.setAttribute('download', exportFileDefaultName);
     linkElement.click();
+  };
+
+  const importDesignSystem = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      try {
+        const jsonData = JSON.parse(e.target?.result as string);
+        
+        // Validate the imported data structure
+        if (validateDesignSystemData(jsonData)) {
+          // Apply fallbacks for missing properties
+          const designSystemWithFallbacks = {
+            ...jsonData,
+            headerBackgroundColor: jsonData.headerBackgroundColor || jsonData.primaryColor,
+            sidebarHeaderBackgroundColor: jsonData.sidebarHeaderBackgroundColor || jsonData.primaryColor,
+            sidebarBackgroundColor: jsonData.sidebarBackgroundColor || jsonData.backgroundSecondary,
+            headerTextColor: jsonData.headerTextColor || jsonData.textPrimary,
+            sidebarTextColor: jsonData.sidebarTextColor || jsonData.textPrimary,
+            sidebarHeaderColor: jsonData.sidebarHeaderColor || jsonData.textPrimary,
+          };
+          
+          setDesignSystem(designSystemWithFallbacks);
+          setMessage({ type: 'success', text: 'Design system imported successfully!' });
+          
+          // Apply the imported design system
+          try {
+            applyDesignSystemToRoot(designSystemWithFallbacks);
+          } catch (error) {
+            console.error('Error applying imported design system:', error);
+          }
+        } else {
+          setMessage({ type: 'error', text: 'Invalid design system file format' });
+        }
+      } catch (error) {
+        console.error('Failed to parse JSON:', error);
+        setMessage({ type: 'error', text: 'Failed to parse JSON file' });
+      }
+    };
+    
+    reader.readAsText(file);
+    
+    // Reset the input value so the same file can be imported again
+    event.target.value = '';
+  };
+
+  const validateDesignSystemData = (data: any): data is DesignSystem => {
+    // Check for required fields
+    const requiredFields = [
+      'primaryColor', 'secondaryColor', 'accentColor',
+      'successColor', 'warningColor', 'errorColor', 'infoColor',
+      'borderLight', 'borderStrong',
+      'backgroundPrimary', 'backgroundSecondary', 'backgroundDark',
+      'textPrimary', 'textSecondary', 'textMuted',
+      'fontFamily', 'fontSizeBase', 'lineHeightBase',
+      'themeMode'
+    ];
+    
+    // Optional fields that have fallbacks
+    const optionalFields = [
+      'headerBackgroundColor', 'sidebarHeaderBackgroundColor', 'sidebarBackgroundColor',
+      'headerTextColor', 'sidebarTextColor', 'sidebarHeaderColor'
+    ];
+    
+    const hasRequiredFields = requiredFields.every(field => 
+      typeof data[field] === 'string' && data[field].trim() !== ''
+    );
+    
+    const hasValidOptionalFields = optionalFields.every(field => 
+      !data[field] || (typeof data[field] === 'string' && data[field].trim() !== '')
+    );
+    
+    return hasRequiredFields && hasValidOptionalFields;
   };
 
   if (loading) {
@@ -399,6 +518,20 @@ const DesignSystemManager: React.FC = () => {
           <p className="mt-2" style={{ color: 'var(--color-text-secondary)' }}>Manage your website's visual identity and design tokens</p>
         </div>
         <div className="flex items-center space-x-3">
+          <input
+            type="file"
+            accept=".json"
+            onChange={importDesignSystem}
+            style={{ display: 'none' }}
+            id="import-design-system"
+          />
+          <Button
+            variant="outline"
+            onClick={() => document.getElementById('import-design-system')?.click()}
+          >
+            <Upload className="w-4 h-4" />
+            <span>Import</span>
+          </Button>
           <Button
             variant="outline"
             onClick={exportDesignSystem}
