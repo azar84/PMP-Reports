@@ -211,6 +211,8 @@ export async function POST(request: NextRequest) {
             designation: 'Project Director',
             utilization: 100,
             status: 'Active',
+            startDate: projectDataWithDates.startDate,
+            endDate: projectDataWithDates.endDate,
           },
         });
       }
@@ -223,6 +225,36 @@ export async function POST(request: NextRequest) {
             designation: 'Project Manager',
             utilization: 100,
             status: 'Active',
+            startDate: projectDataWithDates.startDate,
+            endDate: projectDataWithDates.endDate,
+          },
+        });
+      }
+
+      // Create default staff positions for the project from positions pool
+      const activePositions = await tx.position.findMany({
+        where: { isActive: true },
+        orderBy: { name: 'asc' }
+      });
+
+      // Create default positions (without staff assigned)
+      for (const position of activePositions) {
+        // Skip if this position is already created as director or manager
+        if ((position.name === 'Project Director' && projectDirectorId) || 
+            (position.name === 'Project Manager' && projectManagerId)) {
+          continue;
+        }
+
+        await tx.projectStaff.create({
+          data: {
+            projectId: project.id,
+            staffId: null, // No staff assigned initially
+            designation: position.name,
+            utilization: 100,
+            status: 'Active',
+            startDate: projectDataWithDates.startDate,
+            endDate: projectDataWithDates.endDate,
+            notes: null,
           },
         });
       }

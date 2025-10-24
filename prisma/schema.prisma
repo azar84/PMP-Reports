@@ -428,3 +428,17 @@ model ChecklistTemplate {
   
   @@map("checklist_templates")
 }
+
+model Position {
+  id          Int       @id @default(autoincrement())
+  name        String    @unique // Position name (e.g., "Project Director", "Site Engineer")
+  description String?   // Optional description of the position
+  monthlyRate Float?    // Monthly base rate for this position
+  isActive    Boolean   @default(true)
+  
+  // Metadata
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("positions")
+}

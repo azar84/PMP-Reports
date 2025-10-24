@@ -1,66 +1,9 @@
 const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('🌱 Starting database seeding...');
-
-  // Create admin user if it doesn't exist
-  const username = 'admin';
-  const email = 'admin@example.com';
-  const password = 'admin123';
-  const passwordHash = await bcrypt.hash(password, 12);
-
-  const existingAdmin = await prisma.adminUser.findFirst({
-    where: { username },
-  });
-
-  if (!existingAdmin) {
-    await prisma.adminUser.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-        name: 'Default Admin',
-        role: 'admin',
-        isActive: true,
-      },
-    });
-    console.log('✅ Default admin user created (username: admin, password: admin123)');
-  } else {
-    console.log('ℹ️  Admin user already exists, skipping creation.');
-  }
-
-  // Create default site settings if they don't exist
-  const existingSettings = await prisma.siteSettings.findFirst();
-
-  if (!existingSettings) {
-    await prisma.siteSettings.create({
-      data: {
-        footerCompanyName: 'Your Company',
-        footerCompanyDescription: 'Admin panel for managing your application.',
-        baseUrl: 'http://localhost:3000',
-      },
-    });
-    console.log('✅ Default site settings created');
-  } else {
-    console.log('ℹ️  Site settings already exist, skipping creation.');
-  }
-
-  // Create default design system if it doesn't exist
-  const existingDesignSystem = await prisma.designSystem.findFirst();
-
-  if (!existingDesignSystem) {
-    await prisma.designSystem.create({
-      data: {
-        isActive: true,
-      },
-    });
-    console.log('✅ Default design system created');
-  } else {
-    console.log('ℹ️  Design system already exists, skipping creation.');
-  }
+  console.log('🌱 Starting positions and consultant types seeding...');
 
   // Create default consultant types if they don't exist
   const defaultConsultantTypes = [
@@ -70,6 +13,7 @@ async function main() {
     { type: 'Supervision', description: 'Supervision Consultant' },
   ];
 
+  console.log('\n📋 Creating consultant types...');
   for (const consultantType of defaultConsultantTypes) {
     const existingType = await prisma.consultantType.findFirst({
       where: { type: consultantType.type },
@@ -109,6 +53,7 @@ async function main() {
     { name: 'IT Support', description: 'Information technology support and maintenance', monthlyRate: 7500 },
   ];
 
+  console.log('\n👥 Creating positions...');
   for (const position of defaultPositions) {
     const existingPosition = await prisma.position.findFirst({
       where: { name: position.name },
@@ -118,20 +63,28 @@ async function main() {
       await prisma.position.create({
         data: position,
       });
-      console.log(`✅ Default position created: ${position.name}`);
+      console.log(`✅ Default position created: ${position.name} ($${position.monthlyRate}/month)`);
     } else {
       console.log(`ℹ️  Position '${position.name}' already exists, skipping creation.`);
     }
   }
 
-  console.log('🎉 Database seeding completed successfully!');
+  console.log('\n🎉 Positions and consultant types seeding completed successfully!');
+  
+  // Display summary
+  const consultantTypeCount = await prisma.consultantType.count();
+  const positionCount = await prisma.position.count();
+  
+  console.log(`\n📊 Summary:`);
+  console.log(`   - Consultant Types: ${consultantTypeCount}`);
+  console.log(`   - Positions: ${positionCount}`);
 }
 
 main()
   .catch((e) => {
-    console.error(e);
+    console.error('❌ Error during seeding:', e);
     process.exit(1);
   })
   .finally(async () => {
     await prisma.$disconnect();
-  }); 
+  });

@@ -121,6 +121,8 @@ export async function PUT(
               designation: 'Project Director',
               utilization: 100,
               status: 'Active',
+              startDate: projectData.startDate,
+              endDate: projectData.endDate,
             },
           });
         }
@@ -145,6 +147,8 @@ export async function PUT(
               designation: 'Project Manager',
               utilization: 100,
               status: 'Active',
+              startDate: projectData.startDate,
+              endDate: projectData.endDate,
             },
           });
         }

@@ -317,7 +317,7 @@ export default function ClientManager() {
                   required
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                 />
@@ -333,7 +333,7 @@ export default function ClientManager() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                 />
@@ -349,7 +349,7 @@ export default function ClientManager() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                 />
@@ -366,7 +366,7 @@ export default function ClientManager() {
                   className="w-full p-3 rounded-lg border resize-none"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                 />
@@ -798,7 +798,7 @@ export default function ClientManager() {
                                 required
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                               />
@@ -815,7 +815,7 @@ export default function ClientManager() {
                                 required
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                               />
@@ -831,7 +831,7 @@ export default function ClientManager() {
                                 onChange={(e) => setContactFormData({ ...contactFormData, email: e.target.value })}
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                               />
@@ -847,7 +847,7 @@ export default function ClientManager() {
                                 onChange={(e) => setContactFormData({ ...contactFormData, phone: e.target.value })}
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                               />
@@ -863,7 +863,7 @@ export default function ClientManager() {
                                 onChange={(e) => setContactFormData({ ...contactFormData, position: e.target.value })}
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                               />
@@ -880,7 +880,7 @@ export default function ClientManager() {
                                 className="w-full p-3 rounded-lg border resize-none"
                     style={{
                       backgroundColor: colors.backgroundPrimary,
-                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      borderColor: colors.borderLight,
                       color: colors.textPrimary
                     }}
                               />

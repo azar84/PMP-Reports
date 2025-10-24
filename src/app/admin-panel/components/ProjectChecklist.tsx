@@ -44,12 +44,12 @@ interface ProjectChecklistProps {
   projectName: string;
 }
 
-const statusOptions = [
-  { value: 'Pending', label: 'Pending', color: 'text-gray-500', icon: Clock },
-  { value: 'In Progress', label: 'In Progress', color: 'text-blue-500', icon: AlertCircle },
-  { value: 'Completed', label: 'Completed', color: 'text-green-500', icon: CheckCircle2 },
-  { value: 'On Hold', label: 'On Hold', color: 'text-yellow-500', icon: Pause },
-  { value: 'Cancelled', label: 'Cancelled', color: 'text-red-500', icon: XCircle },
+const getStatusOptions = (colors: any) => [
+  { value: 'Pending', label: 'Pending', color: colors.textMuted, icon: Clock },
+  { value: 'In Progress', label: 'In Progress', color: colors.info, icon: AlertCircle },
+  { value: 'Completed', label: 'Completed', color: colors.success, icon: CheckCircle2 },
+  { value: 'On Hold', label: 'On Hold', color: colors.warning, icon: Pause },
+  { value: 'Cancelled', label: 'Cancelled', color: colors.error, icon: XCircle },
 ];
 
 export default function ProjectChecklist({ projectId, projectName }: ProjectChecklistProps) {
@@ -181,14 +181,16 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
   };
 
   const getStatusIcon = (status: string) => {
+    const statusOptions = getStatusOptions(colors);
     const statusOption = statusOptions.find(opt => opt.value === status);
     if (!statusOption) return Clock;
     return statusOption.icon;
   };
 
   const getStatusColor = (status: string) => {
+    const statusOptions = getStatusOptions(colors);
     const statusOption = statusOptions.find(opt => opt.value === status);
-    if (!statusOption) return 'text-gray-500';
+    if (!statusOption) return colors.textMuted;
     return statusOption.color;
   };
 
@@ -441,7 +443,10 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-gray-200/20" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <tr style={{ 
+                  backgroundColor: colors.backgroundPrimary,
+                  borderBottom: `1px solid ${colors.borderLight}`
+                }}>
                   <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Drag</th>
                   <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Phase</th>
                   <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Planned Date</th>
@@ -466,11 +471,13 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                   return (
                     <tr 
                       key={item.id} 
-                      className={`border-b border-gray-200/10 hover:opacity-75 ${
+                      className={`hover:opacity-75 ${
                         draggedItem === item.id ? 'opacity-50' : ''
-                      } ${
-                        dragOverItem === item.id ? 'bg-blue-50 dark:bg-blue-900/20' : ''
                       }`}
+                      style={{
+                        borderBottom: `1px solid ${colors.borderLight}`,
+                        backgroundColor: dragOverItem === item.id ? colors.backgroundSecondary : 'transparent'
+                      }}
                       draggable
                       onDragStart={(e) => handleDragStart(e, item.id)}
                       onDragOver={(e) => handleDragOver(e, item.id)}
@@ -480,7 +487,7 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
                           <GripVertical 
-                            className="w-4 h-4 cursor-move text-gray-400 hover:text-gray-600" 
+                            className="w-4 h-4 cursor-move" 
                             style={{ color: colors.textSecondary }}
                           />
                           <div className="flex flex-col space-y-1">
@@ -548,13 +555,14 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                           <select
                             value={editingData.status || 'Pending'}
                             onChange={(e) => setEditingData({ ...editingData, status: e.target.value })}
-                            className="px-2 py-1 rounded border border-gray-200/10"
+                            className="px-2 py-1 rounded"
                             style={{ 
                               backgroundColor: colors.backgroundPrimary,
-                              color: colors.textPrimary 
+                              color: colors.textPrimary,
+                              border: `1px solid ${colors.borderLight}`
                             }}
                           >
-                            {statusOptions.map(option => (
+                            {getStatusOptions(colors).map(option => (
                               <option key={option.value} value={option.value}>
                                 {option.label}
                               </option>
@@ -562,8 +570,8 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                           </select>
                         ) : (
                           <div className="flex items-center space-x-2">
-                            <StatusIcon className={`w-4 h-4 ${statusColor}`} />
-                            <span className={statusColor}>
+                            <StatusIcon className="w-4 h-4" style={{ color: statusColor }} />
+                            <span style={{ color: statusColor }}>
                               {item.status || 'Pending'}
                             </span>
                           </div>
@@ -587,7 +595,7 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
                           {isHeaderItem ? (
-                            <span className="text-xs text-gray-500 italic">Header Item</span>
+                            <span className="text-xs italic" style={{ color: colors.textMuted }}>Header Item</span>
                           ) : editingItem === item.id ? (
                             <>
                               <Button
@@ -659,13 +667,14 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
               <select
                 value={newItem.status || 'Pending'}
                 onChange={(e) => setNewItem({ ...newItem, status: e.target.value })}
-                className="w-full p-3 rounded-lg border border-gray-200/10"
+                className="w-full p-3 rounded-lg"
                 style={{ 
                   backgroundColor: colors.backgroundPrimary,
-                  color: colors.textPrimary 
+                  color: colors.textPrimary,
+                  border: `1px solid ${colors.borderLight}`
                 }}
               >
-                {statusOptions.map(option => (
+                {getStatusOptions(colors).map(option => (
                   <option key={option.value} value={option.value}>
                     {option.label}
                   </option>

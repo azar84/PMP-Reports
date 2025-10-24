@@ -45,9 +45,31 @@ export async function GET(request: NextRequest) {
       ],
     });
 
+    // Custom sorting: Project Director first, then Project Manager, then alphabetical
+    const sortedProjectStaff = projectStaff.sort((a, b) => {
+      // Project Director always first
+      if (a.designation === 'Project Director' && b.designation !== 'Project Director') {
+        return -1;
+      }
+      if (b.designation === 'Project Director' && a.designation !== 'Project Director') {
+        return 1;
+      }
+      
+      // Project Manager second (but only if Project Director is not present)
+      if (a.designation === 'Project Manager' && b.designation !== 'Project Manager' && b.designation !== 'Project Director') {
+        return -1;
+      }
+      if (b.designation === 'Project Manager' && a.designation !== 'Project Manager' && a.designation !== 'Project Director') {
+        return 1;
+      }
+      
+      // For all other cases, maintain alphabetical order
+      return a.designation.localeCompare(b.designation);
+    });
+
     return NextResponse.json({
       success: true,
-      data: projectStaff,
+      data: sortedProjectStaff,
       message: 'Project staff retrieved successfully',
     });
   } catch (error) {

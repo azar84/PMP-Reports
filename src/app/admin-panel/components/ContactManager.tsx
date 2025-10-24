@@ -275,7 +275,7 @@ export default function ContactManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -292,7 +292,7 @@ export default function ContactManager() {
                   required
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -308,7 +308,7 @@ export default function ContactManager() {
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -324,7 +324,7 @@ export default function ContactManager() {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -340,7 +340,7 @@ export default function ContactManager() {
                   onChange={(e) => setFormData({ ...formData, position: e.target.value })}
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                 />
@@ -356,7 +356,7 @@ export default function ContactManager() {
                   className="w-full p-3 rounded-lg border"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                 >
@@ -375,7 +375,7 @@ export default function ContactManager() {
                   className="w-full p-3 rounded-lg border"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
-                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    borderColor: colors.borderLight,
                     color: colors.textPrimary
                   }}
                   required
