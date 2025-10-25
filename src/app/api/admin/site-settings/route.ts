@@ -18,6 +18,7 @@ export async function GET() {
           emailBrandingEnabled: true,
           emailLoggingEnabled: true,
           emailRateLimitPerHour: 100,
+          currencySymbol: '$',
         },
       });
     }

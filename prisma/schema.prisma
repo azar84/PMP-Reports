@@ -62,6 +62,7 @@ model SiteSettings {
   sidebarHoverColor        String?  @default("#D1D5DB")
   sidebarSelectedColor     String?  @default("#FFFFFF")
   sidebarTextColor         String?  @default("#E5E7EB")
+  currencySymbol           String?  @default("$") // Currency symbol for display
 
   @@map("site_settings")
 }

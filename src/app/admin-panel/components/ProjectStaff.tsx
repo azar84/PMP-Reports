@@ -3,6 +3,8 @@
 import React, { useState, useEffect } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { formatCurrency } from '@/lib/currency';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -23,8 +25,7 @@ import {
   UserX,
   CheckCircle,
   Users2,
-  UserPlus,
-  DollarSign
+  UserPlus
 } from 'lucide-react';
 
 interface Staff {
@@ -88,6 +89,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+  const { siteSettings } = useSiteSettings();
 
   const [staff, setStaff] = useState<Staff[]>([]);
   const [projectPositions, setProjectPositions] = useState<ProjectPosition[]>([]);
@@ -412,17 +414,17 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   const getFallbackSalary = (designation: string) => {
     const designationLower = designation.toLowerCase();
     if (designationLower.includes('director') || designationLower.includes('manager')) {
-      return 15000; // $15,000/month for directors/managers
-    } else if (designationLower.includes('senior') || designationLower.includes('lead')) {
-      return 12000; // $12,000/month for senior/lead positions
-    } else if (designationLower.includes('engineer') || designationLower.includes('architect')) {
-      return 10000; // $10,000/month for engineers/architects
-    } else if (designationLower.includes('technician')) {
-      return 7000; // $7,000/month for technicians
-    } else if (designationLower.includes('assistant') || designationLower.includes('coordinator')) {
-      return 5000; // $5,000/month for assistants/coordinators
-    } else {
-      return 8000; // $8,000/month default
+      return 15000; // 15,000/month for directors/managers
+      } else if (designationLower.includes('senior') || designationLower.includes('lead')) {
+        return 12000; // 12,000/month for senior/lead positions
+      } else if (designationLower.includes('engineer') || designationLower.includes('architect')) {
+        return 10000; // 10,000/month for engineers/architects
+      } else if (designationLower.includes('technician')) {
+        return 7000; // 7,000/month for technicians
+      } else if (designationLower.includes('assistant') || designationLower.includes('coordinator')) {
+        return 5000; // 5,000/month for assistants/coordinators
+      } else {
+        return 8000; // 8,000/month default
     }
   };
 
@@ -512,13 +514,15 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
         <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
           <div className="flex items-center space-x-3">
-            <DollarSign className="w-6 h-6" style={{ color: colors.warning }} />
+            <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.warning }}>
+              {siteSettings?.currencySymbol || '$'}
+            </div>
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
                 Monthly Cost
               </p>
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                ${stats.expectedMonthlyCost.toLocaleString()}
+                {stats.expectedMonthlyCost.toLocaleString()}
               </p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
                 Expected cost
@@ -526,6 +530,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
             </div>
           </div>
         </Card>
+
       </div>
 
       {/* Current Project Staff */}

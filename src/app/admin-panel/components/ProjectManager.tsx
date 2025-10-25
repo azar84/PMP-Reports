@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { formatCurrency } from '@/lib/currency';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -107,6 +109,7 @@ export default function ProjectManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+  const { siteSettings } = useSiteSettings();
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -1233,10 +1236,7 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Project Value</span>
                     <p className="text-xl font-semibold" style={{ color: colors.primary }}>
-                      ${selectedProject.projectValue.toLocaleString('en-US', { 
-                        minimumFractionDigits: 2, 
-                        maximumFractionDigits: 2 
-                      })}
+                      {formatCurrency(Number(selectedProject.projectValue), siteSettings?.currencySymbol || '$')}
                     </p>
                   </div>
                 )}
@@ -4767,10 +4767,7 @@ export default function ProjectManager() {
                       <Calculator className="w-4 h-4" style={{ color: colors.textMuted }} />
                       <span style={{ color: colors.textSecondary }}>Value:</span>
                       <span style={{ color: colors.textPrimary }}>
-                        ${project.projectValue.toLocaleString('en-US', { 
-                          minimumFractionDigits: 2, 
-                          maximumFractionDigits: 2 
-                        })}
+                        {formatCurrency(Number(project.projectValue), siteSettings?.currencySymbol || '$')}
                       </span>
                     </div>
                   )}

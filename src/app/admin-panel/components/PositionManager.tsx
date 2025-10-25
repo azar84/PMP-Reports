@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { formatCurrency } from '@/lib/currency';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -31,6 +33,7 @@ export default function PositionManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+  const { siteSettings } = useSiteSettings();
 
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
@@ -315,7 +318,7 @@ export default function PositionManager() {
                   </td>
                   <td className="py-3 px-4">
                     <span style={{ color: colors.textSecondary }}>
-                      {position.monthlyRate ? `$${position.monthlyRate.toLocaleString()}` : '-'}
+                      {position.monthlyRate ? formatCurrency(position.monthlyRate, siteSettings?.currencySymbol || '$') : '-'}
                     </span>
                   </td>
                   <td className="py-3 px-4">

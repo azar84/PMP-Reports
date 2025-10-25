@@ -8,8 +8,8 @@
   "/api/admin/contacts/route": "app/api/admin/contacts/route.js",
   "/api/admin/dashboard-stats/route": "app/api/admin/dashboard-stats/route.js",
   "/api/admin/design-system/route": "app/api/admin/design-system/route.js",
+  "/api/admin/project-contacts/route": "app/api/admin/project-contacts/route.js",
+  "/api/admin/project-staff/route": "app/api/admin/project-staff/route.js",
   "/api/admin/projects/route": "app/api/admin/projects/route.js",
-  "/api/admin/scheduler/route": "app/api/admin/scheduler/route.js",
-  "/api/admin/site-settings/route": "app/api/admin/site-settings/route.js",
-  "/api/admin/users/route": "app/api/admin/users/route.js"
+  "/api/admin/site-settings/route": "app/api/admin/site-settings/route.js"
 }

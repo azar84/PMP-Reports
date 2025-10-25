@@ -1,11 +1,10 @@
-const CHUNK_PUBLIC_PATH = "server/app/api/admin/media-library/route.js";
-const runtime = require("../../../../chunks/[turbopack]_runtime.js");
-runtime.loadChunk("server/chunks/node_modules_next_87d56c66._.js");
-runtime.loadChunk("server/chunks/node_modules_zod_v3_cc34a201._.js");
-runtime.loadChunk("server/chunks/node_modules_lodash_cf9f33e9._.js");
-runtime.loadChunk("server/chunks/node_modules_cloudinary_64860332._.js");
-runtime.loadChunk("server/chunks/node_modules_q_q_8203cf74.js");
-runtime.loadChunk("server/chunks/[root-of-the-server]__1d9d7a99._.js");
-runtime.getOrInstantiateRuntimeModule("[project]/.next-internal/server/app/api/admin/media-library/route/actions.js [app-rsc] (server actions loader, ecmascript)", CHUNK_PUBLIC_PATH);
-runtime.getOrInstantiateRuntimeModule("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/src/app/api/admin/media-library/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)", CHUNK_PUBLIC_PATH);
-module.exports = runtime.getOrInstantiateRuntimeModule("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/src/app/api/admin/media-library/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)", CHUNK_PUBLIC_PATH).exports;
+var R=require("../../../../chunks/[turbopack]_runtime.js")("server/app/api/admin/media-library/route.js")
+R.c("server/chunks/node_modules_next_e395838d._.js")
+R.c("server/chunks/node_modules_zod_v3_f358d7b3._.js")
+R.c("server/chunks/node_modules_lodash_9f355569._.js")
+R.c("server/chunks/node_modules_cloudinary_0ecd8ca6._.js")
+R.c("server/chunks/node_modules_q_q_e1f26954.js")
+R.c("server/chunks/[root-of-the-server]__344e49e4._.js")
+R.m("[project]/.next-internal/server/app/api/admin/media-library/route/actions.js [app-rsc] (server actions loader, ecmascript)")
+R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/src/app/api/admin/media-library/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)")
+module.exports=R.m("[project]/node_modules/next/dist/esm/build/templates/app-route.js { INNER_APP_ROUTE => \"[project]/src/app/api/admin/media-library/route.ts [app-route] (ecmascript)\" } [app-route] (ecmascript)").exports

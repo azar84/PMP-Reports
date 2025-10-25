@@ -92,6 +92,9 @@ export const SiteSettingsSchema = z.object({
   sidebarTextColor: optionalString,
   sidebarSelectedColor: optionalString,
   sidebarHoverColor: optionalString,
+  
+  // Currency Configuration
+  currencySymbol: optionalString,
 });
 
 export const SiteSettingsUpdateSchema = SiteSettingsSchema.partial();

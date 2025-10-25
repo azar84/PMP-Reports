@@ -22,7 +22,9 @@ import {
   Calendar,
   Clock,
   CheckCircle,
-  AlertCircle
+  AlertCircle,
+  DollarSign,
+  UserCheck
 } from 'lucide-react';
 
 interface CompanyStaff {
