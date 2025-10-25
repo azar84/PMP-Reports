@@ -57,8 +57,23 @@ export async function GET(request: NextRequest) {
       ],
     });
 
+    // Fetch monthly rates from positions table and merge with project positions
+    const positionsWithRates = await Promise.all(
+      projectPositions.map(async (position) => {
+        const positionData = await prisma.position.findUnique({
+          where: { name: position.designation },
+          select: { monthlyRate: true },
+        });
+        
+        return {
+          ...position,
+          monthlyRate: positionData?.monthlyRate || null,
+        };
+      })
+    );
+
     // Custom sorting: Project Director first, then Project Manager, then alphabetical
-    const sortedPositions = projectPositions.sort((a, b) => {
+    const sortedPositions = positionsWithRates.sort((a, b) => {
       // Project Director always first
       if (a.designation === 'Project Director' && b.designation !== 'Project Director') {
         return -1;
