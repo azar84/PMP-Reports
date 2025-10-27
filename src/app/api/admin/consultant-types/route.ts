@@ -12,10 +12,14 @@ export async function GET() {
   try {
     const consultantTypes = await prisma.consultantType.findMany({
       include: {
-        consultants: {
-          select: {
-            id: true,
-            name: true,
+        ConsultantToConsultantType: {
+          include: {
+            consultants: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },
@@ -43,10 +47,14 @@ export async function POST(request: NextRequest) {
     const consultantType = await prisma.consultantType.create({
       data: validatedData,
       include: {
-        consultants: {
-          select: {
-            id: true,
-            name: true,
+        ConsultantToConsultantType: {
+          include: {
+            consultants: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
           },
         },
       },

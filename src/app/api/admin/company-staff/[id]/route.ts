@@ -4,6 +4,7 @@ import { prisma } from '@/lib/db';
 
 const staffSchema = z.object({
   staffName: z.string().min(1, 'Staff name is required'),
+  employeeNumber: z.string().optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   position: z.string().optional(),

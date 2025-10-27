@@ -25,6 +25,8 @@ export async function GET(
         designConsultant: true,
         supervisionConsultant: true,
         costConsultant: true,
+        projectDirector: true,
+        projectManager: true,
         projectPositions: {
           include: {
             staffAssignments: {
@@ -78,11 +80,19 @@ export async function PUT(
     const { projectDirectorId, projectManagerId, ...validBody } = body;
     
     // Convert date strings to DateTime objects if provided
-    const projectData = {
+    const projectData: any = {
       ...validBody,
       startDate: validBody.startDate ? new Date(validBody.startDate) : null,
       endDate: validBody.endDate ? new Date(validBody.endDate) : null,
     };
+
+    // Add director and manager IDs to project data if provided
+    if (projectDirectorId !== undefined) {
+      projectData.projectDirectorId = projectDirectorId || null;
+    }
+    if (projectManagerId !== undefined) {
+      projectData.projectManagerId = projectManagerId || null;
+    }
 
     // Use transaction to update project and handle staff assignments atomically
     const result = await prisma.$transaction(async (tx) => {
@@ -96,6 +106,8 @@ export async function PUT(
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
+          projectDirector: true,
+          projectManager: true,
           projectPositions: {
             include: {
               staffAssignments: {
@@ -207,6 +219,8 @@ export async function PUT(
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
+          projectDirector: true,
+          projectManager: true,
           projectPositions: {
             include: {
               staffAssignments: {

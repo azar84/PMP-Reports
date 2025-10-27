@@ -80,8 +80,19 @@ interface Client {
 interface Consultant {
   id: number;
   name: string;
-  types: Array<{ id: number; type: string }>;
+  types?: Array<{ id: number; type: string }>;
+  ConsultantToConsultantType?: Array<{
+    consultant_types: { id: number; type: string };
+  }>;
 }
+
+// Helper function to get consultant types
+const getConsultantTypes = (consultant: Consultant): Array<{ id: number; type: string }> => {
+  if (consultant.ConsultantToConsultantType) {
+    return consultant.ConsultantToConsultantType.map(item => item.consultant_types);
+  }
+  return consultant.types || [];
+};
 
 interface CompanyStaff {
   id: number;
@@ -146,6 +157,13 @@ export default function ProjectManager() {
   const [showCostContactForm, setShowCostContactForm] = useState(false);
   const [showSupervisionContactForm, setShowSupervisionContactForm] = useState(false);
   const [showStaffForm, setShowStaffForm] = useState(false);
+  const [showDirectorDropdown, setShowDirectorDropdown] = useState(false);
+  const [showManagerDropdown, setShowManagerDropdown] = useState(false);
+  const [directorSearchTerm, setDirectorSearchTerm] = useState('');
+  const [managerSearchTerm, setManagerSearchTerm] = useState('');
+  const [companyPositions, setCompanyPositions] = useState<Array<{ id: number; name: string }>>([]);
+  const [showPositionDropdownInStaffForm, setShowPositionDropdownInStaffForm] = useState(false);
+  const [positionSearchTermInStaffForm, setPositionSearchTermInStaffForm] = useState('');
   const [showContactModal, setShowContactModal] = useState(false);
   const [contactModalData, setContactModalData] = useState<{
     consultantType: string;
@@ -237,9 +255,10 @@ export default function ProjectManager() {
     entityType: 'consultant',
     entityId: undefined,
   });
-  const [staffFormData, setStaffFormData] = useState<Partial<CompanyStaff>>({
+  const [staffFormData, setStaffFormData] = useState<Partial<CompanyStaff & { positionId?: number }>>({
     staffName: '',
     position: '',
+    positionId: undefined,
     email: '',
     phone: '',
   });
@@ -311,13 +330,14 @@ export default function ProjectManager() {
   const fetchData = async () => {
     try {
       setLoading(true);
-      const [projectsRes, clientsRes, consultantsRes, consultantTypesRes, staffRes, contactsRes] = await Promise.all([
+      const [projectsRes, clientsRes, consultantsRes, consultantTypesRes, staffRes, contactsRes, positionsRes] = await Promise.all([
         get<{ success: boolean; data: Project[] }>('/api/admin/projects'),
         get<{ success: boolean; data: Client[] }>('/api/admin/clients'),
         get<{ success: boolean; data: Consultant[] }>('/api/admin/consultants'),
         get<{ success: boolean; data: Array<{ id: number; type: string }> }>('/api/admin/consultant-types'),
         get<{ success: boolean; data: CompanyStaff[] }>('/api/admin/company-staff'),
         get<{ success: boolean; data: Contact[] }>('/api/admin/contacts'),
+        get<{ success: boolean; data: Array<{ id: number; name: string }> }>('/api/admin/positions'),
       ]);
 
       if (projectsRes.success) setProjects(projectsRes.data);
@@ -326,6 +346,7 @@ export default function ProjectManager() {
       if (consultantTypesRes.success) setConsultantTypes(consultantTypesRes.data);
       if (staffRes.success) setStaff(staffRes.data);
       if (contactsRes.success) setContacts(contactsRes.data);
+      if (positionsRes.success) setCompanyPositions(positionsRes.data);
     } catch (error) {
       console.error('Error fetching data:', error);
     } finally {
@@ -568,21 +589,25 @@ export default function ProjectManager() {
     // Fetch project contacts for this project
     fetchProjectContacts(project.id);
     
-    setFormData({
+    const newFormData = {
       projectCode: project.projectCode,
       projectName: project.projectName,
       projectDescription: project.projectDescription || '',
-      clientId: project.clientId || undefined,
-      projectManagementConsultantId: project.projectManagementConsultantId || undefined,
-      designConsultantId: project.designConsultantId || undefined,
-      supervisionConsultantId: project.supervisionConsultantId || undefined,
-      costConsultantId: project.costConsultantId || undefined,
+      clientId: project.clientId ?? undefined,
+      projectManagementConsultantId: project.projectManagementConsultantId ?? undefined,
+      designConsultantId: project.designConsultantId ?? undefined,
+      supervisionConsultantId: project.supervisionConsultantId ?? undefined,
+      costConsultantId: project.costConsultantId ?? undefined,
+      projectDirectorId: project.projectDirectorId ?? undefined,
+      projectManagerId: project.projectManagerId ?? undefined,
       startDate: project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : '',
       endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '',
       duration: project.duration || '',
       eot: project.eot || '',
-      projectValue: project.projectValue || undefined,
-    });
+      projectValue: project.projectValue ?? undefined,
+    };
+    
+    setFormData(newFormData);
     setShowForm(true);
   };
 
@@ -1021,20 +1046,30 @@ export default function ProjectManager() {
   // Handle staff creation
   const handleStaffSubmit = async () => {
     try {
+      // Get the position name from the selected positionId
+      const selectedPosition = companyPositions.find(p => p.id === staffFormData.positionId);
+      
       const staffData = {
         ...staffFormData,
         email: staffFormData.email || undefined,
         phone: staffFormData.phone || undefined,
-        position: staffFormData.position || undefined,
+        position: selectedPosition?.name || staffFormData.position || undefined,
       };
 
-      const response = await post<{ success: boolean; data: CompanyStaff }>('/api/admin/company-staff', staffData);
+      // Remove positionId from the payload since the API expects position as string
+      const { positionId, ...payloadWithoutPositionId } = staffData;
+      const finalPayload = payloadWithoutPositionId;
+
+      const response = await post<{ success: boolean; data: CompanyStaff }>('/api/admin/company-staff', finalPayload);
       if (response.success) {
         setStaff([response.data, ...staff]);
         setShowStaffForm(false);
+        setShowPositionDropdownInStaffForm(false);
+        setPositionSearchTermInStaffForm('');
         setStaffFormData({
           staffName: '',
           position: '',
+          positionId: undefined,
           email: '',
           phone: '',
         });
@@ -2356,7 +2391,7 @@ export default function ProjectManager() {
                         }}
                       >
                         <option value="">Select PMC</option>
-                        {consultants.filter(c => c.types.some(t => t.type === 'Project Management')).map(consultant => (
+                        {consultants.filter(c => getConsultantTypes(c).some(t => t.type === 'Project Management')).map(consultant => (
                           <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
                         ))}
                       </select>
@@ -3520,7 +3555,7 @@ export default function ProjectManager() {
                         }}
                       >
                         <option value="">Select Design Consultant</option>
-                        {consultants.filter(c => c.types.some(t => t.type === 'Design')).map(consultant => (
+                        {consultants.filter(c => getConsultantTypes(c).some(t => t.type === 'Design')).map(consultant => (
                           <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
                         ))}
                       </select>
@@ -3818,7 +3853,7 @@ export default function ProjectManager() {
                         }}
                       >
                         <option value="">Select Cost Consultant</option>
-                        {consultants.filter(c => c.types.some(t => t.type === 'Cost')).map(consultant => (
+                        {consultants.filter(c => getConsultantTypes(c).some(t => t.type === 'Cost')).map(consultant => (
                           <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
                         ))}
                       </select>
@@ -4110,7 +4145,7 @@ export default function ProjectManager() {
                         }}
                       >
                         <option value="">Select Supervision Consultant</option>
-                        {consultants.filter(c => c.types.some(t => t.type === 'Supervision')).map(consultant => (
+                        {consultants.filter(c => getConsultantTypes(c).some(t => t.type === 'Supervision')).map(consultant => (
                           <option key={consultant.id} value={consultant.id}>{consultant.name}</option>
                         ))}
                       </select>
@@ -4362,66 +4397,172 @@ export default function ProjectManager() {
                 </div>
               </div>
 
-              {/* Project Director and Manager Section */}
+              {/* Project Leadership & Additional Staff Section - Grouped */}
               <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
+                <div className="p-6 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
+                  {/* Project Leadership Section */}
                   <div className="flex items-center space-x-2 mb-4">
                     <Users className="w-5 h-5" style={{ color: colors.primary }} />
                     <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Project Leadership</h3>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {/* Project Director */}
-                    <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                    {/* Project Director - Searchable Dropdown */}
+                    <div className="relative">
                       <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                         Project Director
                       </label>
-                      <select
-                        value={formData.projectDirectorId || ''}
-                        onChange={(e) => setFormData({ ...formData, projectDirectorId: e.target.value ? parseInt(e.target.value) : undefined })}
-                        className="w-full p-3 rounded-lg border"
-                        style={{
-                          backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary,
-                          borderColor: colors.borderLight
-                        }}
-                      >
-                        <option value="">Select Project Director (Optional)</option>
-                        {staff.map(staffMember => (
-                          <option key={staffMember.id} value={staffMember.id}>{staffMember.staffName}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <div
+                          onClick={() => {
+                            setShowDirectorDropdown(!showDirectorDropdown);
+                            setShowManagerDropdown(false);
+                          }}
+                          className="w-full p-3 rounded-lg border cursor-pointer flex items-center justify-between"
+                          style={{
+                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.borderLight,
+                            color: colors.textPrimary
+                          }}
+                        >
+                          <span>
+                            {formData.projectDirectorId 
+                              ? staff.find(s => s.id === formData.projectDirectorId)?.staffName 
+                              : 'Select Project Director'}
+                          </span>
+                          <span>{showDirectorDropdown ? '▲' : '▼'}</span>
+                        </div>
+                        
+                        {showDirectorDropdown && (
+                          <div 
+                            className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                            style={{
+                              backgroundColor: colors.backgroundPrimary,
+                              borderColor: colors.borderLight
+                            }}
+                          >
+                            <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                              <input
+                                type="text"
+                                placeholder="Search director..."
+                                value={directorSearchTerm}
+                                onChange={(e) => setDirectorSearchTerm(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundPrimary,
+                                  borderColor: colors.border,
+                                  color: colors.textPrimary
+                                }}
+                                autoFocus
+                              />
+                            </div>
+                            <div className="max-h-48 overflow-auto">
+                              {staff
+                                .filter(s => s.staffName.toLowerCase().includes(directorSearchTerm.toLowerCase()))
+                                .map((staffMember) => (
+                                  <div
+                                    key={staffMember.id}
+                                    onClick={() => {
+                                      setFormData({ ...formData, projectDirectorId: staffMember.id });
+                                      setShowDirectorDropdown(false);
+                                      setDirectorSearchTerm('');
+                                    }}
+                                    className="px-3 py-2 hover:opacity-75 cursor-pointer text-sm"
+                                    style={{
+                                      backgroundColor: formData.projectDirectorId === staffMember.id ? colors.primary : 'transparent',
+                                      color: formData.projectDirectorId === staffMember.id ? '#FFFFFF' : colors.textPrimary
+                                    }}
+                                  >
+                                    {staffMember.staffName}
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
 
-                    {/* Project Manager */}
-                    <div>
+                    {/* Project Manager - Searchable Dropdown */}
+                    <div className="relative">
                       <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                         Project Manager
                       </label>
-                      <select
-                        value={formData.projectManagerId || ''}
-                        onChange={(e) => setFormData({ ...formData, projectManagerId: e.target.value ? parseInt(e.target.value) : undefined })}
-                        className="w-full p-3 rounded-lg border"
-                        style={{
-                          backgroundColor: colors.backgroundPrimary,
-                          color: colors.textPrimary,
-                          borderColor: colors.borderLight
-                        }}
-                      >
-                        <option value="">Select Project Manager (Optional)</option>
-                        {staff.map(staffMember => (
-                          <option key={staffMember.id} value={staffMember.id}>{staffMember.staffName}</option>
-                        ))}
-                      </select>
+                      <div className="relative">
+                        <div
+                          onClick={() => {
+                            setShowManagerDropdown(!showManagerDropdown);
+                            setShowDirectorDropdown(false);
+                          }}
+                          className="w-full p-3 rounded-lg border cursor-pointer flex items-center justify-between"
+                          style={{
+                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.borderLight,
+                            color: colors.textPrimary
+                          }}
+                        >
+                          <span>
+                            {formData.projectManagerId 
+                              ? staff.find(s => s.id === formData.projectManagerId)?.staffName 
+                              : 'Select Project Manager'}
+                          </span>
+                          <span>{showManagerDropdown ? '▲' : '▼'}</span>
+                        </div>
+                        
+                        {showManagerDropdown && (
+                          <div 
+                            className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                            style={{
+                              backgroundColor: colors.backgroundPrimary,
+                              borderColor: colors.borderLight
+                            }}
+                          >
+                            <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                              <input
+                                type="text"
+                                placeholder="Search manager..."
+                                value={managerSearchTerm}
+                                onChange={(e) => setManagerSearchTerm(e.target.value)}
+                                className="w-full px-3 py-2 border rounded-lg text-sm"
+                                style={{
+                                  backgroundColor: colors.backgroundPrimary,
+                                  borderColor: colors.border,
+                                  color: colors.textPrimary
+                                }}
+                                autoFocus
+                              />
+                            </div>
+                            <div className="max-h-48 overflow-auto">
+                              {staff
+                                .filter(s => s.staffName.toLowerCase().includes(managerSearchTerm.toLowerCase()))
+                                .map((staffMember) => (
+                                  <div
+                                    key={staffMember.id}
+                                    onClick={() => {
+                                      setFormData({ ...formData, projectManagerId: staffMember.id });
+                                      setShowManagerDropdown(false);
+                                      setManagerSearchTerm('');
+                                    }}
+                                    className="px-3 py-2 hover:opacity-75 cursor-pointer text-sm"
+                                    style={{
+                                      backgroundColor: formData.projectManagerId === staffMember.id ? colors.primary : 'transparent',
+                                      color: formData.projectManagerId === staffMember.id ? '#FFFFFF' : colors.textPrimary
+                                    }}
+                                  >
+                                    {staffMember.staffName}
+                                  </div>
+                                ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
-                </div>
-              </div>
 
-              {/* Additional Staff Section */}
-              <div className="md:col-span-2">
-                <div className="p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundSecondary, borderColor: colors.borderLight }}>
-                  <div className="flex items-center justify-between mb-4">
+                  {/* Divider */}
+                  <div className="border-t mb-4" style={{ borderColor: colors.borderLight }}></div>
+
+                  {/* Additional Staff Section */}
+                  <div className="flex items-center justify-between mb-2">
                     <div className="flex items-center space-x-2">
                       <Users className="w-5 h-5" style={{ color: colors.primary }} />
                       <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Additional Staff</h3>
@@ -4451,7 +4592,11 @@ export default function ProjectManager() {
                       Add Company Staff
                     </h4>
                     <Button
-                      onClick={() => setShowStaffForm(false)}
+                      onClick={() => {
+                        setShowStaffForm(false);
+                        setShowPositionDropdownInStaffForm(false);
+                        setPositionSearchTermInStaffForm('');
+                      }}
                       type="button"
                       variant="ghost"
                       className="p-1"
@@ -4480,21 +4625,75 @@ export default function ProjectManager() {
                         />
                       </div>
 
-                      <div>
+                      <div className="relative">
                         <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
                           Position
                         </label>
-                        <Input
-                          type="text"
-                          value={staffFormData.position}
-                          onChange={(e) => setStaffFormData({ ...staffFormData, position: e.target.value })}
-                          className="text-sm"
-                          style={{
-                            backgroundColor: colors.backgroundSecondary,
-                            color: colors.textPrimary,
-                            borderColor: colors.borderLight
-                          }}
-                        />
+                        <div className="relative">
+                          <div
+                            onClick={() => setShowPositionDropdownInStaffForm(!showPositionDropdownInStaffForm)}
+                            className="w-full p-2 border rounded-lg cursor-pointer flex items-center justify-between text-sm"
+                            style={{
+                              backgroundColor: colors.backgroundSecondary,
+                              borderColor: colors.borderLight,
+                              color: colors.textPrimary
+                            }}
+                          >
+                            <span>
+                              {staffFormData.positionId 
+                                ? companyPositions.find(p => p.id === staffFormData.positionId)?.name 
+                                : 'Select a position...'}
+                            </span>
+                            <span>{showPositionDropdownInStaffForm ? '▲' : '▼'}</span>
+                          </div>
+                          
+                          {showPositionDropdownInStaffForm && (
+                            <div 
+                              className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.borderLight
+                              }}
+                            >
+                              <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                                <input
+                                  type="text"
+                                  placeholder="Search positions..."
+                                  value={positionSearchTermInStaffForm}
+                                  onChange={(e) => setPositionSearchTermInStaffForm(e.target.value)}
+                                  className="w-full px-3 py-2 border rounded-lg text-xs"
+                                  style={{
+                                    backgroundColor: colors.backgroundSecondary,
+                                    borderColor: colors.border,
+                                    color: colors.textPrimary
+                                  }}
+                                  autoFocus
+                                />
+                              </div>
+                              <div className="max-h-48 overflow-auto">
+                                {companyPositions
+                                  .filter(p => p.name.toLowerCase().includes(positionSearchTermInStaffForm.toLowerCase()))
+                                  .map((position) => (
+                                    <div
+                                      key={position.id}
+                                      onClick={() => {
+                                        setStaffFormData({ ...staffFormData, positionId: position.id });
+                                        setShowPositionDropdownInStaffForm(false);
+                                        setPositionSearchTermInStaffForm('');
+                                      }}
+                                      className="px-3 py-2 hover:opacity-75 cursor-pointer text-sm"
+                                      style={{
+                                        backgroundColor: staffFormData.positionId === position.id ? colors.primary : 'transparent',
+                                        color: staffFormData.positionId === position.id ? '#FFFFFF' : colors.textPrimary
+                                      }}
+                                    >
+                                      {position.name}
+                                    </div>
+                                  ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
                       </div>
 
                       <div>
@@ -4544,7 +4743,11 @@ export default function ProjectManager() {
                       </Button>
                       <Button
                         type="button"
-                        onClick={() => setShowStaffForm(false)}
+                        onClick={() => {
+                          setShowStaffForm(false);
+                          setShowPositionDropdownInStaffForm(false);
+                          setPositionSearchTermInStaffForm('');
+                        }}
                         variant="ghost"
                         className="text-sm px-3 py-1"
                         style={{ color: colors.textSecondary }}

@@ -24,12 +24,25 @@ import {
   CheckCircle,
   AlertCircle,
   DollarSign,
-  UserCheck
+  UserCheck,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  Trash
 } from 'lucide-react';
+
+interface Position {
+  id: number;
+  name: string;
+  description?: string;
+  monthlyRate?: number;
+  isActive: boolean;
+}
 
 interface CompanyStaff {
   id: number;
   staffName: string;
+  employeeNumber?: string;
   email?: string;
   phone?: string;
   position?: string;
@@ -61,22 +74,46 @@ export default function CompanyStaffManager() {
   const { get, post, put, delete: del } = useAdminApi();
 
   const [staff, setStaff] = useState<CompanyStaff[]>([]);
+  const [companyPositions, setCompanyPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [positionSearchTerm, setPositionSearchTerm] = useState('');
+  const [showPositionDropdown, setShowPositionDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<CompanyStaff | null>(null);
   const [viewingStaff, setViewingStaff] = useState<CompanyStaff | null>(null);
-  const [formData, setFormData] = useState<Partial<CompanyStaff>>({
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [selectedStaff, setSelectedStaff] = useState<Set<number>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const [formData, setFormData] = useState<Partial<CompanyStaff & { positionId?: number }>>({
     staffName: '',
+    employeeNumber: '',
     email: '',
     phone: '',
     position: '',
+    positionId: undefined,
     isActive: true,
   });
 
   useEffect(() => {
     fetchStaff();
+    fetchCompanyPositions();
   }, []);
+
+  const fetchCompanyPositions = async () => {
+    try {
+      const response = await get<{ success: boolean; data: Position[] }>('/api/admin/positions');
+      if (response.success) {
+        setCompanyPositions(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching company positions:', error);
+    }
+  };
 
   const fetchStaff = async () => {
     try {
@@ -95,20 +132,28 @@ export default function CompanyStaffManager() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
+      // Get the position name from the selected positionId
+      const selectedPosition = companyPositions.find(p => p.id === formData.positionId);
+      
       const staffData = {
         ...formData,
+        employeeNumber: formData.employeeNumber || undefined,
         email: formData.email || undefined,
         phone: formData.phone || undefined,
-        position: formData.position || undefined,
+        position: selectedPosition?.name || formData.position || undefined,
       };
 
+      // Remove positionId from the payload
+      const { positionId, ...payloadWithoutPositionId } = staffData;
+      const finalPayload = payloadWithoutPositionId;
+
       if (editingStaff) {
-        const response = await put<{ success: boolean; data: CompanyStaff }>(`/api/admin/company-staff/${editingStaff.id}`, staffData);
+        const response = await put<{ success: boolean; data: CompanyStaff }>(`/api/admin/company-staff/${editingStaff.id}`, finalPayload);
         if (response.success) {
           setStaff(staff.map(s => s.id === editingStaff.id ? response.data : s));
         }
       } else {
-        const response = await post<{ success: boolean; data: CompanyStaff }>('/api/admin/company-staff', staffData);
+        const response = await post<{ success: boolean; data: CompanyStaff }>('/api/admin/company-staff', finalPayload);
         if (response.success) {
           setStaff([response.data, ...staff]);
         }
@@ -116,11 +161,15 @@ export default function CompanyStaffManager() {
 
       setShowForm(false);
       setEditingStaff(null);
+      setShowPositionDropdown(false);
+      setPositionSearchTerm('');
       setFormData({
         staffName: '',
+        employeeNumber: '',
         email: '',
         phone: '',
         position: '',
+        positionId: undefined,
         isActive: true,
       });
     } catch (error) {
@@ -130,8 +179,12 @@ export default function CompanyStaffManager() {
 
   const handleEdit = (staffMember: CompanyStaff) => {
     setEditingStaff(staffMember);
+    // Find the positionId from the companyPositions based on the position name
+    const matchingPosition = companyPositions.find(p => p.name === staffMember.position);
     setFormData({
       staffName: staffMember.staffName,
+      positionId: matchingPosition?.id,
+      employeeNumber: staffMember.employeeNumber || '',
       email: staffMember.email || '',
       phone: staffMember.phone || '',
       position: staffMember.position || '',
@@ -168,9 +221,160 @@ export default function CompanyStaffManager() {
 
   const filteredStaff = staff.filter(staffMember =>
     staffMember.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    staffMember.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staffMember.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staffMember.position?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    try {
+      const response = await fetch(`/api/admin/company-staff/export?format=${format}`);
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `staff_data_${new Date().toISOString().split('T')[0]}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting staff data:', error);
+      alert('Failed to export staff data. Please try again.');
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/admin/company-staff/template');
+      
+      if (!response.ok) {
+        throw new Error('Template download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'staff_import_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      alert('Failed to download template. Please try again.');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      alert('Please select a file to import');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const response = await fetch('/api/admin/company-staff/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      console.log('Import result:', result);
+
+      if (result.success) {
+        setImportResult(result.data);
+        console.log('Import successful, refreshing staff list...');
+        await fetchStaff(); // Refresh staff list
+        console.log('Staff list refreshed');
+        setImportFile(null);
+        setShowImportModal(false);
+      } else {
+        console.log('Import failed:', result.error);
+        setImportResult({ error: result.error, details: result.details });
+      }
+    } catch (error) {
+      console.error('Error importing staff data:', error);
+      setImportResult({ error: 'Failed to import staff data. Please try again.' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    console.log('Select all clicked. Current selection:', selectedStaff.size, 'Total staff:', filteredStaff.length);
+    if (selectedStaff.size === filteredStaff.length) {
+      setSelectedStaff(new Set());
+      console.log('Deselected all staff');
+    } else {
+      const newSelection = new Set(filteredStaff.map(staff => staff.id));
+      setSelectedStaff(newSelection);
+      console.log('Selected all staff:', newSelection);
+    }
+  };
+
+  const handleSelectStaff = (staffId: number) => {
+    console.log('Individual checkbox clicked for staff ID:', staffId);
+    const newSelected = new Set(selectedStaff);
+    if (newSelected.has(staffId)) {
+      newSelected.delete(staffId);
+      console.log('Deselected staff:', staffId);
+    } else {
+      newSelected.add(staffId);
+      console.log('Selected staff:', staffId);
+    }
+    setSelectedStaff(newSelected);
+    console.log('New selection:', newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedStaff.size === 0) {
+      alert('Please select staff members to delete');
+      return;
+    }
+
+    setBulkDeleting(true);
+
+    try {
+      const response = await fetch('/api/admin/company-staff/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          staffIds: Array.from(selectedStaff)
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchStaff(); // Refresh staff list
+        setSelectedStaff(new Set());
+        setShowBulkDeleteModal(false);
+        alert(`Successfully deleted ${result.data.deletedCount} staff member(s)`);
+      } else {
+        alert(`Failed to delete staff: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error bulk deleting staff:', error);
+      alert('Failed to delete staff members. Please try again.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -192,14 +396,54 @@ export default function CompanyStaffManager() {
             Manage your company staff members and their roles
           </p>
         </div>
-        <Button
-          onClick={() => setShowForm(true)}
-          className="flex items-center space-x-2"
-          style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
-        >
-          <Plus className="w-4 h-4" />
-          <span>Add Staff Member</span>
-        </Button>
+        <div className="flex items-center space-x-3">
+          <Button
+            onClick={() => handleExport('xlsx')}
+            variant="ghost"
+            className="flex items-center space-x-2"
+            style={{ color: colors.textSecondary }}
+          >
+            <Download className="w-4 h-4" />
+            <span>Export Excel</span>
+          </Button>
+          <Button
+            onClick={() => handleExport('csv')}
+            variant="ghost"
+            className="flex items-center space-x-2"
+            style={{ color: colors.textSecondary }}
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Export CSV</span>
+          </Button>
+          <Button
+            onClick={() => setShowImportModal(true)}
+            variant="ghost"
+            className="flex items-center space-x-2"
+            style={{ color: colors.textSecondary }}
+          >
+            <Upload className="w-4 h-4" />
+            <span>Import</span>
+          </Button>
+          {selectedStaff.size > 0 && (
+            <Button
+              onClick={() => setShowBulkDeleteModal(true)}
+              variant="ghost"
+              className="flex items-center space-x-2"
+              style={{ color: colors.error }}
+            >
+              <Trash className="w-4 h-4" />
+              <span>Delete Selected ({selectedStaff.size})</span>
+            </Button>
+          )}
+          <Button
+            onClick={() => setShowForm(true)}
+            className="flex items-center space-x-2"
+            style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+          >
+            <Plus className="w-4 h-4" />
+            <span>Add Staff Member</span>
+          </Button>
+        </div>
       </div>
 
       {/* Search */}
@@ -231,6 +475,7 @@ export default function CompanyStaffManager() {
                 setEditingStaff(null);
                 setFormData({
                   staffName: '',
+                  employeeNumber: '',
                   email: '',
                   phone: '',
                   position: '',
@@ -265,19 +510,91 @@ export default function CompanyStaffManager() {
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Position
+                  Employee Number
                 </label>
                 <Input
                   type="text"
-                  value={formData.position}
-                  onChange={(e) => setFormData({ ...formData, position: e.target.value })}
-                  placeholder="e.g., Project Director, Project Manager"
+                  value={formData.employeeNumber}
+                  onChange={(e) => setFormData({ ...formData, employeeNumber: e.target.value })}
+                  placeholder="e.g., EMP001, 12345"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
                     borderColor: 'rgba(229, 231, 235, 0.1)',
                     color: colors.textPrimary
                   }}
                 />
+              </div>
+
+              <div className="relative">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Position
+                </label>
+                <div className="relative">
+                  <div
+                    onClick={() => setShowPositionDropdown(!showPositionDropdown)}
+                    className="w-full px-3 py-2 border rounded-lg cursor-pointer flex items-center justify-between"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: 'rgba(229, 231, 235, 0.1)',
+                      color: colors.textPrimary
+                    }}
+                  >
+                    <span>
+                      {formData.positionId 
+                        ? companyPositions.find(p => p.id === formData.positionId)?.name 
+                        : 'Select a position...'}
+                    </span>
+                    <span>{showPositionDropdown ? '▲' : '▼'}</span>
+                  </div>
+                  
+                  {showPositionDropdown && (
+                    <div 
+                      className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                      style={{
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.border
+                      }}
+                    >
+                      <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                        <input
+                          type="text"
+                          placeholder="Search positions..."
+                          value={positionSearchTerm}
+                          onChange={(e) => setPositionSearchTerm(e.target.value)}
+                          className="w-full px-3 py-2 border rounded-lg"
+                          style={{
+                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.border,
+                            color: colors.textPrimary
+                          }}
+                          autoFocus
+                        />
+                      </div>
+                      <div className="max-h-48 overflow-auto">
+                        {companyPositions
+                          .filter(p => p.isActive)
+                          .filter(p => p.name.toLowerCase().includes(positionSearchTerm.toLowerCase()))
+                          .map((position) => (
+                            <div
+                              key={position.id}
+                              onClick={() => {
+                                setFormData({ ...formData, positionId: position.id });
+                                setShowPositionDropdown(false);
+                                setPositionSearchTerm('');
+                              }}
+                              className="px-3 py-2 hover:opacity-75 cursor-pointer"
+                              style={{
+                                backgroundColor: formData.positionId === position.id ? colors.primary : 'transparent',
+                                color: formData.positionId === position.id ? '#FFFFFF' : colors.textPrimary
+                              }}
+                            >
+                              {position.name}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -354,12 +671,45 @@ export default function CompanyStaffManager() {
 
       {/* Staff Table */}
       <Card className="overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary }}>
+        {/* Selection Status */}
+        {selectedStaff.size > 0 && (
+          <div className="px-6 py-3 border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
+            <div className="flex items-center space-x-2">
+              <CheckCircle className="w-4 h-4" style={{ color: colors.primary }} />
+              <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                {selectedStaff.size} staff member(s) selected
+              </span>
+            </div>
+          </div>
+        )}
         <div className="overflow-x-auto">
           <table className="w-full">
             <thead>
               <tr className="border-b border-gray-200/20" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  <div className="flex items-center justify-center">
+                    <div 
+                      className="w-5 h-5 border-2 rounded cursor-pointer flex items-center justify-center transition-colors hover:border-opacity-80 hover:bg-opacity-10"
+                      style={{ 
+                        borderColor: selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 ? colors.primary : '#E5E7EB',
+                        backgroundColor: selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 ? colors.primary : 'transparent'
+                      }}
+                      onClick={handleSelectAll}
+                    >
+                      {selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 && (
+                        <CheckCircle className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                    <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                      All
+                    </span>
+                  </div>
+                </th>
                 <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Name
+                </th>
+                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  Employee #
                 </th>
                 <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Position
@@ -390,6 +740,20 @@ export default function CompanyStaffManager() {
                     backgroundColor: colors.backgroundSecondary
                   }}
                 >
+                  <td className="px-6 py-4 text-center">
+                    <div 
+                      className="w-5 h-5 border-2 rounded cursor-pointer flex items-center justify-center transition-colors hover:border-opacity-80 hover:bg-opacity-10 mx-auto"
+                      style={{ 
+                        borderColor: selectedStaff.has(staffMember.id) ? colors.primary : '#E5E7EB',
+                        backgroundColor: selectedStaff.has(staffMember.id) ? colors.primary : 'transparent'
+                      }}
+                      onClick={() => handleSelectStaff(staffMember.id)}
+                    >
+                      {selectedStaff.has(staffMember.id) && (
+                        <CheckCircle className="w-3 h-3 text-white" />
+                      )}
+                    </div>
+                  </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
                       <User className="w-4 h-4" style={{ color: colors.textMuted }} />
@@ -397,6 +761,11 @@ export default function CompanyStaffManager() {
                         {staffMember.staffName}
                       </span>
                     </div>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm font-mono" style={{ color: colors.textPrimary }}>
+                      {staffMember.employeeNumber || '-'}
+                    </span>
                   </td>
                   <td className="px-6 py-4">
                     <div className="flex items-center space-x-2">
@@ -838,6 +1207,260 @@ export default function CompanyStaffManager() {
                   Edit Staff Member
                 </Button>
               </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-6 border-b"
+              style={{ borderColor: colors.border }}
+            >
+              <div>
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Import Staff Data
+                </h2>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  Upload an Excel file to import staff members
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                }}
+                variant="ghost"
+                className="p-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {/* Download Template */}
+              <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                      Download Template
+                    </h3>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                      Download the Excel template with sample data and instructions
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleDownloadTemplate}
+                    variant="ghost"
+                    className="flex items-center space-x-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Download Template</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* File Upload */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Select Excel File
+                </label>
+                <div 
+                  className="border-2 border-dashed rounded-lg p-6 text-center"
+                  style={{ 
+                    borderColor: colors.border,
+                    backgroundColor: colors.backgroundPrimary
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    id="import-file"
+                  />
+                  <label 
+                    htmlFor="import-file"
+                    className="cursor-pointer flex flex-col items-center space-y-2"
+                  >
+                    <Upload className="w-8 h-8" style={{ color: colors.textMuted }} />
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        {importFile ? importFile.name : 'Click to select file'}
+                      </p>
+                      <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        Excel (.xlsx, .xls) or CSV files only
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Import Results */}
+              {importResult && (
+                <div className="mb-6">
+                  {importResult.error ? (
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.error + '20', border: `1px solid ${colors.error}` }}>
+                      <h4 className="text-sm font-medium mb-2" style={{ color: colors.error }}>
+                        Import Failed
+                      </h4>
+                      <p className="text-sm mb-2" style={{ color: colors.error }}>
+                        {importResult.error}
+                      </p>
+                      {importResult.details && (
+                        <div className="text-xs" style={{ color: colors.error }}>
+                          <pre className="whitespace-pre-wrap">{JSON.stringify(importResult.details, null, 2)}</pre>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.success + '20', border: `1px solid ${colors.success}` }}>
+                      <h4 className="text-sm font-medium mb-2" style={{ color: colors.success }}>
+                        Import Successful
+                      </h4>
+                      <div className="text-sm space-y-1" style={{ color: colors.success }}>
+                        <p>Total processed: {importResult.totalProcessed}</p>
+                        <p>Created: {importResult.created}</p>
+                        <p>Updated: {importResult.updated}</p>
+                        {importResult.errors > 0 && (
+                          <p>Errors: {importResult.errors}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Import Instructions */}
+              <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <h3 className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Import Instructions
+                </h3>
+                <ul className="text-xs space-y-1" style={{ color: colors.textSecondary }}>
+                  <li>• Staff Name is required for all records</li>
+                  <li>• Employee Number, Email, Phone, and Position are optional</li>
+                  <li>• Status must be "Active" or "Inactive" (defaults to Active)</li>
+                  <li>• Existing staff with same name or employee number will be updated</li>
+                  <li>• Download the template above for the correct format</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div 
+              className="flex items-center justify-end space-x-3 p-6 border-t"
+              style={{ borderColor: colors.border }}
+            >
+              <Button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                }}
+                variant="ghost"
+                disabled={importing}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={!importFile || importing}
+                style={{ backgroundColor: colors.primary }}
+              >
+                {importing ? 'Importing...' : 'Import Staff'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Confirmation Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-lg shadow-xl w-full max-w-md"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-6 border-b"
+              style={{ borderColor: colors.border }}
+            >
+              <div>
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Confirm Bulk Delete
+                </h2>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  This action cannot be undone
+                </p>
+              </div>
+              <Button
+                onClick={() => setShowBulkDeleteModal(false)}
+                variant="ghost"
+                className="p-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6">
+              <div className="mb-4">
+                <div className="flex items-center space-x-2 mb-2">
+                  <AlertCircle className="w-5 h-5" style={{ color: colors.error }} />
+                  <span className="text-sm font-medium" style={{ color: colors.error }}>
+                    Warning
+                  </span>
+                </div>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  You are about to delete <strong>{selectedStaff.size}</strong> staff member(s). 
+                  Staff members with project assignments cannot be deleted.
+                </p>
+              </div>
+
+              <div className="mb-6">
+                <h3 className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Selected Staff Members:
+                </h3>
+                <div className="max-h-32 overflow-y-auto">
+                  {Array.from(selectedStaff).map(staffId => {
+                    const staff = filteredStaff.find(s => s.id === staffId);
+                    return staff ? (
+                      <div key={staffId} className="text-sm py-1" style={{ color: colors.textSecondary }}>
+                        • {staff.staffName} {staff.employeeNumber && `(${staff.employeeNumber})`}
+                      </div>
+                    ) : null;
+                  })}
+                </div>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div 
+              className="flex items-center justify-end space-x-3 p-6 border-t"
+              style={{ borderColor: colors.border }}
+            >
+              <Button
+                onClick={() => setShowBulkDeleteModal(false)}
+                variant="ghost"
+                disabled={bulkDeleting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleting}
+                style={{ backgroundColor: colors.error, color: '#FFFFFF' }}
+              >
+                {bulkDeleting ? 'Deleting...' : `Delete ${selectedStaff.size} Staff`}
+              </Button>
             </div>
           </div>
         </div>

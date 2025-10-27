@@ -62,7 +62,7 @@ model SiteSettings {
   sidebarHoverColor        String?  @default("#D1D5DB")
   sidebarSelectedColor     String?  @default("#FFFFFF")
   sidebarTextColor         String?  @default("#E5E7EB")
-  currencySymbol           String?  @default("$") // Currency symbol for display
+  currencySymbol           String?  @default("$")
 
   @@map("site_settings")
 }
@@ -105,65 +105,65 @@ model SitemapSubmissionLog {
 }
 
 model DesignSystem {
-  id                  Int      @id @default(autoincrement())
-  primaryColor        String   @default("#5243E9")
-  primaryColorLight   String   @default("#6366F1")
-  primaryColorDark    String   @default("#4338CA")
-  secondaryColor      String   @default("#7C3AED")
-  accentColor         String   @default("#06B6D4")
-  successColor        String   @default("#10B981")
-  warningColor        String   @default("#F59E0B")
-  errorColor          String   @default("#EF4444")
-  infoColor           String   @default("#3B82F6")
-  borderLight         String   @default("#F9FAFB")
-  borderStrong        String   @default("#374151")
-  backgroundPrimary   String   @default("#FFFFFF")
-  backgroundSecondary String   @default("#F6F8FC")
-  backgroundDark      String   @default("#0F1A2A")
-  headerBackgroundColor String @default("#F6F8FC")
-  sidebarHeaderBackgroundColor String @default("#F6F8FC")
-  sidebarBackgroundColor String @default("#0F1A2A")
-  textPrimary         String   @default("#4B5563")
-  textSecondary       String   @default("#9CA3AF")
-  textMuted           String   @default("#D1D5DB")
-  headerTextColor     String   @default("#4B5563")
-  sidebarTextColor    String   @default("#4B5563")
-  sidebarHeaderColor  String   @default("#4B5563")
-  fontFamily          String   @default("Manrope")
-  fontFamilyMono      String   @default("ui-monospace")
-  fontSizeBase        String   @default("16px")
-  lineHeightBase      String   @default("1.5")
-  fontWeightNormal    String   @default("400")
-  fontWeightMedium    String   @default("500")
-  fontWeightBold      String   @default("700")
-  spacingXs           String   @default("4px")
-  spacingSm           String   @default("8px")
-  spacingMd           String   @default("16px")
-  spacingLg           String   @default("24px")
-  spacingXl           String   @default("32px")
-  spacing2xl          String   @default("48px")
-  borderRadiusSm      String   @default("4px")
-  borderRadiusMd      String   @default("8px")
-  borderRadiusLg      String   @default("12px")
-  borderRadiusXl      String   @default("16px")
-  borderRadiusFull    String   @default("9999px")
-  shadowSm            String   @default("0 1px 2px 0 rgb(0 0 0 / 0.05)")
-  shadowMd            String   @default("0 4px 6px -1px rgb(0 0 0 / 0.1)")
-  shadowLg            String   @default("0 10px 15px -3px rgb(0 0 0 / 0.1)")
-  shadowXl            String   @default("0 20px 25px -5px rgb(0 0 0 / 0.1)")
-  animationFast       String   @default("150ms")
-  animationNormal     String   @default("300ms")
-  animationSlow       String   @default("500ms")
-  breakpointSm        String   @default("640px")
-  breakpointMd        String   @default("768px")
-  breakpointLg        String   @default("1024px")
-  breakpointXl        String   @default("1280px")
-  breakpoint2xl       String   @default("1536px")
-  themeMode           String   @default("light")
-  customVariables     String?
-  isActive            Boolean  @default(true)
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id                           Int      @id @default(autoincrement())
+  primaryColor                 String   @default("#5243E9")
+  primaryColorLight            String   @default("#6366F1")
+  primaryColorDark             String   @default("#4338CA")
+  secondaryColor               String   @default("#7C3AED")
+  accentColor                  String   @default("#06B6D4")
+  successColor                 String   @default("#10B981")
+  warningColor                 String   @default("#F59E0B")
+  errorColor                   String   @default("#EF4444")
+  infoColor                    String   @default("#3B82F6")
+  borderLight                  String   @default("#F9FAFB")
+  borderStrong                 String   @default("#374151")
+  backgroundPrimary            String   @default("#FFFFFF")
+  backgroundSecondary          String   @default("#F6F8FC")
+  backgroundDark               String   @default("#0F1A2A")
+  headerBackgroundColor        String   @default("#F6F8FC")
+  sidebarHeaderBackgroundColor String   @default("#F6F8FC")
+  sidebarBackgroundColor       String   @default("#0F1A2A")
+  textPrimary                  String   @default("#4B5563")
+  textSecondary                String   @default("#9CA3AF")
+  textMuted                    String   @default("#D1D5DB")
+  headerTextColor              String   @default("#4B5563")
+  sidebarTextColor             String   @default("#4B5563")
+  sidebarHeaderColor           String   @default("#4B5563")
+  fontFamily                   String   @default("Manrope")
+  fontFamilyMono               String   @default("ui-monospace")
+  fontSizeBase                 String   @default("16px")
+  lineHeightBase               String   @default("1.5")
+  fontWeightNormal             String   @default("400")
+  fontWeightMedium             String   @default("500")
+  fontWeightBold               String   @default("700")
+  spacingXs                    String   @default("4px")
+  spacingSm                    String   @default("8px")
+  spacingMd                    String   @default("16px")
+  spacingLg                    String   @default("24px")
+  spacingXl                    String   @default("32px")
+  spacing2xl                   String   @default("48px")
+  borderRadiusSm               String   @default("4px")
+  borderRadiusMd               String   @default("8px")
+  borderRadiusLg               String   @default("12px")
+  borderRadiusXl               String   @default("16px")
+  borderRadiusFull             String   @default("9999px")
+  shadowSm                     String   @default("0 1px 2px 0 rgb(0 0 0 / 0.05)")
+  shadowMd                     String   @default("0 4px 6px -1px rgb(0 0 0 / 0.1)")
+  shadowLg                     String   @default("0 10px 15px -3px rgb(0 0 0 / 0.1)")
+  shadowXl                     String   @default("0 20px 25px -5px rgb(0 0 0 / 0.1)")
+  animationFast                String   @default("150ms")
+  animationNormal              String   @default("300ms")
+  animationSlow                String   @default("500ms")
+  breakpointSm                 String   @default("640px")
+  breakpointMd                 String   @default("768px")
+  breakpointLg                 String   @default("1024px")
+  breakpointXl                 String   @default("1280px")
+  breakpoint2xl                String   @default("1536px")
+  themeMode                    String   @default("light")
+  customVariables              String?
+  isActive                     Boolean  @default(true)
+  createdAt                    DateTime @default(now())
+  updatedAt                    DateTime @updatedAt
 
   @@map("design_system")
 }
@@ -244,224 +244,217 @@ model AdminUser {
 }
 
 model Client {
-  id           Int       @id @default(autoincrement())
-  name         String
+  id            Int       @id @default(autoincrement())
+  name          String
   officeAddress String?
-  phone        String?
-  email        String?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  projects     Project[] // One client can have many projects
+  phone         String?
+  email         String?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  projects      Project[]
 
   @@map("clients")
 }
 
 model Consultant {
-  id           Int       @id @default(autoincrement())
-  name         String
-  officeAddress String?
-  phone        String?
-  email        String?
-  isActive     Boolean   @default(true)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  types        ConsultantType[] // Many-to-many with consultant types
-  projectsAsPMC Project[] @relation("ProjectManagementConsultant")
-  projectsAsDesign Project[] @relation("DesignConsultant")
-  projectsAsCost Project[] @relation("CostConsultant")
-  projectsAsSupervision Project[] @relation("SupervisionConsultant")
+  id                         Int                          @id @default(autoincrement())
+  name                       String
+  officeAddress              String?
+  phone                      String?
+  email                      String?
+  isActive                   Boolean                      @default(true)
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  ConsultantToConsultantType ConsultantToConsultantType[]
+  projectsAsCost             Project[]                    @relation("CostConsultant")
+  projectsAsSupervision      Project[]                    @relation("SupervisionConsultant")
+  projectsAsDesign           Project[]                    @relation("DesignConsultant")
+  projectsAsPMC              Project[]                    @relation("ProjectManagementConsultant")
 
   @@map("consultants")
 }
 
 model ConsultantType {
-  id          Int         @id @default(autoincrement())
-  type        String      @unique // "PMC", "Design", "Cost", "Supervision"
-  description String?
-  consultants Consultant[]
-  createdAt   DateTime    @default(now())
-  updatedAt   DateTime    @updatedAt
+  id                         Int                          @id @default(autoincrement())
+  type                       String                       @unique
+  description                String?
+  createdAt                  DateTime                     @default(now())
+  updatedAt                  DateTime                     @updatedAt
+  ConsultantToConsultantType ConsultantToConsultantType[]
 
   @@map("consultant_types")
 }
 
 model CompanyStaff {
-  id        Int      @id @default(autoincrement())
-  staffName String
-  email     String?
-  phone     String?
-  position  String?
-  isActive  Boolean  @default(true)
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  projectStaff ProjectStaff[] // Staff assignments to projects
-  projectsAsDirector Project[] @relation("ProjectDirector") // Projects where this staff is director
-  projectsAsManager Project[] @relation("ProjectManager") // Projects where this staff is manager
+  id                 Int            @id @default(autoincrement())
+  staffName          String
+  email              String?
+  phone              String?
+  position           String?
+  isActive           Boolean        @default(true)
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+  employeeNumber     String?
+  projectStaff       ProjectStaff[]
+  projectsAsManager  Project[]      @relation("ProjectManager")
+  projectsAsDirector Project[]      @relation("ProjectDirector")
 
   @@map("company_staff")
 }
 
 model Contact {
-  id          Int       @id @default(autoincrement())
-  firstName   String
-  lastName    String
-  email       String?
-  phone       String?
-  position    String?
-  notes       String?
-  isActive    Boolean   @default(true)
-  entityType  String    // 'client' or 'consultant'
-  entityId    Int       // ID of the client or consultant
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  projectContacts ProjectContact[] // Many-to-many with projects
+  id              Int              @id @default(autoincrement())
+  firstName       String
+  lastName        String
+  email           String?
+  phone           String?
+  position        String?
+  notes           String?
+  isActive        Boolean          @default(true)
+  entityType      String
+  entityId        Int
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  projectContacts ProjectContact[]
 
   @@map("contacts")
 }
 
 model ProjectContact {
-  id            Int       @id @default(autoincrement())
-  projectId     Int
-  contactId     Int
-  isPrimary     Boolean   @default(false) // Primary contact for this specific project
-  consultantType String?  // 'pmc', 'design', 'supervision', 'cost' - tracks which consultant type this contact belongs to
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  contact       Contact   @relation(fields: [contactId], references: [id], onDelete: Cascade)
-  
-  @@unique([projectId, contactId, consultantType]) // Allow same contact for different consultant types
+  id             Int      @id @default(autoincrement())
+  projectId      Int
+  contactId      Int
+  isPrimary      Boolean  @default(false)
+  consultantType String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  contact        Contact  @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, contactId, consultantType])
   @@map("project_contacts")
 }
 
 model Project {
-  id                        Int       @id @default(autoincrement())
-  projectCode              String    @unique // Unique project code
-  projectName              String
-  projectDescription       String?
-  clientId                 Int?      // FK to Client
-  client                   Client?   @relation(fields: [clientId], references: [id])
-  projectManagementConsultantId Int? // FK to Consultant
-  projectManagementConsultant Consultant? @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
-  designConsultantId       Int?      // FK to Consultant
-  designConsultant         Consultant? @relation("DesignConsultant", fields: [designConsultantId], references: [id])
-  supervisionConsultantId  Int?      // FK to Consultant
-  supervisionConsultant    Consultant? @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
-  costConsultantId         Int?      // FK to Consultant
-  costConsultant           Consultant? @relation("CostConsultant", fields: [costConsultantId], references: [id])
-  projectDirectorId        Int?      // FK to CompanyStaff
-  projectDirector          CompanyStaff? @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
-  projectManagerId         Int?      // FK to CompanyStaff
-  projectManager           CompanyStaff? @relation("ProjectManager", fields: [projectManagerId], references: [id])
-  startDate                DateTime?
-  endDate                  DateTime?
-  duration                 String?   // Duration in a readable format (e.g., "6 months", "2 years")
-  eot                      String?   // Extension of Time
-  projectValue             Decimal?  // Project value/budget
-  lastUpdate               DateTime  @default(now()) @updatedAt
-  createdAt                DateTime  @default(now())
-  updatedAt                DateTime  @updatedAt
-  projectContacts          ProjectContact[] // Many-to-many with contacts
-  projectChecklistItems    ProjectChecklistItem[] // Project checklist items
-  projectPositions         ProjectPosition[] // Project positions
-  projectStaff             ProjectStaff[] // Project staff assignments
+  id                            Int                    @id @default(autoincrement())
+  projectCode                   String                 @unique
+  projectName                   String
+  projectDescription            String?
+  clientId                      Int?
+  projectManagementConsultantId Int?
+  designConsultantId            Int?
+  supervisionConsultantId       Int?
+  costConsultantId              Int?
+  projectDirectorId             Int?
+  projectManagerId              Int?
+  startDate                     DateTime?
+  endDate                       DateTime?
+  duration                      String?
+  eot                           String?
+  projectValue                  Decimal?
+  lastUpdate                    DateTime               @default(now()) @updatedAt
+  createdAt                     DateTime               @default(now())
+  updatedAt                     DateTime               @updatedAt
+  projectChecklistItems         ProjectChecklistItem[]
+  projectContacts               ProjectContact[]
+  projectPositions              ProjectPosition[]
+  projectStaff                  ProjectStaff[]
+  projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
+  costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
+  supervisionConsultant         Consultant?            @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
+  designConsultant              Consultant?            @relation("DesignConsultant", fields: [designConsultantId], references: [id])
+  projectManagementConsultant   Consultant?            @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
+  client                        Client?                @relation(fields: [clientId], references: [id])
 
   @@map("projects")
 }
 
 model ProjectChecklistItem {
-  id            Int       @id @default(autoincrement())
-  projectId     Int       // FK to Project
-  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Checklist item details
-  itemNumber    String    // e.g., "1", "6.1", "18.31"
-  phase         String    // The phase/task description
-  plannedDate   DateTime? // Planned completion date
-  actualDate    DateTime? // Actual completion date
-  status        String?   // Status: "Pending", "In Progress", "Completed", "On Hold", "Cancelled"
-  notes         String?   // Additional notes
-  isSubItem     Boolean   @default(false) // Whether this is a sub-item (e.g., 6.1, 6.2)
-  parentItemId  Int?      // Reference to parent item for sub-items
-  order         Int       @default(0) // Display order for proper sorting
-  
-  // Metadata
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
+  id           Int       @id @default(autoincrement())
+  projectId    Int
+  itemNumber   String
+  phase        String
+  plannedDate  DateTime?
+  actualDate   DateTime?
+  status       String?
+  notes        String?
+  isSubItem    Boolean   @default(false)
+  parentItemId Int?
+  order        Int       @default(0)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
   @@map("project_checklist_items")
 }
 
 model ProjectPosition {
-  id            Int       @id @default(autoincrement())
-  projectId     Int       // FK to Project
-  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  
-  // Position details
-  designation   String    // Role/designation (e.g., "Project Director", "Project Manager", "Engineer", "Architect")
-  requiredUtilization Int @default(100) // Required total utilization for this position (e.g., 100 for 100%)
-  
-  // Metadata
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  // Relations
-  staffAssignments ProjectStaff[]
-  
-  @@unique([projectId, designation]) // Prevent duplicate positions in same project
+  id                  Int            @id @default(autoincrement())
+  projectId           Int
+  designation         String
+  requiredUtilization Int            @default(100)
+  createdAt           DateTime       @default(now())
+  updatedAt           DateTime       @updatedAt
+  project             Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  staffAssignments    ProjectStaff[]
+
+  @@unique([projectId, designation])
   @@map("project_positions")
 }
 
 model ProjectStaff {
-  id            Int       @id @default(autoincrement())
-  projectId     Int       // FK to Project
-  project       Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  positionId    Int       // FK to ProjectPosition
-  position      ProjectPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
-  staffId       Int?      // FK to CompanyStaff (nullable for unassigned positions)
-  staff         CompanyStaff? @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  
-  // Staff assignment details
-  utilization   Int       @default(100) // Utilization percentage (0 to infinity)
-  startDate     DateTime? // When staff starts on this project
-  endDate       DateTime? // When staff ends on this project
-  status        String    @default("Active") // Status: "Active", "Inactive", "Completed"
-  notes         String?   // Additional notes
-  
-  // Metadata
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-  
-  @@unique([projectId, staffId]) // Prevent same staff from being added to same project twice
+  id          Int             @id @default(autoincrement())
+  projectId   Int
+  positionId  Int
+  staffId     Int?
+  utilization Int             @default(100)
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String          @default("Active")
+  notes       String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  staff       CompanyStaff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  position    ProjectPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, staffId])
   @@map("project_staff")
 }
 
 model ChecklistTemplate {
-  id          Int       @id @default(autoincrement())
-  name        String    @default("Default Template")
+  id          Int      @id @default(autoincrement())
+  name        String   @default("Default Template")
   description String?
-  items       Json      // Array of template items
-  isActive    Boolean   @default(true)
-  
-  // Metadata
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  items       Json
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@map("checklist_templates")
 }
 
 model Position {
-  id          Int       @id @default(autoincrement())
-  name        String    @unique // Position name (e.g., "Project Director", "Site Engineer")
-  description String?   // Optional description of the position
-  monthlyRate Float?    // Monthly base rate for this position
-  isActive    Boolean   @default(true)
-  
-  // Metadata
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  monthlyRate Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
   @@map("positions")
+}
+
+model ConsultantToConsultantType {
+  A                Int
+  B                Int
+  consultant_types ConsultantType @relation(fields: [B], references: [id], onDelete: Cascade)
+  consultants      Consultant     @relation(fields: [A], references: [id], onDelete: Cascade)
+
+  @@unique([A, B], map: "_ConsultantToConsultantType_AB_unique")
+  @@index([B], map: "_ConsultantToConsultantType_B_index")
+  @@map("_ConsultantToConsultantType")
 }

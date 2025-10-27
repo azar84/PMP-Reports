@@ -41,7 +41,10 @@ interface Consultant {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
-  types: ConsultantType[];
+  ConsultantToConsultantType?: Array<{
+    consultant_types: ConsultantType;
+  }>;
+  types?: ConsultantType[]; // Legacy support
   projectsAsPMC: Array<{ id: number; projectName: string }>;
   projectsAsDesign: Array<{ id: number; projectName: string }>;
   projectsAsCost: Array<{ id: number; projectName: string }>;
@@ -68,6 +71,14 @@ export default function ConsultantManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+
+  // Helper function to get consultant types
+  const getConsultantTypes = (consultant: Consultant): ConsultantType[] => {
+    if (consultant.ConsultantToConsultantType) {
+      return consultant.ConsultantToConsultantType.map(item => item.consultant_types);
+    }
+    return consultant.types || [];
+  };
 
   const [consultants, setConsultants] = useState<Consultant[]>([]);
   const [consultantTypes, setConsultantTypes] = useState<ConsultantType[]>([]);
@@ -170,7 +181,7 @@ export default function ConsultantManager() {
       phone: consultant.phone || '',
       email: consultant.email || '',
       isActive: consultant.isActive,
-      selectedTypes: consultant.types.map(t => t.id),
+      selectedTypes: (consultant.ConsultantToConsultantType?.map(t => t.consultant_types.id) || consultant.types?.map(t => t.id) || []),
     });
     setShowForm(true);
   };
@@ -262,7 +273,10 @@ export default function ConsultantManager() {
     consultant.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     consultant.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     consultant.officeAddress?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    consultant.types.some(type => type.type.toLowerCase().includes(searchTerm.toLowerCase()))
+    (consultant.ConsultantToConsultantType || consultant.types || []).some((item: any) => {
+      const type = item.consultant_types || item;
+      return type.type?.toLowerCase().includes(searchTerm.toLowerCase());
+    })
   );
 
   if (loading) {
@@ -558,7 +572,7 @@ export default function ConsultantManager() {
                 
                 <div className="space-y-2 mb-4">
                   <div className="flex flex-wrap gap-1">
-                    {consultant.types.map(type => (
+                    {getConsultantTypes(consultant).map(type => (
                       <span 
                         key={type.id}
                         className="px-2 py-1 text-xs rounded-full flex items-center space-x-1"
@@ -719,7 +733,7 @@ export default function ConsultantManager() {
                           Types:
                         </span>
                         <div className="flex flex-wrap gap-2 mt-1">
-                          {consultant.types.map((type) => (
+                          {getConsultantTypes(consultant).map((type) => (
                             <span 
                               key={type.id}
                               className="px-2 py-1 text-xs rounded"

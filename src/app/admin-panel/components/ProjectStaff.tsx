@@ -25,20 +25,44 @@ import {
   UserX,
   CheckCircle,
   Users2,
-  UserPlus
+  UserPlus,
+  AlertCircle
 } from 'lucide-react';
+
+interface ProjectStaffDetails {
+  id: number;
+  utilization: number;
+  status: string;
+  project: {
+    id: number;
+    projectName: string;
+    projectCode: string;
+  };
+  position: {
+    id: number;
+    designation: string;
+    requiredUtilization: number;
+  };
+}
 
 interface Staff {
   id: number;
   staffName: string;
+  employeeNumber?: string;
   email?: string;
   phone?: string;
-  position?: string;
+  position?: {
+    id: number;
+    name: string;
+    description?: string;
+  };
+  positionId?: number;
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
   totalUtilization?: number; // Total utilization across all projects
   remainingCapacity?: number; // Remaining capacity (100% - totalUtilization)
+  projectStaff?: ProjectStaffDetails[]; // Current assignments
 }
 
 interface ProjectStaffAssignment {
@@ -93,21 +117,26 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
   const [staff, setStaff] = useState<Staff[]>([]);
   const [projectPositions, setProjectPositions] = useState<ProjectPosition[]>([]);
+  const [companyPositions, setCompanyPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
   const [modalTab, setModalTab] = useState<'existing' | 'new'>('existing');
   const [editingStaff, setEditingStaff] = useState<Staff | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
+  const [positionFilter, setPositionFilter] = useState('');
+  const [showPositionDropdownInModal, setShowPositionDropdownInModal] = useState(false);
+  const [positionSearchTermInModal, setPositionSearchTermInModal] = useState('');
 
   const [newStaff, setNewStaff] = useState<Partial<Staff>>({
     staffName: '',
+    employeeNumber: '',
     email: '',
     phone: '',
-    position: '',
+    positionId: undefined,
     isActive: true,
   });
 
-  const [editingData, setEditingData] = useState<Partial<Staff>>({});
+  const [editingData, setEditingData] = useState<Partial<Staff & { positionId?: number }>>({});
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -121,18 +150,31 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   
   // Add new staff modal state
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
-  const [newStaffData, setNewStaffData] = useState<Partial<Staff>>({
+  const [newStaffData, setNewStaffData] = useState<Partial<Staff & { positionId?: number }>>({
     staffName: '',
+    employeeNumber: '',
     email: '',
     phone: '',
-    position: '',
+    positionId: undefined,
     isActive: true,
   });
 
   useEffect(() => {
     fetchStaff();
     fetchProjectPositions();
+    fetchCompanyPositions();
   }, [projectId]);
+
+  const fetchCompanyPositions = async () => {
+    try {
+      const response = await get<{ success: boolean; data: Position[] }>('/api/admin/positions');
+      if (response.success) {
+        setCompanyPositions(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching company positions:', error);
+    }
+  };
 
   const fetchStaff = async () => {
     try {
@@ -344,16 +386,31 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     setErrorMessage('');
 
     try {
-      const response = await post<{ success: boolean; data: Staff }>('/api/admin/company-staff', newStaffData);
+      // Get the position name from the selected positionId
+      const selectedPosition = companyPositions.find(p => p.id === newStaffData.positionId);
+      
+      const staffPayload = {
+        ...newStaffData,
+        position: selectedPosition?.name || '',
+      };
+      
+      // Remove positionId from the payload since the API expects position as string
+      const { positionId, ...payloadWithoutPositionId } = staffPayload;
+      const finalPayload = payloadWithoutPositionId;
+
+      const response = await post<{ success: boolean; data: Staff }>('/api/admin/company-staff', finalPayload);
       if (response.success) {
         await fetchStaff(); // Refresh staff list
         setNewStaffData({
           staffName: '',
+          employeeNumber: '',
           email: '',
           phone: '',
-          position: '',
+          positionId: undefined,
           isActive: true,
         });
+        setShowPositionDropdownInModal(false);
+        setPositionSearchTermInModal('');
         setShowAddStaffModal(false);
         setErrorMessage('');
       }
@@ -365,11 +422,28 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     }
   };
 
+  // Helper function to get position name
+  const getPositionName = (member: Staff): string => {
+    if (typeof member.position === 'string') {
+      return member.position;
+    }
+    if (member.position && typeof member.position === 'object' && member.position.name) {
+      return member.position.name;
+    }
+    return '';
+  };
+
+  // Use company positions for filter dropdown
   const filteredStaff = staff.filter(member =>
     member.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    member.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (member.position && member.position.toLowerCase().includes(searchTerm.toLowerCase()))
+    getPositionName(member).toLowerCase().includes(searchTerm.toLowerCase())
   ).filter(member => {
+    // Apply position filter if set
+    if (positionFilter && getPositionName(member) && !getPositionName(member).toLowerCase().includes(positionFilter.toLowerCase())) {
+      return false;
+    }
     // Filter out staff who are already assigned to this project
     return !projectPositions.some(position => 
       position.staffAssignments.some(assignment => assignment.staffId === member.id)
@@ -402,9 +476,12 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       return sum + (positionSalary * utilizationFactor);
     }, 0);
     
+    const balanceStaff = requiredStaff - assignedStaff;
+
     return {
       requiredStaff: Math.round(requiredStaff * 100) / 100,
       assignedStaff: Math.round(assignedStaff * 100) / 100,
+      balanceStaff: Math.round(balanceStaff * 100) / 100,
       involvedStaff,
       expectedMonthlyCost: Math.round(expectedMonthlyCost)
     };
@@ -460,7 +537,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       </div>
 
       {/* Project Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
           <div className="flex items-center space-x-3">
             <Users2 className="w-6 h-6" style={{ color: colors.primary }} />
@@ -470,9 +547,6 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
               </p>
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
                 {stats.requiredStaff}
-              </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                FTE equivalent
               </p>
             </div>
           </div>
@@ -488,8 +562,22 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
                 {stats.assignedStaff}
               </p>
+            </div>
+          </div>
+        </Card>
+
+        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
+          <div className="flex items-center space-x-3">
+            <AlertCircle className="w-6 h-6" style={{ color: stats.balanceStaff >= 0 ? colors.error : colors.success }} />
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                Balance Staff
+              </p>
+              <p className="text-2xl font-bold" style={{ color: stats.balanceStaff >= 0 ? colors.error : colors.success }}>
+                {stats.balanceStaff}
+              </p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
-                FTE equivalent
+                {stats.balanceStaff >= 0 ? 'Understaffed' : 'Overstaffed'}
               </p>
             </div>
           </div>
@@ -837,6 +925,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   setShowAddModal(false);
                   setAssigningToPosition(null);
                   setSearchTerm('');
+                  setPositionFilter('');
                 }}
                 variant="ghost"
                 className="p-2"
@@ -846,17 +935,38 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
-              {/* Search */}
-              <div className="relative mb-6">
-                <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
-                <Input
-                  type="text"
-                  placeholder="Search staff members..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                  style={{ backgroundColor: colors.backgroundPrimary }}
-                />
+              {/* Search and Filter */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
+                  <Input
+                    type="text"
+                    placeholder="Search by name, email, phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+                <div>
+                  <select
+                    value={positionFilter}
+                    onChange={(e) => setPositionFilter(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
+                    }}
+                  >
+                    <option value="">All Positions</option>
+                    {companyPositions.filter(p => p.isActive).map((position) => (
+                      <option key={position.id} value={position.name}>
+                        {position.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
               </div>
 
               {/* Add New Staff Button */}
@@ -866,6 +976,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     setShowAddStaffModal(true);
                     setNewStaffData({
                       staffName: '',
+                      employeeNumber: '',
                       email: '',
                       phone: '',
                       position: '',
@@ -905,8 +1016,8 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                             {member.staffName}
                           </h3>
                           <div className="flex items-center space-x-4 text-sm" style={{ color: colors.textSecondary }}>
-                            {member.position && (
-                              <span>{member.position}</span>
+                            {getPositionName(member) && (
+                              <span>{getPositionName(member)}</span>
                             )}
                             {member.email && (
                               <span>{member.email}</span>
@@ -929,6 +1040,34 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                               </span>
                             )}
                           </div>
+                          
+                          {/* Show Current Projects */}
+                          {member.projectStaff && member.projectStaff.length > 0 && (
+                            <div className="mt-2 pt-2 border-t" style={{ borderColor: colors.borderLight }}>
+                              <p className="text-xs font-medium mb-1" style={{ color: colors.textMuted }}>
+                                Currently Assigned To:
+                              </p>
+                              <div className="space-y-1">
+                                {member.projectStaff.map((assignment) => (
+                                  <div key={assignment.id} className="flex items-center justify-between text-xs">
+                                    <div className="flex items-center space-x-2">
+                                      <Briefcase className="w-3 h-3" style={{ color: colors.textMuted }} />
+                                      <span style={{ color: colors.textPrimary }}>{assignment.project.projectName}</span>
+                                      <span className="text-xs px-1.5 py-0.5 rounded" style={{ 
+                                        backgroundColor: colors.backgroundSecondary,
+                                        color: colors.textSecondary 
+                                      }}>
+                                        {assignment.position.designation}
+                                      </span>
+                                    </div>
+                                    <span className="font-medium" style={{ color: colors.primary }}>
+                                      {assignment.utilization}%
+                                    </span>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                         </div>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -1557,23 +1696,26 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
               <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
                 Add New Staff Member
               </h2>
-              <Button
-                onClick={() => {
-                  setShowAddStaffModal(false);
-                  setNewStaffData({
-                    staffName: '',
-                    email: '',
-                    phone: '',
-                    position: '',
-                    isActive: true,
-                  });
-                  setErrorMessage('');
-                }}
-                variant="ghost"
-                className="p-2"
-              >
-                <X className="w-5 h-5" />
-              </Button>
+                  <Button
+                    onClick={() => {
+                      setShowAddStaffModal(false);
+                      setShowPositionDropdownInModal(false);
+                      setPositionSearchTermInModal('');
+                      setNewStaffData({
+                        staffName: '',
+                        employeeNumber: '',
+                        email: '',
+                        phone: '',
+                        positionId: undefined,
+                        isActive: true,
+                      });
+                      setErrorMessage('');
+                    }}
+                    variant="ghost"
+                    className="p-2"
+                  >
+                    <X className="w-5 h-5" />
+                  </Button>
             </div>
 
             <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
@@ -1597,6 +1739,19 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     onChange={(e) => setNewStaffData({ ...newStaffData, staffName: e.target.value })}
                     placeholder="Enter staff member's full name"
                     required
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Employee Number
+                  </label>
+                  <Input
+                    type="text"
+                    value={newStaffData.employeeNumber || ''}
+                    onChange={(e) => setNewStaffData({ ...newStaffData, employeeNumber: e.target.value })}
+                    placeholder="e.g., EMP001, 12345"
                     style={{ backgroundColor: colors.backgroundPrimary }}
                   />
                 </div>
@@ -1627,17 +1782,76 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   />
                 </div>
 
-                <div className="md:col-span-2">
+                <div className="md:col-span-2 relative">
                   <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                     Position
                   </label>
-                  <Input
-                    type="text"
-                    value={newStaffData.position || ''}
-                    onChange={(e) => setNewStaffData({ ...newStaffData, position: e.target.value })}
-                    placeholder="e.g., Senior Engineer, Project Coordinator"
-                    style={{ backgroundColor: colors.backgroundPrimary }}
-                  />
+                  <div className="relative">
+                    <div
+                      onClick={() => setShowPositionDropdownInModal(!showPositionDropdownInModal)}
+                      className="w-full px-3 py-2 border rounded-lg cursor-pointer flex items-center justify-between"
+                      style={{
+                        backgroundColor: colors.backgroundPrimary,
+                        borderColor: colors.border,
+                        color: colors.textPrimary
+                      }}
+                    >
+                      <span>
+                        {newStaffData.positionId 
+                          ? companyPositions.find(p => p.id === newStaffData.positionId)?.name 
+                          : 'Select a position...'}
+                      </span>
+                      <span>{showPositionDropdownInModal ? '▲' : '▼'}</span>
+                    </div>
+                    
+                    {showPositionDropdownInModal && (
+                      <div 
+                        className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
+                          borderColor: colors.border
+                        }}
+                      >
+                        <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                          <input
+                            type="text"
+                            placeholder="Search positions..."
+                            value={positionSearchTermInModal}
+                            onChange={(e) => setPositionSearchTermInModal(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg"
+                            style={{
+                              backgroundColor: colors.backgroundPrimary,
+                              borderColor: colors.border,
+                              color: colors.textPrimary
+                            }}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-auto">
+                          {companyPositions
+                            .filter(p => p.isActive)
+                            .filter(p => p.name.toLowerCase().includes(positionSearchTermInModal.toLowerCase()))
+                            .map((position) => (
+                              <div
+                                key={position.id}
+                                onClick={() => {
+                                  setNewStaffData({ ...newStaffData, positionId: position.id });
+                                  setShowPositionDropdownInModal(false);
+                                  setPositionSearchTermInModal('');
+                                }}
+                                className="px-3 py-2 hover:opacity-75 cursor-pointer"
+                                style={{
+                                  backgroundColor: newStaffData.positionId === position.id ? colors.primary : 'transparent',
+                                  color: newStaffData.positionId === position.id ? '#FFFFFF' : colors.textPrimary
+                                }}
+                              >
+                                {position.name}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1645,11 +1859,14 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                 <button
                   onClick={() => {
                     setShowAddStaffModal(false);
+                    setShowPositionDropdownInModal(false);
+                    setPositionSearchTermInModal('');
                     setNewStaffData({
                       staffName: '',
+                      employeeNumber: '',
                       email: '',
                       phone: '',
-                      position: '',
+                      positionId: undefined,
                       isActive: true,
                     });
                     setErrorMessage('');

@@ -4,9 +4,10 @@ import { prisma } from '@/lib/db';
 
 const staffSchema = z.object({
   staffName: z.string().min(1, 'Staff name is required'),
+  employeeNumber: z.string().optional().or(z.literal('')),
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
-  position: z.string().optional(),
+  positionId: z.number().optional().or(z.literal(null)),
   isActive: z.boolean().optional().default(true),
 });
 
@@ -16,7 +17,15 @@ export async function GET() {
     const staff = await prisma.companyStaff.findMany({
       include: {
         projectStaff: {
-          include: {
+          where: {
+            status: {
+              not: 'Completed'
+            }
+          },
+          select: {
+            id: true,
+            utilization: true,
+            status: true,
             project: {
               select: {
                 id: true,
@@ -41,7 +50,9 @@ export async function GET() {
 
     // Calculate total utilization for each staff member
     const staffWithUtilization = staff.map(member => {
-      const totalUtilization = member.projectStaff.reduce((sum, assignment) => sum + assignment.utilization, 0);
+      const totalUtilization = member.projectStaff.reduce((sum, assignment) => {
+        return sum + (assignment.utilization || 0);
+      }, 0);
       const remainingCapacity = Math.max(0, 100 - totalUtilization);
       
       return {

@@ -80,6 +80,8 @@ export async function GET() {
         designConsultant: true,
         supervisionConsultant: true,
         costConsultant: true,
+        projectDirector: true,
+        projectManager: true,
         projectPositions: {
           include: {
             staffAssignments: {
@@ -113,13 +115,21 @@ export async function POST(request: NextRequest) {
 
     // Extract contacts and staff fields from validated data
     const { contacts, projectDirectorId, projectManagerId, ...projectData } = validatedData;
-
+    
     // Convert date strings to DateTime objects if provided
-    const projectDataWithDates = {
+    const projectDataWithDates: any = {
       ...projectData,
       startDate: projectData.startDate ? new Date(projectData.startDate) : null,
       endDate: projectData.endDate ? new Date(projectData.endDate) : null,
     };
+
+    // Add director and manager IDs to project data if provided
+    if (projectDirectorId !== undefined) {
+      projectDataWithDates.projectDirectorId = projectDirectorId || null;
+    }
+    if (projectManagerId !== undefined) {
+      projectDataWithDates.projectManagerId = projectManagerId || null;
+    }
 
     // Use transaction to create project and contacts atomically
     const result = await prisma.$transaction(async (tx) => {
@@ -132,6 +142,8 @@ export async function POST(request: NextRequest) {
           designConsultant: true,
           supervisionConsultant: true,
           costConsultant: true,
+          projectDirector: true,
+          projectManager: true,
           projectPositions: {
             include: {
               staffAssignments: {
@@ -278,7 +290,28 @@ export async function POST(request: NextRequest) {
         });
       }
 
-      return project;
+      // Return updated project with fresh staff data
+      return await tx.project.findUnique({
+        where: { id: project.id },
+        include: {
+          client: true,
+          projectManagementConsultant: true,
+          designConsultant: true,
+          supervisionConsultant: true,
+          costConsultant: true,
+          projectDirector: true,
+          projectManager: true,
+          projectPositions: {
+            include: {
+              staffAssignments: {
+                include: {
+                  staff: true,
+                },
+              },
+            },
+          },
+        },
+      });
     });
 
     return NextResponse.json({ success: true, data: result });
