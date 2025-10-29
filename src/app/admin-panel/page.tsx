@@ -28,7 +28,8 @@ import {
   Info,
   Building2,
   User,
-  Briefcase
+  Briefcase,
+  HardHat
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
@@ -40,12 +41,13 @@ import ProjectManager from './components/ProjectManager';
 import ClientManager from './components/ClientManager';
 import ConsultantManager from './components/ConsultantManager';
 import CompanyStaffManager from './components/CompanyStaffManager';
-import PositionManager from './components/PositionManager';
+import LabourManager from './components/LabourManager';
+import ContactManager from './components/ContactManager';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-type Section = 'dashboard' | 'projects' | 'clients' | 'consultants' | 'company-staff' | 'positions' | 'contacts' | 'media-library' | 'users' | 'scheduler' | 'site-settings' | 'design-system';
+type Section = 'dashboard' | 'projects' | 'clients' | 'consultants' | 'company-staff' | 'labours' | 'contacts' | 'media-library' | 'users' | 'scheduler' | 'site-settings' | 'design-system';
 
 // Navigation items with design system colors
 const getNavigationItems = (designSystem: any) => {
@@ -57,7 +59,7 @@ const getNavigationItems = (designSystem: any) => {
     { id: 'clients', name: 'Clients', icon: Building2, color: colors.info },
     { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success },
     { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning },
-    { id: 'positions', name: 'Positions', icon: Briefcase, color: colors.accent },
+    { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent },
     { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info },
     { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary },
     { id: 'users', name: 'Users', icon: Users, color: colors.error },
@@ -301,13 +303,13 @@ export default function AdminPanel() {
             <CompanyStaffManager />
           </div>
         );
-      case 'positions':
+      case 'labours':
         return (
           <div 
             className="p-8 space-y-8"
             style={{ backgroundColor: colors.backgroundPrimary }}
           >
-            <PositionManager />
+            <LabourManager />
           </div>
         );
       case 'contacts':

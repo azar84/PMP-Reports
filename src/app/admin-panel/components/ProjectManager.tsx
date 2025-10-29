@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import ProjectChecklist from './ProjectChecklist';
 import ProjectStaff from './ProjectStaff';
+import ProjectLabours from './ProjectLabours';
 import { 
   Plus, 
   Edit, 
@@ -134,7 +135,7 @@ export default function ProjectManager() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showDetailView, setShowDetailView] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'checklist' | 'staff'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'checklist' | 'staff' | 'labours'>('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -1239,6 +1240,33 @@ export default function ProjectManager() {
                 <span>Staff</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('labours')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'labours' 
+                  ? 'border-current' 
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'labours') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'labours') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{ 
+                color: activeTab === 'labours' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'labours' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <HardHat className="w-4 h-4" />
+                <span>Labours</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -1669,6 +1697,17 @@ export default function ProjectManager() {
             <div>
               {selectedProject && (
                 <ProjectStaff 
+                  projectId={selectedProject.id} 
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'labours' ? (
+            <div>
+              {selectedProject && (
+                <ProjectLabours 
                   projectId={selectedProject.id} 
                   projectName={selectedProject.projectName}
                   projectStartDate={selectedProject.startDate}

@@ -3,6 +3,8 @@
 import { useState, useEffect } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { formatCurrency } from '@/lib/currency';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -37,6 +39,8 @@ interface Position {
   description?: string;
   monthlyRate?: number;
   isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface CompanyStaff {
@@ -72,12 +76,14 @@ export default function CompanyStaffManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+  const { siteSettings } = useSiteSettings();
 
   const [staff, setStaff] = useState<CompanyStaff[]>([]);
   const [companyPositions, setCompanyPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [positionSearchTerm, setPositionSearchTerm] = useState('');
+  const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'utilized'>('all');
   const [showPositionDropdown, setShowPositionDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<CompanyStaff | null>(null);
@@ -99,10 +105,25 @@ export default function CompanyStaffManager() {
     isActive: true,
   });
 
+  // Position management state
+  const [showPositionsSection, setShowPositionsSection] = useState(false);
+  const [showPositionForm, setShowPositionForm] = useState(false);
+  const [editingPosition, setEditingPosition] = useState<Position | null>(null);
+  const [positionFormData, setPositionFormData] = useState<Partial<Position>>({
+    name: '',
+    description: '',
+    monthlyRate: undefined,
+    isActive: true,
+  });
+  const [positionErrorMessage, setPositionErrorMessage] = useState<string>('');
+  const [isSubmittingPosition, setIsSubmittingPosition] = useState(false);
+  const [positionSearchTermForList, setPositionSearchTermForList] = useState('');
+
   useEffect(() => {
     fetchStaff();
     fetchCompanyPositions();
   }, []);
+
 
   const fetchCompanyPositions = async () => {
     try {
@@ -219,12 +240,96 @@ export default function CompanyStaffManager() {
     return designations;
   };
 
-  const filteredStaff = staff.filter(staffMember =>
-    staffMember.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+  // Position management functions
+  const handlePositionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!positionFormData.name?.trim()) {
+      setPositionErrorMessage('Position name is required');
+      return;
+    }
+
+    setIsSubmittingPosition(true);
+    setPositionErrorMessage('');
+
+    try {
+      if (editingPosition) {
+        const response = await put<{ success: boolean; data: Position }>(`/api/admin/positions/${editingPosition.id}`, positionFormData);
+        if (response.success) {
+          setCompanyPositions(companyPositions.map(p => p.id === editingPosition.id ? response.data : p));
+          setShowPositionForm(false);
+          setEditingPosition(null);
+          setPositionFormData({ name: '', description: '', monthlyRate: undefined, isActive: true });
+          // Refresh staff to update position references
+          fetchStaff();
+        }
+      } else {
+        const response = await post<{ success: boolean; data: Position }>('/api/admin/positions', positionFormData);
+        if (response.success) {
+          setCompanyPositions([response.data, ...companyPositions]);
+          setShowPositionForm(false);
+          setPositionFormData({ name: '', description: '', monthlyRate: undefined, isActive: true });
+        }
+      }
+    } catch (error: any) {
+      console.error('Error saving position:', error);
+      setPositionErrorMessage(error.message || 'Failed to save position');
+    } finally {
+      setIsSubmittingPosition(false);
+    }
+  };
+
+  const handlePositionEdit = (position: Position) => {
+    setEditingPosition(position);
+    setPositionFormData({
+      name: position.name,
+      description: position.description || '',
+      monthlyRate: position.monthlyRate,
+      isActive: position.isActive,
+    });
+    setShowPositionForm(true);
+  };
+
+  const handlePositionDelete = async (positionId: number) => {
+    if (confirm('Are you sure you want to delete this position?')) {
+      try {
+        const response = await del(`/api/admin/positions/${positionId}`) as { success: boolean };
+        if (response.success) {
+          setCompanyPositions(companyPositions.filter(p => p.id !== positionId));
+          // Refresh staff to update position references
+          fetchStaff();
+        }
+      } catch (error) {
+        console.error('Error deleting position:', error);
+      }
+    }
+  };
+
+  const filteredPositions = companyPositions.filter(position =>
+    position.name.toLowerCase().includes(positionSearchTermForList.toLowerCase()) ||
+    (position.description && position.description.toLowerCase().includes(positionSearchTermForList.toLowerCase())) ||
+    (position.monthlyRate && position.monthlyRate.toString().includes(positionSearchTermForList))
+  );
+
+  const filteredStaff = staff.filter(staffMember => {
+    // Apply search filter
+    const matchesSearch = staffMember.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staffMember.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     staffMember.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    staffMember.position?.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+      staffMember.position?.toLowerCase().includes(searchTerm.toLowerCase());
+
+    // Apply availability filter
+    let matchesAvailability = true;
+    const isAvailable = (staffMember.totalUtilization === 0 || staffMember.totalUtilization === undefined) && 
+                        (staffMember.remainingCapacity === 100 || staffMember.remainingCapacity === undefined);
+    
+    if (availabilityFilter === 'available') {
+      matchesAvailability = isAvailable;
+    } else if (availabilityFilter === 'utilized') {
+      matchesAvailability = !isAvailable;
+    }
+
+    return matchesSearch && matchesAvailability;
+  });
 
   const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
     try {
@@ -398,6 +503,15 @@ export default function CompanyStaffManager() {
         </div>
         <div className="flex items-center space-x-3">
           <Button
+            onClick={() => setShowPositionsSection(!showPositionsSection)}
+            className="flex items-center space-x-2"
+            variant="ghost"
+            style={{ color: colors.textPrimary, border: `1px solid ${colors.border}` }}
+          >
+            <Briefcase className="w-4 h-4" />
+            <span>{showPositionsSection ? 'Hide Positions' : 'Manage Positions'}</span>
+          </Button>
+          <Button
             onClick={() => handleExport('xlsx')}
             variant="ghost"
             className="flex items-center space-x-2"
@@ -436,7 +550,19 @@ export default function CompanyStaffManager() {
             </Button>
           )}
           <Button
-            onClick={() => setShowForm(true)}
+            onClick={() => {
+              setFormData({
+                staffName: '',
+                employeeNumber: '',
+                email: '',
+                phone: '',
+                position: '',
+                positionId: undefined,
+                isActive: true,
+              });
+              setEditingStaff(null);
+              setShowForm(true);
+            }}
             className="flex items-center space-x-2"
             style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
           >
@@ -446,8 +572,267 @@ export default function CompanyStaffManager() {
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative">
+      {/* Positions Section - Display at top when enabled */}
+      {showPositionsSection && (
+        <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                Positions Management
+              </h2>
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                Manage staff positions and their base rates
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
+              <Button
+                onClick={() => {
+                  setShowPositionForm(true);
+                  setEditingPosition(null);
+                  setPositionFormData({ name: '', description: '', monthlyRate: undefined, isActive: true });
+                  setPositionErrorMessage('');
+                }}
+                variant="primary"
+                className="flex items-center space-x-2"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Position</span>
+              </Button>
+              <Button
+                onClick={() => setShowPositionsSection(false)}
+                variant="ghost"
+                className="p-2"
+                title="Close Positions Section"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+          </div>
+
+          {/* Position Search */}
+          <div className="relative mb-4">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
+            <Input
+              type="text"
+              placeholder="Search positions..."
+              value={positionSearchTermForList}
+              onChange={(e) => setPositionSearchTermForList(e.target.value)}
+              className="pl-10"
+              style={{ backgroundColor: colors.backgroundPrimary }}
+            />
+          </div>
+
+          {/* Position Form */}
+          {showPositionForm && (
+            <Card className="p-6 mb-6" style={{ backgroundColor: colors.backgroundPrimary }}>
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                  {editingPosition ? 'Edit Position' : 'Add New Position'}
+                </h3>
+                <Button
+                  onClick={() => {
+                    setShowPositionForm(false);
+                    setEditingPosition(null);
+                    setPositionFormData({ name: '', description: '', monthlyRate: undefined, isActive: true });
+                    setPositionErrorMessage('');
+                  }}
+                  variant="ghost"
+                  className="p-2"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+
+              <form onSubmit={handlePositionSubmit} className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Position Name *
+                  </label>
+                  <Input
+                    type="text"
+                    value={positionFormData.name || ''}
+                    onChange={(e) => setPositionFormData({ ...positionFormData, name: e.target.value })}
+                    placeholder="e.g., Project Director, Site Engineer"
+                    required
+                    style={{ backgroundColor: colors.backgroundSecondary }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Monthly Base Rate
+                  </label>
+                  <Input
+                    type="number"
+                    value={positionFormData.monthlyRate || ''}
+                    onChange={(e) => setPositionFormData({ ...positionFormData, monthlyRate: e.target.value ? parseFloat(e.target.value) : undefined })}
+                    placeholder="e.g., 5000"
+                    min="0"
+                    step="0.01"
+                    style={{ backgroundColor: colors.backgroundSecondary }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                    Optional monthly base rate for cost estimation
+                  </p>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Description
+                  </label>
+                  <textarea
+                    value={positionFormData.description || ''}
+                    onChange={(e) => setPositionFormData({ ...positionFormData, description: e.target.value })}
+                    placeholder="Brief description of the position..."
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none"
+                    style={{ 
+                      backgroundColor: colors.backgroundSecondary,
+                      color: colors.textPrimary,
+                      borderColor: colors.border
+                    }}
+                  />
+                </div>
+
+                {positionErrorMessage && (
+                  <div className="p-3 rounded-lg" style={{ backgroundColor: colors.error + '20', color: colors.error }}>
+                    {positionErrorMessage}
+                  </div>
+                )}
+
+                <div className="flex justify-end space-x-3">
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      setShowPositionForm(false);
+                      setEditingPosition(null);
+                      setPositionFormData({ name: '', description: '', monthlyRate: undefined, isActive: true });
+                      setPositionErrorMessage('');
+                    }}
+                    variant="ghost"
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="submit"
+                    variant="primary"
+                    disabled={isSubmittingPosition}
+                    className="flex items-center space-x-2"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>{isSubmittingPosition ? 'Saving...' : editingPosition ? 'Update' : 'Create'}</span>
+                  </Button>
+                </div>
+              </form>
+            </Card>
+          )}
+
+          {/* Positions List */}
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr style={{ 
+                  backgroundColor: colors.backgroundPrimary,
+                  borderBottom: `1px solid ${colors.borderLight}`
+                }}>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Position</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Monthly Rate</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Description</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredPositions.map((position) => (
+                  <tr 
+                    key={position.id} 
+                    style={{
+                      borderBottom: `1px solid ${colors.borderLight}`
+                    }}
+                  >
+                    <td className="py-3 px-4">
+                      <div className="flex items-center space-x-2">
+                        <Briefcase className="w-4 h-4" style={{ color: colors.textMuted }} />
+                        <span style={{ color: colors.textPrimary }}>{position.name}</span>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span style={{ color: colors.textSecondary }}>
+                        {position.monthlyRate ? formatCurrency(position.monthlyRate, siteSettings?.currencySymbol || '$') : '-'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span style={{ color: colors.textSecondary }}>
+                        {position.description || '-'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span 
+                        className={`px-2 py-1 text-xs rounded-full ${
+                          position.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
+                        }`}
+                      >
+                        {position.isActive ? 'Active' : 'Inactive'}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <div className="flex items-center space-x-2">
+                        <Button
+                          onClick={() => handlePositionEdit(position)}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          onClick={() => handlePositionDelete(position.id)}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {filteredPositions.length === 0 && (
+            <div className="text-center py-8">
+              <Briefcase className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+              <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                {positionSearchTermForList ? 'No positions found' : 'No positions yet'}
+              </h3>
+              <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                {positionSearchTermForList ? 'Try adjusting your search terms' : 'Add your first position to get started'}
+              </p>
+              {!positionSearchTermForList && (
+                <Button
+                  onClick={() => {
+                    setShowPositionForm(true);
+                    setEditingPosition(null);
+                    setPositionFormData({ name: '', description: '', monthlyRate: undefined, isActive: true });
+                    setPositionErrorMessage('');
+                  }}
+                  variant="primary"
+                  className="flex items-center space-x-2 mx-auto"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Add Position</span>
+                </Button>
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {/* Search and Filters */}
+      <div className="flex flex-col sm:flex-row gap-4">
+        <div className="relative flex-1">
         <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
         <Input
           type="text"
@@ -460,6 +845,23 @@ export default function CompanyStaffManager() {
             color: colors.textPrimary
           }}
         />
+        </div>
+        <div className="flex items-center space-x-2">
+          <select
+            value={availabilityFilter}
+            onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'utilized')}
+            className="px-4 py-2 border rounded-lg text-sm"
+            style={{
+              backgroundColor: colors.backgroundSecondary,
+              borderColor: colors.border,
+              color: colors.textPrimary
+            }}
+          >
+            <option value="all">All Staff</option>
+            <option value="available">Available Only</option>
+            <option value="utilized">Utilized Only</option>
+          </select>
+        </div>
       </div>
 
       {/* Staff Form */}
@@ -629,15 +1031,40 @@ export default function CompanyStaffManager() {
                 />
               </div>
 
-              <div>
-                <label className="flex items-center space-x-2">
+              <div className="flex items-center space-x-2">
+                <label className="flex items-center cursor-pointer">
                   <input
                     type="checkbox"
-                    checked={formData.isActive}
+                    id="isActiveStaff"
+                    checked={formData.isActive ?? true}
                     onChange={(e) => setFormData({ ...formData, isActive: e.target.checked })}
-                    className="rounded"
+                    className="sr-only"
                   />
-                  <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  <div 
+                    className="w-4 h-4 rounded border flex items-center justify-center transition-all"
+                    style={{
+                      borderColor: (formData.isActive ?? true) ? colors.primary : colors.borderLight,
+                      backgroundColor: (formData.isActive ?? true) ? colors.primary : 'transparent',
+                    }}
+                  >
+                    {(formData.isActive ?? true) && (
+                      <svg 
+                        className="w-3 h-3" 
+                        fill="none" 
+                        stroke="currentColor" 
+                        viewBox="0 0 24 24"
+                        style={{ color: '#FFFFFF' }}
+                      >
+                        <path 
+                          strokeLinecap="round" 
+                          strokeLinejoin="round" 
+                          strokeWidth={3} 
+                          d="M5 13l4 4L19 7" 
+                        />
+                      </svg>
+                    )}
+                  </div>
+                  <span className="ml-2 text-sm font-medium cursor-pointer" style={{ color: colors.textPrimary }}>
                     Active Staff Member
                   </span>
                 </label>

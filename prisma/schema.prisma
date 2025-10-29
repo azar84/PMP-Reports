@@ -360,6 +360,8 @@ model Project {
   projectContacts               ProjectContact[]
   projectPositions              ProjectPosition[]
   projectStaff                  ProjectStaff[]
+  projectTrades                 ProjectTrade[]
+  projectLabours                ProjectLabour[]
   projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
   projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
   costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
@@ -446,6 +448,66 @@ model Position {
   updatedAt   DateTime @updatedAt
 
   @@map("positions")
+}
+
+model Trade {
+  id          Int      @id @default(autoincrement())
+  name        String   @unique
+  description String?
+  monthlyRate Float?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("trades")
+}
+
+model Labour {
+  id            Int            @id @default(autoincrement())
+  labourName    String
+  employeeNumber String?
+  phone         String?
+  trade         String?
+  isActive      Boolean        @default(true)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  projectLabours ProjectLabour[]
+
+  @@map("labours")
+}
+
+model ProjectTrade {
+  id                  Int            @id @default(autoincrement())
+  projectId           Int
+  trade                String
+  requiredQuantity     Int            @default(1)
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+  project              Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  labourAssignments    ProjectLabour[]
+
+  @@unique([projectId, trade])
+  @@map("project_trades")
+}
+
+model ProjectLabour {
+  id          Int          @id @default(autoincrement())
+  projectId   Int
+  tradeId     Int
+  labourId    Int?
+  utilization Int          @default(100)
+  startDate   DateTime?
+  endDate     DateTime?
+  status      String       @default("Active")
+  notes       String?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  labour      Labour?      @relation(fields: [labourId], references: [id], onDelete: Cascade)
+  trade       ProjectTrade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, labourId])
+  @@map("project_labours")
 }
 
 model ConsultantToConsultantType {
