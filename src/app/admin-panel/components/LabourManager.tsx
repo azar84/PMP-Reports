@@ -18,8 +18,13 @@ import {
   Save,
   Users,
   CheckCircle,
+  Calendar,
+  History,
+  Building2,
+  ArrowRight,
   AlertCircle,
-  Building2
+  Eye,
+  FileText
 } from 'lucide-react';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { formatCurrency } from '@/lib/currency';
@@ -49,6 +54,30 @@ interface ProjectLabourAssignment {
   };
 }
 
+interface Project {
+  id: number;
+  projectCode: string;
+  projectName: string;
+}
+
+interface ProjectTrade {
+  id: number;
+  trade: string;
+  projectId: number;
+}
+
+interface MovementHistory {
+  id: number;
+  type: 'assignment' | 'movement';
+  fromProjectName?: string;
+  fromTradeName?: string;
+  toProjectName: string;
+  toTradeName: string;
+  movementDate: string;
+  notes?: string;
+  movedBy?: string;
+}
+
 interface Labour {
   id: number;
   labourName: string;
@@ -61,6 +90,8 @@ interface Labour {
   isUtilized?: boolean;
   activeProjectCount?: number;
   projectLabours?: ProjectLabourAssignment[];
+  vacationStartDate?: string | null;
+  vacationEndDate?: string | null;
 }
 
 export default function LabourManager() {
@@ -71,6 +102,7 @@ export default function LabourManager() {
 
   const [labours, setLabours] = useState<Labour[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [tradeSearchTerm, setTradeSearchTerm] = useState('');
@@ -80,6 +112,28 @@ export default function LabourManager() {
   const [showForm, setShowForm] = useState(false);
   const [editingLabour, setEditingLabour] = useState<Labour | null>(null);
   const [viewingLabour, setViewingLabour] = useState<Labour | null>(null);
+  
+  // Move labour modal state
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [movingLabour, setMovingLabour] = useState<Labour | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedTradeId, setSelectedTradeId] = useState<number | null>(null);
+  const [availableTrades, setAvailableTrades] = useState<ProjectTrade[]>([]);
+  const [moveNotes, setMoveNotes] = useState('');
+  const [moveDate, setMoveDate] = useState('');
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveErrorMessage, setMoveErrorMessage] = useState('');
+  
+  // Movement history state
+  const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  
+  // Vacation management state
+  const [showVacationModal, setShowVacationModal] = useState(false);
+  const [vacationStartDate, setVacationStartDate] = useState('');
+  const [vacationEndDate, setVacationEndDate] = useState('');
+  const [updatingVacation, setUpdatingVacation] = useState(false);
   const [formData, setFormData] = useState<Partial<Labour & { tradeId?: number }>>({
     labourName: '',
     employeeNumber: '',
@@ -106,7 +160,22 @@ export default function LabourManager() {
   useEffect(() => {
     fetchLabours();
     fetchTrades();
+    fetchProjects();
   }, []);
+  
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchProjectTrades(selectedProjectId);
+    } else {
+      setAvailableTrades([]);
+    }
+  }, [selectedProjectId]);
+  
+  useEffect(() => {
+    if (viewingLabour) {
+      fetchMovementHistory(viewingLabour.id);
+    }
+  }, [viewingLabour]);
 
   const fetchTrades = async () => {
     try {
@@ -117,6 +186,187 @@ export default function LabourManager() {
     } catch (error) {
       console.error('Error fetching trades:', error);
     }
+  };
+  
+  const fetchProjects = async () => {
+    try {
+      const response = await get<{ success: boolean; data: Project[] }>('/api/admin/projects');
+      if (response.success) {
+        setProjects(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  };
+  
+  const fetchProjectTrades = async (projectId: number) => {
+    try {
+      const response = await get<{ success: boolean; data: ProjectTrade[] }>(`/api/admin/project-trades?projectId=${projectId}`);
+      if (response.success) {
+        setAvailableTrades(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching project trades:', error);
+      setAvailableTrades([]);
+    }
+  };
+  
+  const fetchMovementHistory = async (labourId: number) => {
+    try {
+      setLoadingHistory(true);
+      const response = await get<{ success: boolean; data: MovementHistory[] }>(`/api/admin/labours/${labourId}/movement-history`);
+      if (response.success) {
+        setMovementHistory(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching movement history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  const handleOpenVacationModal = (labour: Labour) => {
+    setViewingLabour(labour);
+    setVacationStartDate(labour.vacationStartDate ? new Date(labour.vacationStartDate).toISOString().split('T')[0] : '');
+    setVacationEndDate(labour.vacationEndDate ? new Date(labour.vacationEndDate).toISOString().split('T')[0] : '');
+    setShowVacationModal(true);
+  };
+
+  const handleSaveVacation = async () => {
+    if (!viewingLabour) return;
+    
+    try {
+      setUpdatingVacation(true);
+      const response = await put<{ success: boolean; data: Labour }>(
+        `/api/admin/labours/${viewingLabour.id}/vacation`,
+        {
+          startDate: vacationStartDate || null,
+          endDate: vacationEndDate || null,
+        }
+      );
+
+      if (response.success) {
+        await fetchLabours();
+        setShowVacationModal(false);
+        if (viewingLabour) {
+          const updatedLabour = labours.find(l => l.id === viewingLabour.id);
+          if (updatedLabour) {
+            setViewingLabour({
+              ...viewingLabour,
+              vacationStartDate: response.data.vacationStartDate,
+              vacationEndDate: response.data.vacationEndDate,
+            });
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error updating vacation:', error);
+      alert('Failed to update vacation dates');
+    } finally {
+      setUpdatingVacation(false);
+    }
+  };
+
+  const handleClearVacation = async () => {
+    if (!viewingLabour) return;
+    
+    try {
+      setUpdatingVacation(true);
+      const response = await put<{ success: boolean; data: Labour }>(
+        `/api/admin/labours/${viewingLabour.id}/vacation`,
+        {
+          startDate: null,
+          endDate: null,
+        }
+      );
+
+      if (response.success) {
+        await fetchLabours();
+        setVacationStartDate('');
+        setVacationEndDate('');
+        if (viewingLabour) {
+          const updatedLabour = labours.find(l => l.id === viewingLabour.id);
+          if (updatedLabour) {
+            setViewingLabour({
+              ...viewingLabour,
+              vacationStartDate: null,
+              vacationEndDate: null,
+            });
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error clearing vacation:', error);
+      alert('Failed to clear vacation dates');
+    } finally {
+      setUpdatingVacation(false);
+    }
+  };
+  
+  const handleMoveLabour = async () => {
+    if (!movingLabour || !selectedProjectId || !selectedTradeId) {
+      setMoveErrorMessage('Please select both project and trade');
+      return;
+    }
+    
+    // Find the current project assignment
+    const currentAssignment = movingLabour.projectLabours?.[0];
+    if (!currentAssignment) {
+      setMoveErrorMessage('Labour is not currently assigned to any project');
+      return;
+    }
+    
+    setIsMoving(true);
+    setMoveErrorMessage('');
+    
+    try {
+      const response = await post<{ success: boolean; data: any }>(
+        `/api/admin/labours/${movingLabour.id}/move`,
+        {
+          fromProjectLabourId: currentAssignment.id,
+          toProjectId: selectedProjectId,
+          toTradeId: selectedTradeId,
+          notes: moveNotes || null,
+          movementDate: moveDate || new Date().toISOString(),
+        }
+      );
+      
+      if (response.success) {
+        // Refresh labours list
+        await fetchLabours();
+        setShowMoveModal(false);
+        setMovingLabour(null);
+        setSelectedProjectId(null);
+        setSelectedTradeId(null);
+        setMoveNotes('');
+        setMoveDate('');
+        setMoveErrorMessage('');
+      } else {
+        setMoveErrorMessage('Failed to move labour');
+      }
+    } catch (error: any) {
+      console.error('Error moving labour:', error);
+      setMoveErrorMessage(error.message || 'Failed to move labour');
+    } finally {
+      setIsMoving(false);
+    }
+  };
+  
+  const handleOpenMoveModal = (labour: Labour) => {
+    // Check if labour is assigned to a project
+    if (!labour.projectLabours || labour.projectLabours.length === 0) {
+      alert('This labour is not assigned to any project. Please assign them to a project first.');
+      return;
+    }
+    
+    setMovingLabour(labour);
+    setSelectedProjectId(null);
+    setSelectedTradeId(null);
+    setAvailableTrades([]);
+    setMoveNotes('');
+    setMoveDate(new Date().toISOString().split('T')[0]); // Set default to today
+    setMoveErrorMessage('');
+    setShowMoveModal(true);
   };
 
   const fetchLabours = async () => {
@@ -1003,24 +1253,36 @@ export default function LabourManager() {
                   </td>
                   <td className="py-3 px-4">
                     <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-              <Button
+                      {labour.projectLabours && labour.projectLabours.length > 0 && (
+                        <Button
+                          onClick={() => handleOpenMoveModal(labour)}
+                          variant="ghost"
+                          size="sm"
+                          className="p-1"
+                          style={{ color: colors.info }}
+                          title="Move to another project"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                        </Button>
+                      )}
+                      <Button
                         onClick={() => handleEdit(labour)}
-                variant="ghost"
-                size="sm"
-                className="p-1"
-              >
-                <Edit className="w-4 h-4" />
-              </Button>
-              <Button
+                        variant="ghost"
+                        size="sm"
+                        className="p-1"
+                      >
+                        <Edit className="w-4 h-4" />
+                      </Button>
+                      <Button
                         onClick={() => handleDelete(labour.id)}
-                variant="ghost"
-                size="sm"
-                className="p-1"
-                style={{ color: colors.error }}
-              >
-                <Trash2 className="w-4 h-4" />
-              </Button>
-            </div>
+                        variant="ghost"
+                        size="sm"
+                        className="p-1"
+                        style={{ color: colors.error }}
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </Button>
+                    </div>
                   </td>
                 </tr>
         ))}
@@ -1198,6 +1460,146 @@ export default function LabourManager() {
                     )}
                   </div>
                 </div>
+
+                {/* Vacation Section */}
+                <div>
+                  <label className="text-sm font-medium mb-2 block" style={{ color: colors.textMuted }}>Vacation Status</label>
+                  <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                    {viewingLabour.vacationStartDate && viewingLabour.vacationEndDate ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4" style={{ color: colors.warning }} />
+                          <span className="text-sm" style={{ color: colors.textPrimary }}>
+                            On Vacation
+                          </span>
+                        </div>
+                        <div className="text-sm space-y-1" style={{ color: colors.textSecondary }}>
+                          <div>
+                            <span className="font-medium">From:</span> {new Date(viewingLabour.vacationStartDate).toLocaleDateString()}
+                          </div>
+                          <div>
+                            <span className="font-medium">To:</span> {new Date(viewingLabour.vacationEndDate).toLocaleDateString()}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4" style={{ color: colors.success }} />
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>
+                          Not on vacation
+                        </span>
+                      </div>
+                    )}
+                    <Button
+                      onClick={() => handleOpenVacationModal(viewingLabour)}
+                      variant="ghost"
+                      size="sm"
+                      className="mt-3"
+                      style={{ color: colors.primary }}
+                    >
+                      {viewingLabour.vacationStartDate ? 'Update Vacation' : 'Mark on Vacation'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Assignment History Section */}
+              <div className="mt-6 pt-6 border-t" style={{ borderColor: colors.border }}>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center space-x-2">
+                    <History className="w-5 h-5" style={{ color: colors.primary }} />
+                    <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                      Assignment History
+                    </h3>
+                  </div>
+                  {movementHistory.length > 0 && (
+                    <Button
+                      onClick={() => setShowHistoryModal(true)}
+                      variant="ghost"
+                      size="sm"
+                      className="flex items-center space-x-2"
+                      style={{ color: colors.primary }}
+                    >
+                      <FileText className="w-4 h-4" />
+                      <span>View Full History</span>
+                    </Button>
+                  )}
+                </div>
+                {movementHistory.length > 0 ? (
+                  <div className="space-y-3 max-h-64 overflow-y-auto">
+                    {loadingHistory ? (
+                      <div className="text-center py-4">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto" style={{ borderColor: colors.primary }}></div>
+                      </div>
+                    ) : (
+                      movementHistory.map((history) => (
+                        <Card 
+                          key={history.id}
+                          className="p-4"
+                          style={{ backgroundColor: colors.backgroundPrimary }}
+                        >
+                          <div className="flex items-start justify-between">
+                            <div className="flex-1">
+                              <div className="flex items-center space-x-2 mb-2">
+                                <span className={`text-xs px-2 py-0.5 rounded-full ${
+                                  history.type === 'assignment' 
+                                    ? 'bg-blue-100 text-blue-800' 
+                                    : 'bg-purple-100 text-purple-800'
+                                }`}>
+                                  {history.type === 'assignment' ? 'Assignment' : 'Movement'}
+                                </span>
+                                {history.fromProjectName ? (
+                                  <>
+                                    <Building2 className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                    <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                      {history.fromProjectName}
+                                    </span>
+                                    {history.fromTradeName && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundSecondary, color: colors.textSecondary }}>
+                                        {history.fromTradeName}
+                                      </span>
+                                    )}
+                                    <ArrowRight className="w-3 h-3" style={{ color: colors.textMuted }} />
+                                  </>
+                                ) : (
+                                  <span className="text-xs" style={{ color: colors.textMuted }}>Initial Assignment</span>
+                                )}
+                                <Building2 className="w-4 h-4" style={{ color: colors.primary }} />
+                                <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                  {history.toProjectName}
+                                </span>
+                                <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primary + '20', color: colors.primary }}>
+                                  {history.toTradeName}
+                                </span>
+                              </div>
+                              <div className="flex items-center space-x-2 text-xs" style={{ color: colors.textMuted }}>
+                                <Calendar className="w-3 h-3" />
+                                <span>{new Date(history.movementDate).toLocaleString()}</span>
+                                {history.movedBy && (
+                                  <>
+                                    <span>•</span>
+                                    <span>Moved by: {history.movedBy}</span>
+                                  </>
+                                    )}
+                                  </div>
+                                  {history.notes && (
+                                <div className="mt-1 text-sm" style={{ color: colors.textSecondary }}>
+                                  <span className="font-medium">Notes:</span> {history.notes}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </Card>
+                      ))
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-sm" style={{ color: colors.textMuted }}>
+                      No assignment history available
+                    </p>
+                  </div>
+                )}
               </div>
 
               <div className="flex justify-end space-x-3 mt-6 pt-6 border-t" style={{ borderColor: colors.border }}>
@@ -1220,6 +1622,375 @@ export default function LabourManager() {
                   Close
                 </Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+      
+      {/* Move Labour Modal */}
+      {showMoveModal && movingLabour && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card 
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Move Labour to Another Project
+                </h2>
+                <Button
+                  onClick={() => {
+                    setShowMoveModal(false);
+                    setMovingLabour(null);
+                    setSelectedProjectId(null);
+                    setSelectedTradeId(null);
+                    setAvailableTrades([]);
+                      setMoveNotes('');
+                      setMoveDate('');
+                      setMoveErrorMessage('');
+                    }}
+                    variant="ghost"
+                    className="p-2"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              
+              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <div className="flex items-center space-x-2">
+                  <User className="w-4 h-4" style={{ color: colors.primary }} />
+                  <span className="font-medium" style={{ color: colors.textPrimary }}>
+                    {movingLabour.labourName}
+                  </span>
+                  {movingLabour.employeeNumber && (
+                    <span className="text-sm" style={{ color: colors.textSecondary }}>
+                      (#{movingLabour.employeeNumber})
+                    </span>
+                  )}
+                </div>
+                {movingLabour.projectLabours && movingLabour.projectLabours.length > 0 && (
+                  <div className="mt-2 text-sm" style={{ color: colors.textSecondary }}>
+                    Current: {movingLabour.projectLabours[0].project.projectName} - {movingLabour.projectLabours[0].trade.trade}
+                  </div>
+                )}
+              </div>
+              
+              {moveErrorMessage && (
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.error + '20', color: colors.error }}>
+                  {moveErrorMessage}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Target Project *
+                  </label>
+                  <select
+                    value={selectedProjectId || ''}
+                    onChange={(e) => {
+                      const projectId = e.target.value ? parseInt(e.target.value) : null;
+                      setSelectedProjectId(projectId);
+                      setSelectedTradeId(null); // Reset trade when project changes
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  >
+                    <option value="">Select a project...</option>
+                    {projects
+                      .filter(p => !movingLabour.projectLabours?.some(pl => pl.project.id === p.id))
+                      .map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.projectCode} - {project.projectName}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                
+                {selectedProjectId && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Target Trade *
+                    </label>
+                    {availableTrades.length === 0 ? (
+                      <div className="p-3 rounded-lg text-sm" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textMuted }}>
+                        No trades available for this project. Please add trades to the project first.
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedTradeId || ''}
+                        onChange={(e) => setSelectedTradeId(e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.border,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select a trade...</option>
+                        {availableTrades.map((trade) => (
+                          <option key={trade.id} value={trade.id}>
+                            {trade.trade}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Movement Date *
+                    </label>
+                    <Input
+                      type="date"
+                      value={moveDate}
+                      onChange={(e) => setMoveDate(e.target.value)}
+                      required
+                      style={{
+                        backgroundColor: colors.backgroundPrimary,
+                        borderColor: colors.border,
+                        color: colors.textPrimary
+                      }}
+                    />
+                    <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                      Date when the movement occurred
+                    </p>
+                  </div>
+                  
+                  <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={moveNotes}
+                    onChange={(e) => setMoveNotes(e.target.value)}
+                    placeholder="Additional notes about this movement..."
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg resize-none"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    onClick={() => {
+                      setShowMoveModal(false);
+                      setMovingLabour(null);
+                      setSelectedProjectId(null);
+                      setSelectedTradeId(null);
+                      setAvailableTrades([]);
+                      setMoveReason('');
+                      setMoveNotes('');
+                      setMoveErrorMessage('');
+                    }}
+                    variant="ghost"
+                    disabled={isMoving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleMoveLabour}
+                    disabled={isMoving || !selectedProjectId || !selectedTradeId || !moveDate}
+                    style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+                    className="flex items-center space-x-2"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>{isMoving ? 'Moving...' : 'Move Labour'}</span>
+                  </Button>
+                </div>
+                  </div>
+                </div>
+              </Card>
+            </div>
+          )}
+
+      {/* Vacation Modal */}
+      {showVacationModal && viewingLabour && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card 
+            className="w-full max-w-md"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Vacation Management
+                </h2>
+                <Button
+                  onClick={() => setShowVacationModal(false)}
+                  variant="ghost"
+                  className="p-2"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Start Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={vacationStartDate}
+                    onChange={(e) => setVacationStartDate(e.target.value)}
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    End Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={vacationEndDate}
+                    onChange={(e) => setVacationEndDate(e.target.value)}
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    onClick={() => setShowVacationModal(false)}
+                    variant="ghost"
+                    disabled={updatingVacation}
+                  >
+                    Cancel
+                  </Button>
+                  {viewingLabour.vacationStartDate && (
+                    <Button
+                      onClick={handleClearVacation}
+                      variant="ghost"
+                      disabled={updatingVacation}
+                      style={{ color: colors.error }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleSaveVacation}
+                    disabled={updatingVacation || !vacationStartDate || !vacationEndDate}
+                    style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+                  >
+                    {updatingVacation ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Detailed History Modal */}
+      {showHistoryModal && viewingLabour && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card 
+            className="w-full max-w-4xl max-h-[90vh] overflow-hidden"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: colors.border }}>
+              <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                Assignment History - {viewingLabour.labourName}
+              </h2>
+              <Button
+                onClick={() => setShowHistoryModal(false)}
+                variant="ghost"
+                className="p-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-100px)]">
+              {loadingHistory ? (
+                <div className="text-center py-8">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto" style={{ borderColor: colors.primary }}></div>
+                </div>
+              ) : movementHistory.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr className="border-b" style={{ borderColor: colors.border }}>
+                        <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: colors.textPrimary }}>Type</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: colors.textPrimary }}>From</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: colors.textPrimary }}>To</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: colors.textPrimary }}>Date</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: colors.textPrimary }}>Moved By</th>
+                        <th className="text-left py-3 px-4 text-sm font-medium" style={{ color: colors.textPrimary }}>Notes</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {movementHistory.map((history) => (
+                        <tr key={history.id} className="border-b" style={{ borderColor: colors.border }}>
+                          <td className="py-3 px-4">
+                            <span className={`text-xs px-2 py-1 rounded-full ${
+                              history.type === 'assignment' 
+                                ? 'bg-blue-100 text-blue-800' 
+                                : 'bg-purple-100 text-purple-800'
+                            }`}>
+                              {history.type === 'assignment' ? 'Assignment' : 'Movement'}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.textSecondary }}>
+                            {history.fromProjectName ? (
+                              <div>
+                                <div style={{ color: colors.textPrimary }}>{history.fromProjectName}</div>
+                                {history.fromTradeName && (
+                                  <div className="text-xs" style={{ color: colors.textMuted }}>{history.fromTradeName}</div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-xs" style={{ color: colors.textMuted }}>N/A</span>
+                            )}
+                          </td>
+                          <td className="py-3 px-4 text-sm">
+                            <div style={{ color: colors.textPrimary }}>{history.toProjectName}</div>
+                            <div className="text-xs" style={{ color: colors.textMuted }}>{history.toTradeName}</div>
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.textSecondary }}>
+                            {new Date(history.movementDate).toLocaleDateString()}
+                            <div className="text-xs" style={{ color: colors.textMuted }}>
+                              {new Date(history.movementDate).toLocaleTimeString()}
+                            </div>
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.textSecondary }}>
+                            {history.movedBy || '-'}
+                          </td>
+                          <td className="py-3 px-4 text-sm" style={{ color: colors.textSecondary }}>
+                            {history.notes || '-'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <History className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+                  <p className="text-sm" style={{ color: colors.textMuted }}>
+                    No assignment history available
+                  </p>
+                </div>
+              )}
             </div>
           </Card>
         </div>

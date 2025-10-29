@@ -30,7 +30,10 @@ import {
   Download,
   Upload,
   FileSpreadsheet,
-  Trash
+  Trash,
+  ArrowRight,
+  History,
+  Building2
 } from 'lucide-react';
 
 interface Position {
@@ -72,6 +75,29 @@ interface CompanyStaff {
   }>;
 }
 
+interface Project {
+  id: number;
+  projectCode: string;
+  projectName: string;
+}
+
+interface ProjectPosition {
+  id: number;
+  designation: string;
+  projectId: number;
+}
+
+interface MovementHistory {
+  id: number;
+  fromProjectName?: string;
+  fromPositionName?: string;
+  toProjectName: string;
+  toPositionName: string;
+  movementDate: string;
+  notes?: string;
+  movedBy?: string;
+}
+
 export default function CompanyStaffManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
@@ -80,6 +106,7 @@ export default function CompanyStaffManager() {
 
   const [staff, setStaff] = useState<CompanyStaff[]>([]);
   const [companyPositions, setCompanyPositions] = useState<Position[]>([]);
+  const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [positionSearchTerm, setPositionSearchTerm] = useState('');
@@ -89,6 +116,21 @@ export default function CompanyStaffManager() {
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<CompanyStaff | null>(null);
   const [viewingStaff, setViewingStaff] = useState<CompanyStaff | null>(null);
+  
+  // Move staff modal state
+  const [showMoveModal, setShowMoveModal] = useState(false);
+  const [movingStaff, setMovingStaff] = useState<CompanyStaff | null>(null);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
+  const [selectedPositionId, setSelectedPositionId] = useState<number | null>(null);
+  const [availablePositions, setAvailablePositions] = useState<ProjectPosition[]>([]);
+  const [moveNotes, setMoveNotes] = useState('');
+  const [moveDate, setMoveDate] = useState('');
+  const [isMoving, setIsMoving] = useState(false);
+  const [moveErrorMessage, setMoveErrorMessage] = useState('');
+  
+  // Movement history state
+  const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -123,7 +165,22 @@ export default function CompanyStaffManager() {
   useEffect(() => {
     fetchStaff();
     fetchCompanyPositions();
+    fetchProjects();
   }, []);
+  
+  useEffect(() => {
+    if (selectedProjectId) {
+      fetchProjectPositions(selectedProjectId);
+    } else {
+      setAvailablePositions([]);
+    }
+  }, [selectedProjectId]);
+  
+  useEffect(() => {
+    if (viewingStaff) {
+      fetchMovementHistory(viewingStaff.id);
+    }
+  }, [viewingStaff]);
 
 
   const fetchCompanyPositions = async () => {
@@ -135,6 +192,110 @@ export default function CompanyStaffManager() {
     } catch (error) {
       console.error('Error fetching company positions:', error);
     }
+  };
+  
+  const fetchProjects = async () => {
+    try {
+      const response = await get<{ success: boolean; data: Project[] }>('/api/admin/projects');
+      if (response.success) {
+        setProjects(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching projects:', error);
+    }
+  };
+  
+  const fetchProjectPositions = async (projectId: number) => {
+    try {
+      const response = await get<{ success: boolean; data: ProjectPosition[] }>(`/api/admin/project-staff?projectId=${projectId}`);
+      if (response.success) {
+        setAvailablePositions(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching project positions:', error);
+      setAvailablePositions([]);
+    }
+  };
+  
+  const fetchMovementHistory = async (staffId: number) => {
+    try {
+      setLoadingHistory(true);
+      const response = await get<{ success: boolean; data: MovementHistory[] }>(`/api/admin/company-staff/${staffId}/movement-history`);
+      if (response.success) {
+        setMovementHistory(response.data);
+      }
+    } catch (error) {
+      console.error('Error fetching movement history:', error);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+  
+  const handleMoveStaff = async () => {
+    if (!movingStaff || !selectedProjectId || !selectedPositionId) {
+      setMoveErrorMessage('Please select both project and position');
+      return;
+    }
+    
+    // Find the current project assignment
+    const currentAssignment = movingStaff.projectStaff?.[0];
+    if (!currentAssignment) {
+      setMoveErrorMessage('Staff is not currently assigned to any project');
+      return;
+    }
+    
+    setIsMoving(true);
+    setMoveErrorMessage('');
+    
+    try {
+      const response = await post<{ success: boolean; data: any }>(
+        `/api/admin/company-staff/${movingStaff.id}/move`,
+        {
+          fromProjectStaffId: currentAssignment.id,
+          toProjectId: selectedProjectId,
+          toPositionId: selectedPositionId,
+          notes: moveNotes || null,
+          movementDate: moveDate || new Date().toISOString(),
+        }
+      );
+      
+      if (response.success) {
+        // Refresh staff list
+        await fetchStaff();
+        setShowMoveModal(false);
+        setMovingStaff(null);
+        setSelectedProjectId(null);
+        setSelectedPositionId(null);
+        setAvailablePositions([]);
+        setMoveNotes('');
+        setMoveDate('');
+        setMoveErrorMessage('');
+      } else {
+        setMoveErrorMessage('Failed to move staff');
+      }
+    } catch (error: any) {
+      console.error('Error moving staff:', error);
+      setMoveErrorMessage(error.message || 'Failed to move staff');
+    } finally {
+      setIsMoving(false);
+    }
+  };
+  
+  const handleOpenMoveModal = (staffMember: CompanyStaff) => {
+    // Check if staff is assigned to a project
+    if (!staffMember.projectStaff || staffMember.projectStaff.length === 0) {
+      alert('This staff member is not assigned to any project. Please assign them to a project first.');
+      return;
+    }
+    
+    setMovingStaff(staffMember);
+    setSelectedProjectId(null);
+    setSelectedPositionId(null);
+    setAvailablePositions([]);
+    setMoveNotes('');
+    setMoveDate(new Date().toISOString().split('T')[0]); // Set default to today
+    setMoveErrorMessage('');
+    setShowMoveModal(true);
   };
 
   const fetchStaff = async () => {
@@ -1271,6 +1432,17 @@ export default function CompanyStaffManager() {
                       >
                         <Eye className="w-4 h-4" />
                       </Button>
+                      {staffMember.projectStaff && staffMember.projectStaff.length > 0 && (
+                        <Button
+                          onClick={() => handleOpenMoveModal(staffMember)}
+                          variant="ghost"
+                          className="p-2"
+                          style={{ color: colors.info }}
+                          title="Move to another project"
+                        >
+                          <ArrowRight className="w-4 h-4" />
+                        </Button>
+                      )}
                       <Button
                         onClick={() => handleEdit(staffMember)}
                         variant="ghost"
@@ -1620,6 +1792,78 @@ export default function CompanyStaffManager() {
                       </p>
                     </div>
                   )}
+                  
+                  {/* Movement History Section */}
+                  {movementHistory.length > 0 && (
+                    <div className="mt-8 pt-8 border-t" style={{ borderColor: colors.border }}>
+                      <div className="flex items-center space-x-2 mb-4">
+                        <History className="w-5 h-5" style={{ color: colors.primary }} />
+                        <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                          Movement History
+                        </h3>
+                      </div>
+                      <div className="space-y-3 max-h-64 overflow-y-auto">
+                        {loadingHistory ? (
+                          <div className="text-center py-4">
+                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto" style={{ borderColor: colors.primary }}></div>
+                          </div>
+                        ) : (
+                          movementHistory.map((history) => (
+                            <Card 
+                              key={history.id}
+                              className="p-4"
+                              style={{ backgroundColor: colors.backgroundSecondary }}
+                            >
+                              <div className="flex items-start justify-between">
+                                <div className="flex-1">
+                                  <div className="flex items-center space-x-2 mb-2">
+                                    {history.fromProjectName ? (
+                                      <>
+                                        <Building2 className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {history.fromProjectName}
+                                        </span>
+                                        {history.fromPositionName && (
+                                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textSecondary }}>
+                                            {history.fromPositionName}
+                                          </span>
+                                        )}
+                                        <ArrowRight className="w-3 h-3" style={{ color: colors.textMuted }} />
+                                      </>
+                                    ) : (
+                                      <span className="text-xs" style={{ color: colors.textMuted }}>Initial Assignment</span>
+                                    )}
+                                    <Building2 className="w-4 h-4" style={{ color: colors.primary }} />
+                                    <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                      {history.toProjectName}
+                                    </span>
+                                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primary + '20', color: colors.primary }}>
+                                      {history.toPositionName}
+                                    </span>
+                                  </div>
+                                  <div className="flex items-center space-x-2 text-xs" style={{ color: colors.textMuted }}>
+                                    <Calendar className="w-3 h-3" />
+                                    <span>{new Date(history.movementDate).toLocaleString()}</span>
+                                    {history.movedBy && (
+                                      <>
+                                        <span>•</span>
+                                        <span>Moved by: {history.movedBy}</span>
+                                      </>
+                                    )}
+                                  </div>
+                                  {history.notes && (
+                                    <div className="mt-1 text-sm" style={{ color: colors.textSecondary }}>
+                                      <span className="font-medium">Notes:</span> {history.notes}
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </Card>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1656,6 +1900,193 @@ export default function CompanyStaffManager() {
               </div>
             </div>
           </div>
+        </div>
+      )}
+      
+      {/* Move Staff Modal */}
+      {showMoveModal && movingStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card 
+            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Move Staff to Another Project
+                </h2>
+                <Button
+                  onClick={() => {
+                    setShowMoveModal(false);
+                    setMovingStaff(null);
+                    setSelectedProjectId(null);
+                    setSelectedPositionId(null);
+                    setAvailablePositions([]);
+                      setMoveNotes('');
+                      setMoveDate('');
+                      setMoveErrorMessage('');
+                    }}
+                    variant="ghost"
+                    className="p-2"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              
+              <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <div className="flex items-center space-x-2">
+                  <User className="w-4 h-4" style={{ color: colors.primary }} />
+                  <span className="font-medium" style={{ color: colors.textPrimary }}>
+                    {movingStaff.staffName}
+                  </span>
+                  {movingStaff.employeeNumber && (
+                    <span className="text-sm" style={{ color: colors.textSecondary }}>
+                      (#{movingStaff.employeeNumber})
+                    </span>
+                  )}
+                </div>
+                {movingStaff.projectStaff && movingStaff.projectStaff.length > 0 && (
+                  <div className="mt-2 text-sm" style={{ color: colors.textSecondary }}>
+                    Current: {movingStaff.projectStaff[0].project.projectName} - {movingStaff.projectStaff[0].position.designation}
+                  </div>
+                )}
+              </div>
+              
+              {moveErrorMessage && (
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.error + '20', color: colors.error }}>
+                  {moveErrorMessage}
+                </div>
+              )}
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Target Project *
+                  </label>
+                  <select
+                    value={selectedProjectId || ''}
+                    onChange={(e) => {
+                      const projectId = e.target.value ? parseInt(e.target.value) : null;
+                      setSelectedProjectId(projectId);
+                      setSelectedPositionId(null); // Reset position when project changes
+                    }}
+                    className="w-full px-3 py-2 border rounded-lg"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  >
+                    <option value="">Select a project...</option>
+                    {projects
+                      .filter(p => !movingStaff.projectStaff?.some(ps => ps.project.id === p.id))
+                      .map((project) => (
+                        <option key={project.id} value={project.id}>
+                          {project.projectCode} - {project.projectName}
+                        </option>
+                      ))}
+                  </select>
+                </div>
+                
+                {selectedProjectId && (
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Target Position *
+                    </label>
+                    {availablePositions.length === 0 ? (
+                      <div className="p-3 rounded-lg text-sm" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textMuted }}>
+                        No positions available for this project. Please add positions to the project first.
+                      </div>
+                    ) : (
+                      <select
+                        value={selectedPositionId || ''}
+                        onChange={(e) => setSelectedPositionId(e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full px-3 py-2 border rounded-lg"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.border,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <option value="">Select a position...</option>
+                        {availablePositions.map((position) => (
+                          <option key={position.id} value={position.id}>
+                            {position.designation}
+                          </option>
+                        ))}
+                      </select>
+                    )}
+                  </div>
+                )}
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Movement Date *
+                  </label>
+                  <Input
+                    type="date"
+                    value={moveDate}
+                    onChange={(e) => setMoveDate(e.target.value)}
+                    required
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                    Date when the movement occurred
+                  </p>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Notes (Optional)
+                  </label>
+                  <textarea
+                    value={moveNotes}
+                    onChange={(e) => setMoveNotes(e.target.value)}
+                    placeholder="Additional notes about this movement..."
+                    rows={3}
+                    className="w-full px-3 py-2 border rounded-lg resize-none"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+                
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    onClick={() => {
+                      setShowMoveModal(false);
+                      setMovingStaff(null);
+                      setSelectedProjectId(null);
+                      setSelectedPositionId(null);
+                      setAvailablePositions([]);
+                      setMoveReason('');
+                      setMoveNotes('');
+                      setMoveErrorMessage('');
+                    }}
+                    variant="ghost"
+                    disabled={isMoving}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={handleMoveStaff}
+                    disabled={isMoving || !selectedProjectId || !selectedPositionId || !moveDate}
+                    style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+                    className="flex items-center space-x-2"
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                    <span>{isMoving ? 'Moving...' : 'Move Staff'}</span>
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 

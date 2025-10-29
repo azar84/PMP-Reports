@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 const assignLabourSchema = z.object({
   tradeId: z.number().int().positive(),
@@ -92,24 +93,61 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const labourAssignment = await prisma.projectLabour.create({
-      data: {
-        projectId: trade.projectId,
-        tradeId: validatedData.tradeId,
-        labourId: validatedData.labourId,
-        utilization: validatedData.utilization,
-        startDate: validatedData.startDate ? new Date(validatedData.startDate) : null,
-        endDate: validatedData.endDate ? new Date(validatedData.endDate) : null,
-        status: validatedData.status,
-        notes: validatedData.notes || null,
-      },
-      include: {
-        labour: true,
-        trade: true,
-      },
+    // Use transaction to create assignment and history record
+    const result = await prisma.$transaction(async (tx) => {
+      const labourAssignment = await tx.projectLabour.create({
+        data: {
+          projectId: trade.projectId,
+          tradeId: validatedData.tradeId,
+          labourId: validatedData.labourId,
+          utilization: validatedData.utilization,
+          startDate: parseDateFromInput(validatedData.startDate),
+          endDate: parseDateFromInput(validatedData.endDate),
+          status: validatedData.status,
+          notes: validatedData.notes || null,
+        },
+        include: {
+          labour: true,
+          trade: {
+            select: {
+              trade: true,
+              project: {
+                select: {
+                  id: true,
+                  projectName: true,
+                },
+              },
+            },
+          },
+        },
+      });
+
+      // Create assignment history record
+      await tx.labourMovementHistory.create({
+        data: {
+          labourId: validatedData.labourId,
+          type: 'assignment',
+          fromProjectId: null,
+          fromProjectName: null,
+          fromTradeId: null,
+          fromTradeName: null,
+          toProjectId: trade.projectId,
+          toProjectName: labourAssignment.trade.project.projectName,
+          toTradeId: validatedData.tradeId,
+          toTradeName: labourAssignment.trade.trade,
+          movedBy: null,
+          movementDate: validatedData.startDate && validatedData.startDate !== '' 
+            ? parseDateFromInput(validatedData.startDate) || new Date()
+            : new Date(),
+          notes: validatedData.notes || null,
+          projectLabourId: labourAssignment.id,
+        },
+      });
+
+      return labourAssignment;
     });
 
-    return NextResponse.json({ success: true, data: labourAssignment });
+    return NextResponse.json({ success: true, data: result });
   } catch (error) {
     console.error('Error assigning labour:', error);
     if (error instanceof z.ZodError) {

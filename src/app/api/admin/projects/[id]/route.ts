@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 // GET - Fetch single project by ID
 export async function GET(
@@ -79,11 +80,11 @@ export async function PUT(
     // Extract staff fields that need special handling
     const { projectDirectorId, projectManagerId, ...validBody } = body;
     
-    // Convert date strings to DateTime objects if provided
+    // Convert date strings to DateTime objects if provided (parsed as date-only, no timezone conversion)
     const projectData: any = {
       ...validBody,
-      startDate: validBody.startDate ? new Date(validBody.startDate) : null,
-      endDate: validBody.endDate ? new Date(validBody.endDate) : null,
+      startDate: parseDateFromInput(validBody.startDate),
+      endDate: parseDateFromInput(validBody.endDate),
     };
 
     // Add director and manager IDs to project data if provided

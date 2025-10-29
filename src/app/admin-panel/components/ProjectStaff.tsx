@@ -5,6 +5,7 @@ import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { formatCurrency } from '@/lib/currency';
+import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -139,6 +140,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   const [editingData, setEditingData] = useState<Partial<Staff & { positionId?: number }>>({});
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dateValidationError, setDateValidationError] = useState<string>('');
 
   // Position modal state
   const [showPositionModal, setShowPositionModal] = useState(false);
@@ -147,6 +149,16 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   const [editingStaffAssignment, setEditingStaffAssignment] = useState<ProjectStaffAssignment | null>(null);
   const [editingPosition, setEditingPosition] = useState<ProjectPosition | null>(null);
   const [editUseFullDuration, setEditUseFullDuration] = useState(false);
+  const [editUseProjectStartDate, setEditUseProjectStartDate] = useState(false);
+  const [editUseProjectEndDate, setEditUseProjectEndDate] = useState(false);
+  const [editDateValidationError, setEditDateValidationError] = useState<string>('');
+  
+  // Assignment date selection state
+  const [selectedStaffForAssignment, setSelectedStaffForAssignment] = useState<{ staffId: number; positionId: number } | null>(null);
+  const [assignmentStartDate, setAssignmentStartDate] = useState('');
+  const [assignmentEndDate, setAssignmentEndDate] = useState('');
+  const [useProjectStartDate, setUseProjectStartDate] = useState(true);
+  const [useProjectEndDate, setUseProjectEndDate] = useState(true);
   
   // Add new staff modal state
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
@@ -195,6 +207,12 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       const response = await get<{ success: boolean; data: ProjectPosition[] }>(`/api/admin/project-staff?projectId=${projectId}`);
       if (response.success) {
         console.log('Fetched project positions:', response.data);
+        // Log assignment dates for debugging
+        response.data.forEach(position => {
+          position.staffAssignments?.forEach(assignment => {
+            console.log(`Assignment ${assignment.id}: startDate=${assignment.startDate}, endDate=${assignment.endDate}`);
+          });
+        });
         setProjectPositions(response.data);
       }
     } catch (error) {
@@ -204,13 +222,40 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     }
   };
 
-  const handleAssignStaffToPosition = async (positionId: number, staffId: number) => {
+  const handleStaffSelectForAssignment = (positionId: number, staffId: number) => {
+    setSelectedStaffForAssignment({ staffId, positionId });
+    setUseProjectStartDate(true);
+    setUseProjectEndDate(true);
+    // Initialize with formatted project dates
+    const formattedStart = formatDateForInput(projectStartDate) || '';
+    const formattedEnd = formatDateForInput(projectEndDate) || '';
+    setAssignmentStartDate(formattedStart);
+    setAssignmentEndDate(formattedEnd);
+    setDateValidationError('');
+  };
+
+  // Helper function to validate dates
+  const validateDates = (startDateStr: string, endDateStr: string, isEditForm: boolean = false): string => {
+    if (!startDateStr || !endDateStr) return ''; // Don't validate if dates are empty
+    
+    const startDate = startDateStr.split('T')[0];
+    const endDate = endDateStr.split('T')[0];
+    
+    if (startDate > endDate) {
+      return 'End date must be equal to or greater than start date.';
+    }
+    return '';
+  };
+
+  const handleAssignStaffToPosition = async () => {
+    if (!selectedStaffForAssignment) return;
+    
     setIsSubmitting(true);
     setErrorMessage('');
 
     try {
       // Find the staff member to get their remaining capacity
-      const staffMember = staff.find(s => s.id === staffId);
+      const staffMember = staff.find(s => s.id === selectedStaffForAssignment.staffId);
       if (!staffMember) {
         throw new Error('Staff member not found');
       }
@@ -218,19 +263,61 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       // Use remaining capacity or default to 100% if not calculated
       const utilizationToAssign = staffMember.remainingCapacity || 100;
 
+      // Determine the start date to use (format to YYYY-MM-DD)
+      let startDate = '';
+      if (useProjectStartDate) {
+        startDate = formatDateForInput(projectStartDate) || '';
+      } else {
+        startDate = assignmentStartDate || formatDateForInput(projectStartDate) || '';
+      }
+      
+      // Determine the end date to use (format to YYYY-MM-DD)
+      let endDate = '';
+      if (useProjectEndDate) {
+        endDate = formatDateForInput(projectEndDate) || '';
+      } else {
+        endDate = assignmentEndDate || formatDateForInput(projectEndDate) || '';
+      }
+      
+      // Validate that end date is greater than or equal to start date
+      if (startDate && endDate && startDate > endDate) {
+        setErrorMessage('End date must be equal to or greater than start date.');
+        setIsSubmitting(false);
+        return;
+      }
+      
+      console.log('Assigning staff with dates:', { 
+        startDate, 
+        endDate, 
+        projectStartDate, 
+        projectEndDate, 
+        useProjectStartDate,
+        useProjectEndDate,
+        assignmentStartDate,
+        assignmentEndDate
+      });
+
       const response = await post<{ success: boolean; data: any }>('/api/admin/project-staff', {
-        positionId: positionId,
-        staffId: staffId,
+        positionId: selectedStaffForAssignment.positionId,
+        staffId: selectedStaffForAssignment.staffId,
         utilization: utilizationToAssign,
-        startDate: projectStartDate || '',
-        endDate: projectEndDate || '',
+        startDate: startDate,
+        endDate: endDate,
         status: 'Active',
         notes: null,
       });
       
       if (response.success) {
+        console.log('Staff assignment created:', response.data);
+        // Clear the assignment state first
+        setSelectedStaffForAssignment(null);
+        setAssignmentStartDate('');
+        setAssignmentEndDate('');
+        setUseProjectStartDate(true);
+        setUseProjectEndDate(true);
+        // Then refresh data
         await fetchStaff(); // Refresh staff list to update utilization
-        await fetchProjectPositions(); // Refresh project positions
+        await fetchProjectPositions(); // Refresh project positions to show updated dates
         setErrorMessage('');
         setShowAddModal(false); // Close modal on success
         setAssigningToPosition(null); // Reset position
@@ -279,10 +366,43 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     setErrorMessage('');
 
     try {
+      // Determine the actual dates to send based on checkbox states
+      // If already in YYYY-MM-DD format, use directly; otherwise format
+      let startDate = '';
+      if (editUseProjectStartDate) {
+        startDate = formatDateForInput(projectStartDate) || '';
+      } else {
+        const startValue = editingStaffAssignment.startDate;
+        if (typeof startValue === 'string' && startValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+          startDate = startValue.split('T')[0].split(' ')[0];
+        } else {
+          startDate = formatDateForInput(startValue) || '';
+        }
+      }
+      
+      let endDate = '';
+      if (editUseProjectEndDate) {
+        endDate = formatDateForInput(projectEndDate) || '';
+      } else {
+        const endValue = editingStaffAssignment.endDate;
+        if (typeof endValue === 'string' && endValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+          endDate = endValue.split('T')[0].split(' ')[0];
+        } else {
+          endDate = formatDateForInput(endValue) || '';
+        }
+      }
+      
+      // Validate that end date is greater than or equal to start date
+      if (startDate && endDate && startDate > endDate) {
+        setErrorMessage('End date must be equal to or greater than start date.');
+        setIsSubmitting(false);
+        return;
+      }
+      
       const response = await put<{ success: boolean; data: any }>(`/api/admin/project-staff/${editingStaffAssignment.id}`, {
         utilization: editingStaffAssignment.utilization,
-        startDate: editingStaffAssignment.startDate,
-        endDate: editingStaffAssignment.endDate,
+        startDate: startDate,
+        endDate: endDate,
         status: editingStaffAssignment.status,
         notes: editingStaffAssignment.notes,
       });
@@ -291,6 +411,9 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
         await fetchProjectPositions(); // Refresh project positions
         setEditingStaffAssignment(null);
         setEditUseFullDuration(false);
+        setEditUseProjectStartDate(false);
+        setEditUseProjectEndDate(false);
+        setEditDateValidationError('');
         setErrorMessage('');
       } else {
         throw new Error('Failed to update staff assignment');
@@ -766,19 +889,30 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                             <td className="py-3 px-4">
                               <span style={{ color: colors.textPrimary }}>
                                 {assignment.startDate && assignment.endDate 
-                                  ? `${new Date(assignment.startDate).toLocaleDateString()} - ${new Date(assignment.endDate).toLocaleDateString()}`
+                                  ? (() => {
+                                      try {
+                                        const start = new Date(assignment.startDate);
+                                        const end = new Date(assignment.endDate);
+                                        if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+                                        const diffTime = Math.abs(end.getTime() - start.getTime());
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                        return `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+                                      } catch (error) {
+                                        return '-';
+                                      }
+                                    })()
                                   : '-'
                                 }
                               </span>
                             </td>
                             <td className="py-3 px-4">
                               <span style={{ color: colors.textPrimary }}>
-                                {assignment.startDate ? new Date(assignment.startDate).toLocaleDateString() : '-'}
+                                {assignment.startDate ? formatDateForDisplay(assignment.startDate) : '-'}
                               </span>
                             </td>
                             <td className="py-3 px-4">
                               <span style={{ color: colors.textPrimary }}>
-                                {assignment.endDate ? new Date(assignment.endDate).toLocaleDateString() : '-'}
+                                {assignment.endDate ? formatDateForDisplay(assignment.endDate) : '-'}
                               </span>
                             </td>
                             <td className="py-3 px-4">
@@ -828,11 +962,25 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                                         return;
                                       }
                                       
+                                      // Normalize dates to YYYY-MM-DD strings to avoid timezone issues
+                                      const normalizedStartDate = formatDateForInput(assignment.startDate);
+                                      const normalizedEndDate = formatDateForInput(assignment.endDate);
+                                      
                                       setEditingStaffAssignment({
                                         ...assignment,
-                                        position: position
+                                        position: position,
+                                        startDate: normalizedStartDate || null,
+                                        endDate: normalizedEndDate || null
                                       });
                                       setEditUseFullDuration(false);
+                                      // Initialize checkbox states based on current assignment dates
+                                      const projectStart = formatDateForInput(projectStartDate);
+                                      const projectEnd = formatDateForInput(projectEndDate);
+                      setEditUseProjectStartDate(normalizedStartDate === projectStart && normalizedStartDate !== '');
+                      setEditUseProjectEndDate(normalizedEndDate === projectEnd && normalizedEndDate !== '');
+                      // Validate dates when opening edit form
+                      const validationError = validateDates(normalizedStartDate, normalizedEndDate, true);
+                      setEditDateValidationError(validationError);
                                     } catch (error) {
                                       console.error('Error setting editing staff assignment:', error);
                                     }
@@ -928,6 +1076,11 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   setAssigningToPosition(null);
                   setSearchTerm('');
                   setPositionFilter('');
+                  setSelectedStaffForAssignment(null);
+                  setAssignmentStartDate('');
+                  setAssignmentEndDate('');
+                  setUseProjectStartDate(true);
+                  setUseProjectEndDate(true);
                 }}
                 variant="ghost"
                 className="p-2"
@@ -994,9 +1147,11 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                 </Button>
               </div>
 
-              {/* Staff List */}
-              <div className="space-y-2">
-                {filteredStaff.map((member) => (
+              {!selectedStaffForAssignment ? (
+                <>
+                  {/* Staff List */}
+                  <div className="space-y-2">
+                    {filteredStaff.map((member) => (
                   <div
                     key={member.id}
                     className="p-4 border rounded-lg cursor-pointer hover:shadow-md transition-shadow"
@@ -1006,7 +1161,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     }}
                     onClick={() => {
                       if (assigningToPosition) {
-                        handleAssignStaffToPosition(assigningToPosition, member.id);
+                        handleStaffSelectForAssignment(assigningToPosition, member.id);
                       }
                     }}
                   >
@@ -1103,6 +1258,249 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     {searchTerm ? 'Try adjusting your search terms' : 'All available staff are already assigned to this project'}
                   </p>
                 </div>
+              )}
+                </>
+              ) : (
+                <>
+                  {/* Start Date Selection Form */}
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="flex items-center space-x-3 mb-4">
+                        <User className="w-5 h-5" style={{ color: colors.primary }} />
+                        <div>
+                          <h3 className="font-medium" style={{ color: colors.textPrimary }}>
+                            {staff.find(s => s.id === selectedStaffForAssignment?.staffId)?.staffName}
+                          </h3>
+                          <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Position: {projectPositions.find(p => p.id === selectedStaffForAssignment?.positionId)?.designation}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Start Date
+                      </label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id="useProjectStartDate"
+                              checked={useProjectStartDate}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseProjectStartDate(checked);
+                                if (checked) {
+                                  // When checking, set to formatted project start date
+                                  setAssignmentStartDate(formatDateForInput(projectStartDate) || '');
+                                }
+                                // When unchecking, keep the current assignmentStartDate value (don't reset it)
+                              }}
+                              className="sr-only"
+                            />
+                            <label
+                              htmlFor="useProjectStartDate"
+                              className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                              style={{
+                                backgroundColor: useProjectStartDate ? colors.primary : 'transparent',
+                                borderColor: useProjectStartDate ? colors.primary : colors.border
+                              }}
+                            >
+                              {useProjectStartDate && (
+                                <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </label>
+                          </div>
+                          <div 
+                            className="text-sm cursor-pointer flex-1" 
+                            style={{ color: colors.textPrimary }}
+                            onClick={() => {
+                              const newValue = !useProjectStartDate;
+                              setUseProjectStartDate(newValue);
+                              if (newValue) {
+                                const newStartDate = formatDateForInput(projectStartDate) || '';
+                                setAssignmentStartDate(newStartDate);
+                                // Validate dates when checkbox changes
+                                const currentEndDate = useProjectEndDate 
+                                  ? (formatDateForInput(projectEndDate) || '') 
+                                  : (assignmentEndDate || '');
+                                const validationError = validateDates(newStartDate, currentEndDate);
+                                setDateValidationError(validationError);
+                              }
+                            }}
+                          >
+                            Use project start date
+                            {projectStartDate && (
+                              <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                                ({formatDateForDisplay(projectStartDate)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <input
+                          type="date"
+                          value={useProjectStartDate 
+                            ? (formatDateForInput(projectStartDate) || '') 
+                            : (assignmentStartDate || '')}
+                          onChange={(e) => {
+                            if (!useProjectStartDate) {
+                              const selectedDate = e.target.value;
+                              setAssignmentStartDate(selectedDate);
+                              // Validate dates in real-time
+                              const currentEndDate = useProjectEndDate 
+                                ? (formatDateForInput(projectEndDate) || '') 
+                                : (assignmentEndDate || '');
+                              const validationError = validateDates(selectedDate, currentEndDate);
+                              setDateValidationError(validationError);
+                            }
+                          }}
+                          disabled={useProjectStartDate}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          style={{
+                            backgroundColor: useProjectStartDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                            color: useProjectStartDate ? colors.textMuted : colors.textPrimary,
+                            borderColor: dateValidationError ? '#ef4444' : colors.border,
+                            opacity: useProjectStartDate ? 0.6 : 1,
+                            cursor: useProjectStartDate ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        {dateValidationError && (
+                          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                            {dateValidationError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        End Date
+                      </label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id="useProjectEndDate"
+                              checked={useProjectEndDate}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseProjectEndDate(checked);
+                                if (checked) {
+                                  // When checking, set to formatted project end date
+                                  setAssignmentEndDate(formatDateForInput(projectEndDate) || '');
+                                }
+                                // When unchecking, keep the current assignmentEndDate value (don't reset it)
+                              }}
+                              className="sr-only"
+                            />
+                            <label
+                              htmlFor="useProjectEndDate"
+                              className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                              style={{
+                                backgroundColor: useProjectEndDate ? colors.primary : 'transparent',
+                                borderColor: useProjectEndDate ? colors.primary : colors.border
+                              }}
+                            >
+                              {useProjectEndDate && (
+                                <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </label>
+                          </div>
+                          <div 
+                            className="text-sm cursor-pointer flex-1" 
+                            style={{ color: colors.textPrimary }}
+                            onClick={() => {
+                              const newValue = !useProjectEndDate;
+                              setUseProjectEndDate(newValue);
+                              if (newValue) {
+                                const newEndDate = formatDateForInput(projectEndDate) || '';
+                                setAssignmentEndDate(newEndDate);
+                                // Validate dates when checkbox changes
+                                const currentStartDate = useProjectStartDate 
+                                  ? (formatDateForInput(projectStartDate) || '') 
+                                  : (assignmentStartDate || '');
+                                const validationError = validateDates(currentStartDate, newEndDate);
+                                setDateValidationError(validationError);
+                              }
+                            }}
+                          >
+                            Use project end date
+                            {projectEndDate && (
+                              <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                                ({formatDateForDisplay(projectEndDate)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <input
+                          type="date"
+                          value={useProjectEndDate 
+                            ? (formatDateForInput(projectEndDate) || '') 
+                            : (assignmentEndDate || '')}
+                          onChange={(e) => {
+                            if (!useProjectEndDate) {
+                              const selectedDate = e.target.value;
+                              setAssignmentEndDate(selectedDate);
+                              // Validate dates in real-time
+                              const currentStartDate = useProjectStartDate 
+                                ? (formatDateForInput(projectStartDate) || '') 
+                                : (assignmentStartDate || '');
+                              const validationError = validateDates(currentStartDate, selectedDate);
+                              setDateValidationError(validationError);
+                            }
+                          }}
+                          disabled={useProjectEndDate}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          style={{
+                            backgroundColor: useProjectEndDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                            color: useProjectEndDate ? colors.textMuted : colors.textPrimary,
+                            borderColor: dateValidationError ? '#ef4444' : colors.border,
+                            opacity: useProjectEndDate ? 0.6 : 1,
+                            cursor: useProjectEndDate ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        {dateValidationError && (
+                          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                            {dateValidationError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                      <Button
+                        onClick={() => {
+                          setSelectedStaffForAssignment(null);
+                          setAssignmentStartDate('');
+                          setAssignmentEndDate('');
+                          setUseProjectStartDate(true);
+                          setUseProjectEndDate(true);
+                          setDateValidationError('');
+                        }}
+                        variant="ghost"
+                        disabled={isSubmitting}
+                      >
+                        Back
+                      </Button>
+                      <Button
+                        onClick={handleAssignStaffToPosition}
+                        variant="primary"
+                        disabled={isSubmitting || (!useProjectStartDate && !assignmentStartDate) || (!useProjectEndDate && !assignmentEndDate) || !!dateValidationError}
+                      >
+                        {isSubmitting ? 'Assigning...' : 'Confirm Assignment'}
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -1464,6 +1862,9 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                 onClick={() => {
                   setEditingStaffAssignment(null);
                   setEditUseFullDuration(false);
+                  setEditUseProjectStartDate(false);
+                  setEditUseProjectEndDate(false);
+                  setEditDateValidationError('');
                 }}
                 className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
                 style={{ color: colors.textMuted }}
@@ -1567,69 +1968,244 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   Duration
                 </label>
                 <div className="space-y-4">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="useFullDuration"
-                      checked={editUseFullDuration}
-                      onChange={(e) => {
-                        setEditUseFullDuration(e.target.checked);
-                        if (e.target.checked) {
-                          setEditingStaffAssignment({
-                            ...editingStaffAssignment,
-                            startDate: projectStartDate || null,
-                            endDate: projectEndDate || null
-                          });
-                        }
-                      }}
-                      className="rounded"
-                    />
-                    <label htmlFor="useFullDuration" className="text-sm" style={{ color: colors.textPrimary }}>
-                      Use full project duration ({projectStartDate ? new Date(projectStartDate).toLocaleDateString() : 'TBD'} - {projectEndDate ? new Date(projectEndDate).toLocaleDateString() : 'TBD'})
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Start Date
                     </label>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            id="editUseProjectStartDate"
+                            checked={editUseProjectStartDate}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setEditUseProjectStartDate(checked);
+                              if (checked) {
+                                const newStartDate = formatDateForInput(projectStartDate) || '';
+                                setEditingStaffAssignment({
+                                  ...editingStaffAssignment,
+                                  startDate: newStartDate || null
+                                });
+                                // Validate dates when checkbox changes
+                                const currentEndDate = editUseProjectEndDate 
+                                  ? (formatDateForInput(projectEndDate) || '') 
+                                  : (editingStaffAssignment.endDate && typeof editingStaffAssignment.endDate === 'string' && editingStaffAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                    ? editingStaffAssignment.endDate.split('T')[0].split(' ')[0]
+                                    : formatDateForInput(editingStaffAssignment.endDate) || '');
+                                const validationError = validateDates(newStartDate, currentEndDate, true);
+                                setEditDateValidationError(validationError);
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <label
+                            htmlFor="editUseProjectStartDate"
+                            className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                            style={{
+                              backgroundColor: editUseProjectStartDate ? colors.primary : 'transparent',
+                              borderColor: editUseProjectStartDate ? colors.primary : colors.border
+                            }}
+                          >
+                            {editUseProjectStartDate && (
+                              <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </label>
+                        </div>
+                        <div 
+                          className="text-sm cursor-pointer flex-1" 
+                          style={{ color: colors.textPrimary }}
+                          onClick={() => {
+                            const newValue = !editUseProjectStartDate;
+                            setEditUseProjectStartDate(newValue);
+                            if (newValue) {
+                              const newStartDate = formatDateForInput(projectStartDate) || '';
+                              setEditingStaffAssignment({
+                                ...editingStaffAssignment,
+                                startDate: newStartDate || null
+                              });
+                              // Validate dates when checkbox changes
+                              const currentEndDate = editUseProjectEndDate 
+                                ? (formatDateForInput(projectEndDate) || '') 
+                                : (editingStaffAssignment.endDate && typeof editingStaffAssignment.endDate === 'string' && editingStaffAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                  ? editingStaffAssignment.endDate.split('T')[0].split(' ')[0]
+                                  : formatDateForInput(editingStaffAssignment.endDate) || '');
+                              const validationError = validateDates(newStartDate, currentEndDate, true);
+                              setEditDateValidationError(validationError);
+                            }
+                          }}
+                        >
+                          Use project start date
+                          {projectStartDate && (
+                            <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                              ({formatDateForDisplay(projectStartDate)})
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <input
+                        type="date"
+                        onChange={(e) => {
+                          if (!editUseProjectStartDate) {
+                            const selectedDate = e.target.value;
+                            setEditingStaffAssignment({
+                              ...editingStaffAssignment,
+                              startDate: selectedDate || null
+                            });
+                            // Validate dates in real-time
+                            const currentEndDate = editUseProjectEndDate 
+                              ? (formatDateForInput(projectEndDate) || '') 
+                              : (editingStaffAssignment.endDate && typeof editingStaffAssignment.endDate === 'string' && editingStaffAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                ? editingStaffAssignment.endDate.split('T')[0].split(' ')[0]
+                                : formatDateForInput(editingStaffAssignment.endDate) || '');
+                            const validationError = validateDates(selectedDate, currentEndDate, true);
+                            setEditDateValidationError(validationError);
+                          }
+                        }}
+                        value={editUseProjectStartDate 
+                          ? (formatDateForInput(projectStartDate) || '') 
+                          : (editingStaffAssignment.startDate && typeof editingStaffAssignment.startDate === 'string' && editingStaffAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                            ? editingStaffAssignment.startDate.split('T')[0].split(' ')[0]
+                            : formatDateForInput(editingStaffAssignment.startDate) || '')}
+                        disabled={editUseProjectStartDate}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        style={{ 
+                          backgroundColor: editUseProjectStartDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                          color: editUseProjectStartDate ? colors.textMuted : colors.textPrimary,
+                          borderColor: editDateValidationError ? '#ef4444' : colors.border,
+                          opacity: editUseProjectStartDate ? 0.6 : 1,
+                          cursor: editUseProjectStartDate ? 'not-allowed' : 'text'
+                        }}
+                      />
+                      {editDateValidationError && (
+                        <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                          {editDateValidationError}
+                        </p>
+                      )}
+                    </div>
                   </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                          Start Date
-                        </label>
-                        <input
-                          type="date"
-                          onChange={(e) => setEditingStaffAssignment({
-                            ...editingStaffAssignment,
-                            startDate: e.target.value || null
-                          })}
-                          value={editingStaffAssignment.startDate || ''}
-                          disabled={editUseFullDuration}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                          style={{ 
-                            backgroundColor: editUseFullDuration ? colors.backgroundSecondary : colors.backgroundPrimary,
-                            color: colors.textPrimary,
-                            borderColor: colors.border
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      End Date
+                    </label>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-2">
+                        <div className="relative">
+                          <input
+                            type="checkbox"
+                            id="editUseProjectEndDate"
+                            checked={editUseProjectEndDate}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setEditUseProjectEndDate(checked);
+                              if (checked) {
+                                const newEndDate = formatDateForInput(projectEndDate) || '';
+                                setEditingStaffAssignment({
+                                  ...editingStaffAssignment,
+                                  endDate: newEndDate || null
+                                });
+                                // Validate dates when checkbox changes
+                                const currentStartDate = editUseProjectStartDate 
+                                  ? (formatDateForInput(projectStartDate) || '') 
+                                  : (editingStaffAssignment.startDate && typeof editingStaffAssignment.startDate === 'string' && editingStaffAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                    ? editingStaffAssignment.startDate.split('T')[0].split(' ')[0]
+                                    : formatDateForInput(editingStaffAssignment.startDate) || '');
+                                const validationError = validateDates(currentStartDate, newEndDate, true);
+                                setEditDateValidationError(validationError);
+                              }
+                            }}
+                            className="sr-only"
+                          />
+                          <label
+                            htmlFor="editUseProjectEndDate"
+                            className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                            style={{
+                              backgroundColor: editUseProjectEndDate ? colors.primary : 'transparent',
+                              borderColor: editUseProjectEndDate ? colors.primary : colors.border
+                            }}
+                          >
+                            {editUseProjectEndDate && (
+                              <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                              </svg>
+                            )}
+                          </label>
+                        </div>
+                        <div 
+                          className="text-sm cursor-pointer flex-1" 
+                          style={{ color: colors.textPrimary }}
+                          onClick={() => {
+                            const newValue = !editUseProjectEndDate;
+                            setEditUseProjectEndDate(newValue);
+                            if (newValue) {
+                              const newEndDate = formatDateForInput(projectEndDate) || '';
+                              setEditingStaffAssignment({
+                                ...editingStaffAssignment,
+                                endDate: newEndDate || null
+                              });
+                              // Validate dates when checkbox changes
+                              const currentStartDate = editUseProjectStartDate 
+                                ? (formatDateForInput(projectStartDate) || '') 
+                                : (editingStaffAssignment.startDate && typeof editingStaffAssignment.startDate === 'string' && editingStaffAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                  ? editingStaffAssignment.startDate.split('T')[0].split(' ')[0]
+                                  : formatDateForInput(editingStaffAssignment.startDate) || '');
+                              const validationError = validateDates(currentStartDate, newEndDate, true);
+                              setEditDateValidationError(validationError);
+                            }
                           }}
-                        />
+                        >
+                          Use project end date
+                          {projectEndDate && (
+                            <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                              ({formatDateForDisplay(projectEndDate)})
+                            </span>
+                          )}
+                        </div>
                       </div>
-                      <div>
-                        <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                          End Date
-                        </label>
-                        <input
-                          type="date"
-                          onChange={(e) => setEditingStaffAssignment({
-                            ...editingStaffAssignment,
-                            endDate: e.target.value || null
-                          })}
-                          value={editingStaffAssignment.endDate || ''}
-                          disabled={editUseFullDuration}
-                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
-                          style={{ 
-                            backgroundColor: editUseFullDuration ? colors.backgroundSecondary : colors.backgroundPrimary,
-                            color: colors.textPrimary,
-                            borderColor: colors.border
-                          }}
-                        />
-                      </div>
+                      <input
+                        type="date"
+                        onChange={(e) => {
+                          if (!editUseProjectEndDate) {
+                            const selectedDate = e.target.value;
+                            setEditingStaffAssignment({
+                              ...editingStaffAssignment,
+                              endDate: selectedDate || null
+                            });
+                            // Validate dates in real-time
+                            const currentStartDate = editUseProjectStartDate 
+                              ? (formatDateForInput(projectStartDate) || '') 
+                              : (editingStaffAssignment.startDate && typeof editingStaffAssignment.startDate === 'string' && editingStaffAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                ? editingStaffAssignment.startDate.split('T')[0].split(' ')[0]
+                                : formatDateForInput(editingStaffAssignment.startDate) || '');
+                            const validationError = validateDates(currentStartDate, selectedDate, true);
+                            setEditDateValidationError(validationError);
+                          }
+                        }}
+                        value={editUseProjectEndDate 
+                          ? (formatDateForInput(projectEndDate) || '') 
+                          : (editingStaffAssignment.endDate && typeof editingStaffAssignment.endDate === 'string' && editingStaffAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                            ? editingStaffAssignment.endDate.split('T')[0].split(' ')[0]
+                            : formatDateForInput(editingStaffAssignment.endDate) || '')}
+                        disabled={editUseProjectEndDate}
+                        className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                        style={{ 
+                          backgroundColor: editUseProjectEndDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                          color: editUseProjectEndDate ? colors.textMuted : colors.textPrimary,
+                          borderColor: editDateValidationError ? '#ef4444' : colors.border,
+                          opacity: editUseProjectEndDate ? 0.6 : 1,
+                          cursor: editUseProjectEndDate ? 'not-allowed' : 'text'
+                        }}
+                      />
+                      {editDateValidationError && (
+                        <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                          {editDateValidationError}
+                        </p>
+                      )}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1673,7 +2249,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
               </Button>
               <Button
                 onClick={handleUpdateStaffAssignment}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !!editDateValidationError}
                 style={{ backgroundColor: colors.primary }}
               >
                 {isSubmitting ? 'Updating...' : 'Update Assignment'}

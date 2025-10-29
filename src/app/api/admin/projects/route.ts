@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 // Default checklist template
 const defaultChecklistTemplate = [
@@ -116,11 +117,11 @@ export async function POST(request: NextRequest) {
     // Extract contacts and staff fields from validated data
     const { contacts, projectDirectorId, projectManagerId, ...projectData } = validatedData;
     
-    // Convert date strings to DateTime objects if provided
+    // Convert date strings to DateTime objects if provided (parsed as date-only, no timezone conversion)
     const projectDataWithDates: any = {
       ...projectData,
-      startDate: projectData.startDate ? new Date(projectData.startDate) : null,
-      endDate: projectData.endDate ? new Date(projectData.endDate) : null,
+      startDate: parseDateFromInput(projectData.startDate),
+      endDate: parseDateFromInput(projectData.endDate),
     };
 
     // Add director and manager IDs to project data if provided

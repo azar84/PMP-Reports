@@ -5,6 +5,7 @@ import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { formatCurrency } from '@/lib/currency';
+import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -21,7 +22,10 @@ import {
   UserCheck,
   Users2,
   UserPlus,
-  CheckCircle
+  CheckCircle,
+  User,
+  UserX,
+  Briefcase
 } from 'lucide-react';
 
 interface Labour {
@@ -95,6 +99,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
   const [tradeFilter, setTradeFilter] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dateValidationError, setDateValidationError] = useState<string>('');
   
   // Trade modal state
   const [showTradeModal, setShowTradeModal] = useState(false);
@@ -103,6 +108,16 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
   const [editingLabourAssignment, setEditingLabourAssignment] = useState<ProjectLabourAssignment | null>(null);
   const [editingTrade, setEditingTrade] = useState<ProjectTrade | null>(null);
   const [editUseFullDuration, setEditUseFullDuration] = useState(false);
+  const [editUseProjectStartDate, setEditUseProjectStartDate] = useState(false);
+  const [editUseProjectEndDate, setEditUseProjectEndDate] = useState(false);
+  const [editDateValidationError, setEditDateValidationError] = useState<string>('');
+  
+  // Assignment date selection state
+  const [selectedLabourForAssignment, setSelectedLabourForAssignment] = useState<{ labourId: number; tradeId: number } | null>(null);
+  const [assignmentStartDate, setAssignmentStartDate] = useState('');
+  const [assignmentEndDate, setAssignmentEndDate] = useState('');
+  const [useProjectStartDate, setUseProjectStartDate] = useState(true);
+  const [useProjectEndDate, setUseProjectEndDate] = useState(true);
   
   // Trade dropdown state for new labour form
   const [showTradeDropdown, setShowTradeDropdown] = useState(false);
@@ -159,17 +174,67 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     }
   };
 
-  const handleAssignLabourToTrade = async (tradeId: number, labourId: number) => {
+  const handleLabourSelectForAssignment = (tradeId: number, labourId: number) => {
+    setSelectedLabourForAssignment({ labourId, tradeId });
+    setUseProjectStartDate(true);
+    setUseProjectEndDate(true);
+    // Initialize with formatted project dates
+    const formattedStart = formatDateForInput(projectStartDate) || '';
+    const formattedEnd = formatDateForInput(projectEndDate) || '';
+    setAssignmentStartDate(formattedStart);
+    setAssignmentEndDate(formattedEnd);
+    setDateValidationError('');
+  };
+
+  // Helper function to validate dates
+  const validateDates = (startDateStr: string, endDateStr: string, isEditForm: boolean = false): string => {
+    if (!startDateStr || !endDateStr) return ''; // Don't validate if dates are empty
+    
+    const startDate = startDateStr.split('T')[0];
+    const endDate = endDateStr.split('T')[0];
+    
+    if (startDate > endDate) {
+      return 'End date must be equal to or greater than start date.';
+    }
+    return '';
+  };
+
+  const handleAssignLabourToTrade = async () => {
+    if (!selectedLabourForAssignment) return;
+    
     setIsSubmitting(true);
     setErrorMessage('');
 
     try {
+      // Determine the start date to use (format to YYYY-MM-DD)
+      let startDate = '';
+      if (useProjectStartDate) {
+        startDate = formatDateForInput(projectStartDate) || '';
+      } else {
+        startDate = assignmentStartDate || formatDateForInput(projectStartDate) || '';
+      }
+      
+      // Determine the end date to use (format to YYYY-MM-DD)
+      let endDate = '';
+      if (useProjectEndDate) {
+        endDate = formatDateForInput(projectEndDate) || '';
+      } else {
+        endDate = assignmentEndDate || formatDateForInput(projectEndDate) || '';
+      }
+      
+      // Validate that end date is greater than or equal to start date
+      if (startDate && endDate && startDate > endDate) {
+        setErrorMessage('End date must be equal to or greater than start date.');
+        setIsSubmitting(false);
+        return;
+      }
+
       const response = await post<{ success: boolean; data: any }>('/api/admin/project-labours', {
-        tradeId: tradeId,
-        labourId: labourId,
+        tradeId: selectedLabourForAssignment.tradeId,
+        labourId: selectedLabourForAssignment.labourId,
         utilization: 1,
-        startDate: projectStartDate || '',
-        endDate: projectEndDate || '',
+        startDate: startDate,
+        endDate: endDate,
         status: 'Active',
         notes: null,
       });
@@ -179,6 +244,12 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
         setErrorMessage('');
         setShowAddModal(false);
         setAssigningToTrade(null);
+        setSelectedLabourForAssignment(null);
+        setAssignmentStartDate('');
+        setAssignmentEndDate('');
+        setUseProjectStartDate(true);
+        setUseProjectEndDate(true);
+        setDateValidationError('');
       } else {
         throw new Error('Failed to assign labour to trade');
       }
@@ -224,9 +295,42 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     setErrorMessage('');
 
     try {
+      // Determine the actual dates to send based on checkbox states
+      // If already in YYYY-MM-DD format, use directly; otherwise format
+      let startDate = '';
+      if (editUseProjectStartDate) {
+        startDate = formatDateForInput(projectStartDate) || '';
+      } else {
+        const startValue = editingLabourAssignment.startDate;
+        if (typeof startValue === 'string' && startValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+          startDate = startValue.split('T')[0].split(' ')[0];
+        } else {
+          startDate = formatDateForInput(startValue) || '';
+        }
+      }
+      
+      let endDate = '';
+      if (editUseProjectEndDate) {
+        endDate = formatDateForInput(projectEndDate) || '';
+      } else {
+        const endValue = editingLabourAssignment.endDate;
+        if (typeof endValue === 'string' && endValue.match(/^\d{4}-\d{2}-\d{2}/)) {
+          endDate = endValue.split('T')[0].split(' ')[0];
+        } else {
+          endDate = formatDateForInput(endValue) || '';
+        }
+      }
+      
+      // Validate that end date is greater than or equal to start date
+      if (startDate && endDate && startDate > endDate) {
+        setErrorMessage('End date must be equal to or greater than start date.');
+        setIsSubmitting(false);
+        return;
+      }
+      
       const response = await put<{ success: boolean; data: any }>(`/api/admin/project-labours/${editingLabourAssignment.id}`, {
-        startDate: editingLabourAssignment.startDate,
-        endDate: editingLabourAssignment.endDate,
+        startDate: startDate,
+        endDate: endDate,
         status: editingLabourAssignment.status,
         notes: editingLabourAssignment.notes,
       });
@@ -235,6 +339,9 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
         await fetchProjectTrades();
         setEditingLabourAssignment(null);
         setEditUseFullDuration(false);
+        setEditUseProjectStartDate(false);
+        setEditUseProjectEndDate(false);
+        setEditDateValidationError('');
         setErrorMessage('');
       } else {
         throw new Error('Failed to update labour assignment');
@@ -523,130 +630,255 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
         </div>
         
         {projectTrades.length > 0 ? (
-          <div className="space-y-6">
-            {projectTrades.map((trade) => {
-              const assignedQuantity = trade.labourAssignments.length;
-              const isQuantityMet = assignedQuantity >= trade.requiredQuantity;
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Trade</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Assigned Labour</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Utilization</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Trade Status</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Duration</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Start Date</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>End Date</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
+                  <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {projectTrades.map((trade) => {
+                  const assignedQuantity = trade.labourAssignments.length;
+                  const isQuantityMet = assignedQuantity >= trade.requiredQuantity;
+                  const remainingNeeded = Math.max(0, trade.requiredQuantity - assignedQuantity);
 
-              return (
-                <div key={trade.id} className="border rounded-lg" style={{ borderColor: colors.border }}>
-                  <div className="p-4 flex items-center justify-between" style={{ backgroundColor: colors.backgroundPrimary }}>
-                    <div className="flex items-center space-x-3">
-                      <Wrench className="w-5 h-5" style={{ color: colors.textMuted }} />
-                      <div>
-                        <h4 className="font-semibold" style={{ color: colors.textPrimary }}>
-                          {trade.trade}
-                        </h4>
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
-                          Required: {trade.requiredQuantity} | Assigned: {assignedQuantity}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span 
-                        className={`px-2 py-1 text-xs rounded-full ${isQuantityMet ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`}
-                      >
-                        {isQuantityMet ? 'Covered' : 'Understaffed'}
-                      </span>
-                      <Button
-                        onClick={() => {
-                          setAssigningToTrade(trade.id);
-                          setShowAddModal(true);
-                        }}
-                        variant="ghost"
-                        size="sm"
-                        className="flex items-center space-x-1"
-                      >
-                        <UserPlus className="w-4 h-4" />
-                        <span>Add Labour</span>
-                      </Button>
-                      <Button
-                        onClick={() => {
-                          setEditingTrade(trade);
-                          setErrorMessage('');
-                        }}
-                        variant="ghost"
-                        size="sm"
-                        className="p-1"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteTrade(trade.id)}
-                        variant="ghost"
-                        size="sm"
-                        className="p-1"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </div>
-
-                  {trade.labourAssignments && trade.labourAssignments.length > 0 && (
-                    <div className="p-4 space-y-2">
-                      {trade.labourAssignments.map((assignment) => (
-                        <div 
-                          key={assignment.id} 
-                          className="flex items-center justify-between py-2 px-3 rounded-lg"
-                          style={{ backgroundColor: colors.backgroundSecondary }}
-                        >
-                          <div className="flex items-center space-x-3">
-                            <HardHat className="w-4 h-4" style={{ color: colors.textMuted }} />
-                            <div>
-                              <p className="font-medium" style={{ color: colors.textPrimary }}>
-                                {assignment.labour?.labourName || 'Unassigned'}
-                              </p>
-                              {assignment.labour?.employeeNumber && (
-                                <p className="text-xs" style={{ color: colors.textMuted }}>
-                                  #{assignment.labour.employeeNumber}
-                                </p>
-                              )}
+                  return (
+                    <React.Fragment key={trade.id}>
+                      {/* Trade Header Row */}
+                      <tr className="border-b" style={{ borderColor: colors.border, backgroundColor: colors.backgroundSecondary }}>
+                        <td className="py-3 px-4" colSpan={9}>
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center space-x-2">
+                              <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
+                              <span className="font-medium" style={{ color: colors.textPrimary }}>
+                                {trade.trade}
+                              </span>
+                            </div>
+                            <div className="flex items-center space-x-4">
+                              <div className="flex items-center space-x-2">
+                                <span 
+                                  className={`text-sm font-medium ${
+                                    isQuantityMet ? 'text-green-600' : 'text-orange-600'
+                                  }`}
+                                >
+                                  {isQuantityMet 
+                                    ? `Complete (${assignedQuantity}/${trade.requiredQuantity})` 
+                                    : `${remainingNeeded} needed`
+                                  }
+                                </span>
+                                {!isQuantityMet && (
+                                  <Button
+                                    onClick={() => {
+                                      setAssigningToTrade(trade.id);
+                                      setShowAddModal(true);
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="p-1"
+                                    title={`Add labour to ${trade.trade}`}
+                                  >
+                                    <Plus className="w-3 h-3" />
+                                  </Button>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-2">
+                                <Button
+                                  onClick={() => {
+                                    setEditingTrade(trade);
+                                    setErrorMessage('');
+                                  }}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="p-1"
+                                  title={`Edit ${trade.trade} requirements`}
+                                >
+                                  <Edit className="w-4 h-4" />
+                                </Button>
+                                <Button
+                                  onClick={() => handleDeleteTrade(trade.id)}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="p-1"
+                                >
+                                  <Trash2 className="w-4 h-4" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                          <div className="flex items-center space-x-6">
-                            <div className="flex items-center space-x-2">
-                              {assignment.status === 'Active' ? (
-                                <>
-                                  <CheckCircle className="w-4 h-4" style={{ color: colors.success }} />
-                                  <span className="text-sm" style={{ color: colors.success }}>Active</span>
-                                </>
+                        </td>
+                      </tr>
+                      
+                      {/* Labour Assignment Rows */}
+                      {trade.labourAssignments.length > 0 ? (
+                        trade.labourAssignments.map((assignment) => (
+                          <tr key={assignment.id} className="border-b" style={{ borderColor: colors.border }}>
+                            <td className="py-3 px-4 pl-8">
+                              <span style={{ color: colors.textSecondary }}>Labour Assignment</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              {assignment.labour ? (
+                                <div className="flex items-center space-x-2">
+                                  <HardHat className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                  <div>
+                                    <p className="font-medium" style={{ color: colors.textPrimary }}>{assignment.labour.labourName}</p>
+                                    {assignment.labour.employeeNumber && (
+                                      <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                        #{assignment.labour.employeeNumber}
+                                      </p>
+                                    )}
+                                    {assignment.labour.phone && (
+                                      <div className="flex items-center space-x-1 text-xs" style={{ color: colors.textSecondary }}>
+                                        <Phone className="w-3 h-3" />
+                                        <span>{assignment.labour.phone}</span>
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
                               ) : (
-                                <>
-                                  <AlertCircle className="w-4 h-4" style={{ color: colors.error }} />
-                                  <span className="text-sm" style={{ color: colors.error }}>Inactive</span>
-                                </>
+                                <div className="flex items-center space-x-2">
+                                  <UserX className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                  <span style={{ color: colors.textSecondary }}>Unassigned</span>
+                                </div>
                               )}
-                            </div>
-                            <div className="flex items-center space-x-2">
+                            </td>
+                            <td className="py-3 px-4">
+                              <span style={{ color: colors.textPrimary }}>{assignment.utilization || 1}%</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span style={{ color: colors.textSecondary }}>-</span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span style={{ color: colors.textPrimary }}>
+                                {assignment.startDate && assignment.endDate 
+                                  ? (() => {
+                                      try {
+                                        const start = new Date(assignment.startDate);
+                                        const end = new Date(assignment.endDate);
+                                        if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+                                        const diffTime = Math.abs(end.getTime() - start.getTime());
+                                        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                        return `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+                                      } catch (error) {
+                                        return '-';
+                                      }
+                                    })()
+                                  : '-'
+                                }
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span style={{ color: colors.textPrimary }}>
+                                {assignment.startDate ? formatDateForDisplay(assignment.startDate) : '-'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span style={{ color: colors.textPrimary }}>
+                                {assignment.endDate ? formatDateForDisplay(assignment.endDate) : '-'}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <span 
+                                className={`px-2 py-1 text-xs rounded-full ${
+                                  assignment.status === 'Active' ? 'bg-green-100 text-green-800' : 
+                                  assignment.status === 'Inactive' ? 'bg-gray-100 text-gray-800' : 
+                                  'bg-blue-100 text-blue-800'
+                                }`}
+                              >
+                                {assignment.status}
+                              </span>
+                            </td>
+                            <td className="py-3 px-4">
+                              <div className="flex items-center space-x-2">
+                                {assignment.labour ? (
+                                  <>
+                                    <Button
+                                      onClick={() => {
+                                        try {
+                                          setEditingLabourAssignment(assignment);
+                                          setEditUseFullDuration(false);
+                                          setErrorMessage('');
+                                          // Normalize dates to YYYY-MM-DD strings to avoid timezone issues
+                                          const normalizedStartDate = formatDateForInput(assignment.startDate);
+                                          const normalizedEndDate = formatDateForInput(assignment.endDate);
+                                          // Initialize checkbox states based on current assignment dates
+                                          const projectStart = formatDateForInput(projectStartDate);
+                                          const projectEnd = formatDateForInput(projectEndDate);
+                                          setEditUseProjectStartDate(normalizedStartDate === projectStart && normalizedStartDate !== '');
+                                          setEditUseProjectEndDate(normalizedEndDate === projectEnd && normalizedEndDate !== '');
+                                          // Validate dates when opening edit form
+                                          const validationError = validateDates(normalizedStartDate, normalizedEndDate, true);
+                                          setEditDateValidationError(validationError);
+                                        } catch (error) {
+                                          console.error('Error setting editing labour assignment:', error);
+                                        }
+                                      }}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="p-1"
+                                    >
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                    <Button
+                                      onClick={() => handleUnassignLabour(assignment.id)}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="p-1"
+                                    >
+                                      <UserX className="w-4 h-4" />
+                                    </Button>
+                                  </>
+                                ) : (
+                                  <Button
+                                    onClick={() => {
+                                      setAssigningToTrade(trade.id);
+                                      setShowAddModal(true);
+                                    }}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="p-1"
+                                  >
+                                    <Plus className="w-4 h-4" />
+                                  </Button>
+                                )}
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr className="border-b" style={{ borderColor: colors.border }}>
+                          <td className="py-3 px-4 pl-8 text-center" colSpan={9}>
+                            <div className="flex items-center justify-center space-x-2 py-2">
+                              <UserX className="w-4 h-4" style={{ color: colors.textMuted }} />
+                              <span style={{ color: colors.textSecondary }}>No labour assigned</span>
                               <Button
                                 onClick={() => {
-                                  setEditingLabourAssignment(assignment);
-                                  setEditUseFullDuration(false);
-                                  setErrorMessage('');
+                                  setAssigningToTrade(trade.id);
+                                  setShowAddModal(true);
                                 }}
                                 variant="ghost"
                                 size="sm"
                                 className="p-1"
                               >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
-                                onClick={() => handleUnassignLabour(assignment.id)}
-                                variant="ghost"
-                                size="sm"
-                                className="p-1"
-                              >
-                                <Trash2 className="w-4 h-4" />
+                                <Plus className="w-3 h-3" />
                               </Button>
                             </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                          </td>
+                        </tr>
+                      )}
+                    </React.Fragment>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : (
           <div className="text-center py-12">
@@ -762,6 +994,12 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                     setShowTradeDropdown(false);
                     setTradeSearchTerm('');
                     setErrorMessage('');
+                    setSelectedLabourForAssignment(null);
+                    setAssignmentStartDate('');
+                    setAssignmentEndDate('');
+                    setUseProjectStartDate(true);
+                    setUseProjectEndDate(true);
+                    setDateValidationError('');
                   }}
                   variant="ghost"
                   className="p-2"
@@ -804,66 +1042,68 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                 </div>
               )}
 
-              {modalTab === 'existing' ? (
-                <div className="space-y-2 max-h-96 overflow-y-auto">
-                  {filteredLabours.length === 0 ? (
-                    <div className="text-center py-8">
-                      <HardHat className="w-12 h-12 mx-auto mb-2" style={{ color: colors.textMuted }} />
-                      <p style={{ color: colors.textSecondary }}>No labours found</p>
+              {!selectedLabourForAssignment ? (
+                <>
+                  {modalTab === 'existing' ? (
+                    <div className="space-y-2 max-h-96 overflow-y-auto">
+                      {filteredLabours.length === 0 ? (
+                        <div className="text-center py-8">
+                          <HardHat className="w-12 h-12 mx-auto mb-2" style={{ color: colors.textMuted }} />
+                          <p style={{ color: colors.textSecondary }}>No labours found</p>
+                        </div>
+                      ) : (
+                        filteredLabours.map((labour) => {
+                          const isAlreadyAssigned = projectTrades.some(trade =>
+                            trade.labourAssignments.some(assignment => assignment.labourId === labour.id)
+                          );
+
+                          return (
+                            <button
+                              key={labour.id}
+                              onClick={() => handleLabourSelectForAssignment(assigningToTrade!, labour.id)}
+                              disabled={isAlreadyAssigned || isSubmitting}
+                              className={`w-full p-4 text-left rounded-lg border transition-colors ${
+                                isAlreadyAssigned 
+                                  ? 'opacity-50 cursor-not-allowed'
+                                  : 'hover:border-current'
+                              }`}
+                              style={{ borderColor: colors.border }}
+                            >
+                              <div className="flex items-center justify-between">
+                                <div>
+                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {labour.labourName}
+                                  </p>
+                                  {labour.employeeNumber && (
+                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
+                                      #{labour.employeeNumber}
+                                    </p>
+                                  )}
+                                  {labour.phone && (
+                                    <p className="text-sm flex items-center space-x-1" style={{ color: colors.textMuted }}>
+                                      <Phone className="w-3 h-3" />
+                                      <span>{labour.phone}</span>
+                                    </p>
+                                  )}
+                                  {labour.trade && (
+                                    <p className="text-sm" style={{ color: colors.textMuted }}>
+                                      Trade: {labour.trade}
+                                    </p>
+                                  )}
+                                </div>
+                                {isAlreadyAssigned && (
+                                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                    Already Assigned
+                                  </span>
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })
+                      )}
                     </div>
                   ) : (
-                    filteredLabours.map((labour) => {
-                      const isAlreadyAssigned = projectTrades.some(trade =>
-                        trade.labourAssignments.some(assignment => assignment.labourId === labour.id)
-                      );
-
-                      return (
-                        <button
-                          key={labour.id}
-                          onClick={() => handleAssignLabourToTrade(assigningToTrade, labour.id)}
-                          disabled={isAlreadyAssigned || isSubmitting}
-                          className={`w-full p-4 text-left rounded-lg border transition-colors ${
-                            isAlreadyAssigned 
-                              ? 'opacity-50 cursor-not-allowed'
-                              : 'hover:border-current'
-                          }`}
-                          style={{ borderColor: colors.border }}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="font-medium" style={{ color: colors.textPrimary }}>
-                                {labour.labourName}
-                              </p>
-                              {labour.employeeNumber && (
-                                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                  #{labour.employeeNumber}
-                                </p>
-                              )}
-                              {labour.phone && (
-                                <p className="text-sm flex items-center space-x-1" style={{ color: colors.textMuted }}>
-                                  <Phone className="w-3 h-3" />
-                                  <span>{labour.phone}</span>
-                                </p>
-                              )}
-                              {labour.trade && (
-                                <p className="text-sm" style={{ color: colors.textMuted }}>
-                                  Trade: {labour.trade}
-                                </p>
-                              )}
-                            </div>
-                            {isAlreadyAssigned && (
-                              <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
-                                Already Assigned
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-              ) : (
-                <div className="space-y-4">
+                    <div className="space-y-4">
                   <Input
                     type="text"
                     label="Labour Name *"
@@ -976,7 +1216,260 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       {isSubmitting ? 'Adding...' : 'Add Labour'}
                     </Button>
                   </div>
-                </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  {/* Start Date Selection Form */}
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="flex items-center space-x-3 mb-4">
+                        <HardHat className="w-5 h-5" style={{ color: colors.primary }} />
+                        <div>
+                          <h3 className="font-medium" style={{ color: colors.textPrimary }}>
+                            {labours.find(l => l.id === selectedLabourForAssignment?.labourId)?.labourName}
+                          </h3>
+                          <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Trade: {projectTrades.find(t => t.id === selectedLabourForAssignment?.tradeId)?.trade}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Start Date
+                      </label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id="useProjectStartDateLabour"
+                              checked={useProjectStartDate}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseProjectStartDate(checked);
+                                if (checked) {
+                                  const newStartDate = formatDateForInput(projectStartDate) || '';
+                                  setAssignmentStartDate(newStartDate);
+                                  // Validate dates when checkbox changes
+                                  const currentEndDate = useProjectEndDate 
+                                    ? (formatDateForInput(projectEndDate) || '') 
+                                    : (assignmentEndDate || '');
+                                  const validationError = validateDates(newStartDate, currentEndDate);
+                                  setDateValidationError(validationError);
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <label
+                              htmlFor="useProjectStartDateLabour"
+                              className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                              style={{
+                                backgroundColor: useProjectStartDate ? colors.primary : 'transparent',
+                                borderColor: useProjectStartDate ? colors.primary : colors.border
+                              }}
+                            >
+                              {useProjectStartDate && (
+                                <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </label>
+                          </div>
+                          <div 
+                            className="text-sm cursor-pointer flex-1" 
+                            style={{ color: colors.textPrimary }}
+                            onClick={() => {
+                              const newValue = !useProjectStartDate;
+                              setUseProjectStartDate(newValue);
+                              if (newValue) {
+                                const newStartDate = formatDateForInput(projectStartDate) || '';
+                                setAssignmentStartDate(newStartDate);
+                                // Validate dates when checkbox changes
+                                const currentEndDate = useProjectEndDate 
+                                  ? (formatDateForInput(projectEndDate) || '') 
+                                  : (assignmentEndDate || '');
+                                const validationError = validateDates(newStartDate, currentEndDate);
+                                setDateValidationError(validationError);
+                              }
+                            }}
+                          >
+                            Use project start date
+                            {projectStartDate && (
+                              <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                                ({formatDateForDisplay(projectStartDate)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <input
+                          type="date"
+                          value={useProjectStartDate 
+                            ? (formatDateForInput(projectStartDate) || '') 
+                            : (assignmentStartDate || '')}
+                          onChange={(e) => {
+                            if (!useProjectStartDate) {
+                              const selectedDate = e.target.value;
+                              setAssignmentStartDate(selectedDate);
+                              // Validate dates in real-time
+                              const currentEndDate = useProjectEndDate 
+                                ? (formatDateForInput(projectEndDate) || '') 
+                                : (assignmentEndDate || '');
+                              const validationError = validateDates(selectedDate, currentEndDate);
+                              setDateValidationError(validationError);
+                            }
+                          }}
+                          disabled={useProjectStartDate}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          style={{
+                            backgroundColor: useProjectStartDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                            color: useProjectStartDate ? colors.textMuted : colors.textPrimary,
+                            borderColor: dateValidationError ? '#ef4444' : colors.border,
+                            opacity: useProjectStartDate ? 0.6 : 1,
+                            cursor: useProjectStartDate ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        {dateValidationError && (
+                          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                            {dateValidationError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        End Date
+                      </label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id="useProjectEndDateLabour"
+                              checked={useProjectEndDate}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setUseProjectEndDate(checked);
+                                if (checked) {
+                                  const newEndDate = formatDateForInput(projectEndDate) || '';
+                                  setAssignmentEndDate(newEndDate);
+                                  // Validate dates when checkbox changes
+                                  const currentStartDate = useProjectStartDate 
+                                    ? (formatDateForInput(projectStartDate) || '') 
+                                    : (assignmentStartDate || '');
+                                  const validationError = validateDates(currentStartDate, newEndDate);
+                                  setDateValidationError(validationError);
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <label
+                              htmlFor="useProjectEndDateLabour"
+                              className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                              style={{
+                                backgroundColor: useProjectEndDate ? colors.primary : 'transparent',
+                                borderColor: useProjectEndDate ? colors.primary : colors.border
+                              }}
+                            >
+                              {useProjectEndDate && (
+                                <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </label>
+                          </div>
+                          <div 
+                            className="text-sm cursor-pointer flex-1" 
+                            style={{ color: colors.textPrimary }}
+                            onClick={() => {
+                              const newValue = !useProjectEndDate;
+                              setUseProjectEndDate(newValue);
+                              if (newValue) {
+                                const newEndDate = formatDateForInput(projectEndDate) || '';
+                                setAssignmentEndDate(newEndDate);
+                                // Validate dates when checkbox changes
+                                const currentStartDate = useProjectStartDate 
+                                  ? (formatDateForInput(projectStartDate) || '') 
+                                  : (assignmentStartDate || '');
+                                const validationError = validateDates(currentStartDate, newEndDate);
+                                setDateValidationError(validationError);
+                              }
+                            }}
+                          >
+                            Use project end date
+                            {projectEndDate && (
+                              <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                                ({formatDateForDisplay(projectEndDate)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        
+                        <input
+                          type="date"
+                          value={useProjectEndDate 
+                            ? (formatDateForInput(projectEndDate) || '') 
+                            : (assignmentEndDate || '')}
+                          onChange={(e) => {
+                            if (!useProjectEndDate) {
+                              const selectedDate = e.target.value;
+                              setAssignmentEndDate(selectedDate);
+                              // Validate dates in real-time
+                              const currentStartDate = useProjectStartDate 
+                                ? (formatDateForInput(projectStartDate) || '') 
+                                : (assignmentStartDate || '');
+                              const validationError = validateDates(currentStartDate, selectedDate);
+                              setDateValidationError(validationError);
+                            }
+                          }}
+                          disabled={useProjectEndDate}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          style={{
+                            backgroundColor: useProjectEndDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                            color: useProjectEndDate ? colors.textMuted : colors.textPrimary,
+                            borderColor: dateValidationError ? '#ef4444' : colors.border,
+                            opacity: useProjectEndDate ? 0.6 : 1,
+                            cursor: useProjectEndDate ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        {dateValidationError && (
+                          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                            {dateValidationError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex justify-end space-x-3 pt-4">
+                      <Button
+                        onClick={() => {
+                          setSelectedLabourForAssignment(null);
+                          setAssignmentStartDate('');
+                          setAssignmentEndDate('');
+                          setUseProjectStartDate(true);
+                          setUseProjectEndDate(true);
+                          setDateValidationError('');
+                        }}
+                        variant="ghost"
+                        disabled={isSubmitting}
+                      >
+                        Back
+                      </Button>
+                      <Button
+                        onClick={handleAssignLabourToTrade}
+                        variant="primary"
+                        disabled={isSubmitting || (!useProjectStartDate && !assignmentStartDate) || (!useProjectEndDate && !assignmentEndDate) || !!dateValidationError}
+                      >
+                        {isSubmitting ? 'Assigning...' : 'Confirm Assignment'}
+                      </Button>
+                    </div>
+                  </div>
+                </>
               )}
             </div>
           </Card>
@@ -996,13 +1489,25 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   Edit Labour Assignment
                 </h2>
                 <Button
-                  onClick={() => setEditingLabourAssignment(null)}
+                  onClick={() => {
+                    setEditingLabourAssignment(null);
+                    setEditUseFullDuration(false);
+                    setEditUseProjectStartDate(false);
+                    setEditUseProjectEndDate(false);
+                    setEditDateValidationError('');
+                  }}
                   variant="ghost"
                   className="p-2"
                 >
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+
+              {errorMessage && (
+                <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-red-800 text-sm">{errorMessage}</p>
+                </div>
+              )}
 
               <div className="space-y-4">
                 <div>
@@ -1021,9 +1526,262 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   </select>
                 </div>
 
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Duration
+                  </label>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Start Date
+                      </label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id="editUseProjectStartDateLabour"
+                              checked={editUseProjectStartDate}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setEditUseProjectStartDate(checked);
+                                if (checked) {
+                                  const newStartDate = formatDateForInput(projectStartDate) || '';
+                                  setEditingLabourAssignment({
+                                    ...editingLabourAssignment,
+                                    startDate: newStartDate || null
+                                  });
+                                  // Validate dates when checkbox changes
+                                  const currentEndDate = editUseProjectEndDate 
+                                    ? (formatDateForInput(projectEndDate) || '') 
+                                    : (editingLabourAssignment.endDate && typeof editingLabourAssignment.endDate === 'string' && editingLabourAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                      ? editingLabourAssignment.endDate.split('T')[0].split(' ')[0]
+                                      : formatDateForInput(editingLabourAssignment.endDate) || '');
+                                  const validationError = validateDates(newStartDate, currentEndDate, true);
+                                  setEditDateValidationError(validationError);
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <label
+                              htmlFor="editUseProjectStartDateLabour"
+                              className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                              style={{
+                                backgroundColor: editUseProjectStartDate ? colors.primary : 'transparent',
+                                borderColor: editUseProjectStartDate ? colors.primary : colors.border
+                              }}
+                            >
+                              {editUseProjectStartDate && (
+                                <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </label>
+                          </div>
+                          <div 
+                            className="text-sm cursor-pointer flex-1" 
+                            style={{ color: colors.textPrimary }}
+                            onClick={() => {
+                              const newValue = !editUseProjectStartDate;
+                              setEditUseProjectStartDate(newValue);
+                              if (newValue) {
+                                const newStartDate = formatDateForInput(projectStartDate) || '';
+                                setEditingLabourAssignment({
+                                  ...editingLabourAssignment,
+                                  startDate: newStartDate || null
+                                });
+                                // Validate dates when checkbox changes
+                                const currentEndDate = editUseProjectEndDate 
+                                  ? (formatDateForInput(projectEndDate) || '') 
+                                  : (editingLabourAssignment.endDate && typeof editingLabourAssignment.endDate === 'string' && editingLabourAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                    ? editingLabourAssignment.endDate.split('T')[0].split(' ')[0]
+                                    : formatDateForInput(editingLabourAssignment.endDate) || '');
+                                const validationError = validateDates(newStartDate, currentEndDate, true);
+                                setEditDateValidationError(validationError);
+                              }
+                            }}
+                          >
+                            Use project start date
+                            {projectStartDate && (
+                              <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                                ({formatDateForDisplay(projectStartDate)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          type="date"
+                          onChange={(e) => {
+                            if (!editUseProjectStartDate) {
+                              const selectedDate = e.target.value;
+                              setEditingLabourAssignment({
+                                ...editingLabourAssignment,
+                                startDate: selectedDate || null
+                              });
+                              // Validate dates in real-time
+                              const currentEndDate = editUseProjectEndDate 
+                                ? (formatDateForInput(projectEndDate) || '') 
+                                : (editingLabourAssignment.endDate && typeof editingLabourAssignment.endDate === 'string' && editingLabourAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                  ? editingLabourAssignment.endDate.split('T')[0].split(' ')[0]
+                                  : formatDateForInput(editingLabourAssignment.endDate) || '');
+                              const validationError = validateDates(selectedDate, currentEndDate, true);
+                              setEditDateValidationError(validationError);
+                            }
+                          }}
+                          value={editUseProjectStartDate 
+                            ? (formatDateForInput(projectStartDate) || '') 
+                            : (editingLabourAssignment.startDate && typeof editingLabourAssignment.startDate === 'string' && editingLabourAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                              ? editingLabourAssignment.startDate.split('T')[0].split(' ')[0]
+                              : formatDateForInput(editingLabourAssignment.startDate) || '')}
+                          disabled={editUseProjectStartDate}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          style={{ 
+                            backgroundColor: editUseProjectStartDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                            color: editUseProjectStartDate ? colors.textMuted : colors.textPrimary,
+                            borderColor: editDateValidationError ? '#ef4444' : colors.border,
+                            opacity: editUseProjectStartDate ? 0.6 : 1,
+                            cursor: editUseProjectStartDate ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        {editDateValidationError && (
+                          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                            {editDateValidationError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        End Date
+                      </label>
+                      <div className="space-y-3">
+                        <div className="flex items-center space-x-2">
+                          <div className="relative">
+                            <input
+                              type="checkbox"
+                              id="editUseProjectEndDateLabour"
+                              checked={editUseProjectEndDate}
+                              onChange={(e) => {
+                                const checked = e.target.checked;
+                                setEditUseProjectEndDate(checked);
+                                if (checked) {
+                                  const newEndDate = formatDateForInput(projectEndDate) || '';
+                                  setEditingLabourAssignment({
+                                    ...editingLabourAssignment,
+                                    endDate: newEndDate || null
+                                  });
+                                  // Validate dates when checkbox changes
+                                  const currentStartDate = editUseProjectStartDate 
+                                    ? (formatDateForInput(projectStartDate) || '') 
+                                    : (editingLabourAssignment.startDate && typeof editingLabourAssignment.startDate === 'string' && editingLabourAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                      ? editingLabourAssignment.startDate.split('T')[0].split(' ')[0]
+                                      : formatDateForInput(editingLabourAssignment.startDate) || '');
+                                  const validationError = validateDates(currentStartDate, newEndDate, true);
+                                  setEditDateValidationError(validationError);
+                                }
+                              }}
+                              className="sr-only"
+                            />
+                            <label
+                              htmlFor="editUseProjectEndDateLabour"
+                              className="w-4 h-4 rounded cursor-pointer flex items-center justify-center border-2 transition-colors"
+                              style={{
+                                backgroundColor: editUseProjectEndDate ? colors.primary : 'transparent',
+                                borderColor: editUseProjectEndDate ? colors.primary : colors.border
+                              }}
+                            >
+                              {editUseProjectEndDate && (
+                                <svg className="w-3 h-3" fill="white" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                                </svg>
+                              )}
+                            </label>
+                          </div>
+                          <div 
+                            className="text-sm cursor-pointer flex-1" 
+                            style={{ color: colors.textPrimary }}
+                            onClick={() => {
+                              const newValue = !editUseProjectEndDate;
+                              setEditUseProjectEndDate(newValue);
+                              if (newValue) {
+                                const newEndDate = formatDateForInput(projectEndDate) || '';
+                                setEditingLabourAssignment({
+                                  ...editingLabourAssignment,
+                                  endDate: newEndDate || null
+                                });
+                                // Validate dates when checkbox changes
+                                const currentStartDate = editUseProjectStartDate 
+                                  ? (formatDateForInput(projectStartDate) || '') 
+                                  : (editingLabourAssignment.startDate && typeof editingLabourAssignment.startDate === 'string' && editingLabourAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                    ? editingLabourAssignment.startDate.split('T')[0].split(' ')[0]
+                                    : formatDateForInput(editingLabourAssignment.startDate) || '');
+                                const validationError = validateDates(currentStartDate, newEndDate, true);
+                                setEditDateValidationError(validationError);
+                              }
+                            }}
+                          >
+                            Use project end date
+                            {projectEndDate && (
+                              <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
+                                ({formatDateForDisplay(projectEndDate)})
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        <input
+                          type="date"
+                          onChange={(e) => {
+                            if (!editUseProjectEndDate) {
+                              const selectedDate = e.target.value;
+                              setEditingLabourAssignment({
+                                ...editingLabourAssignment,
+                                endDate: selectedDate || null
+                              });
+                              // Validate dates in real-time
+                              const currentStartDate = editUseProjectStartDate 
+                                ? (formatDateForInput(projectStartDate) || '') 
+                                : (editingLabourAssignment.startDate && typeof editingLabourAssignment.startDate === 'string' && editingLabourAssignment.startDate.match(/^\d{4}-\d{2}-\d{2}/)
+                                  ? editingLabourAssignment.startDate.split('T')[0].split(' ')[0]
+                                  : formatDateForInput(editingLabourAssignment.startDate) || '');
+                              const validationError = validateDates(currentStartDate, selectedDate, true);
+                              setEditDateValidationError(validationError);
+                            }
+                          }}
+                          value={editUseProjectEndDate 
+                            ? (formatDateForInput(projectEndDate) || '') 
+                            : (editingLabourAssignment.endDate && typeof editingLabourAssignment.endDate === 'string' && editingLabourAssignment.endDate.match(/^\d{4}-\d{2}-\d{2}/)
+                              ? editingLabourAssignment.endDate.split('T')[0].split(' ')[0]
+                              : formatDateForInput(editingLabourAssignment.endDate) || '')}
+                          disabled={editUseProjectEndDate}
+                          className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                          style={{ 
+                            backgroundColor: editUseProjectEndDate ? colors.backgroundSecondary : colors.backgroundPrimary,
+                            color: editUseProjectEndDate ? colors.textMuted : colors.textPrimary,
+                            borderColor: editDateValidationError ? '#ef4444' : colors.border,
+                            opacity: editUseProjectEndDate ? 0.6 : 1,
+                            cursor: editUseProjectEndDate ? 'not-allowed' : 'text'
+                          }}
+                        />
+                        {editDateValidationError && (
+                          <p className="text-xs mt-1" style={{ color: '#ef4444' }}>
+                            {editDateValidationError}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="flex justify-end space-x-3">
                   <Button
-                    onClick={() => setEditingLabourAssignment(null)}
+                    onClick={() => {
+                      setEditingLabourAssignment(null);
+                      setEditUseFullDuration(false);
+                      setEditUseProjectStartDate(false);
+                      setEditUseProjectEndDate(false);
+                      setEditDateValidationError('');
+                    }}
                     variant="ghost"
                   >
                     Cancel
@@ -1031,7 +1789,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   <Button
                     onClick={handleUpdateLabourAssignment}
                     variant="primary"
-                    disabled={isSubmitting}
+                    disabled={isSubmitting || !!editDateValidationError}
                   >
                     {isSubmitting ? 'Updating...' : 'Update'}
                   </Button>

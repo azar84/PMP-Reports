@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 // Schema for creating a project position
 const createPositionSchema = z.object({
@@ -152,33 +153,71 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const staffAssignment = await prisma.projectStaff.create({
-        data: {
-          projectId: position.projectId,
-          positionId: validatedData.positionId,
-          staffId: validatedData.staffId,
-          utilization: validatedData.utilization,
-          startDate: validatedData.startDate && validatedData.startDate !== '' ? new Date(validatedData.startDate) : null,
-          endDate: validatedData.endDate && validatedData.endDate !== '' ? new Date(validatedData.endDate) : null,
-          status: validatedData.status,
-          notes: validatedData.notes && validatedData.notes !== '' ? validatedData.notes : null,
-        },
-        include: {
-          staff: true,
-          position: true,
-          project: {
-            select: {
-              id: true,
-              projectName: true,
-              projectCode: true,
+      // Use transaction to create assignment and history record
+      const result = await prisma.$transaction(async (tx) => {
+        const staffAssignment = await tx.projectStaff.create({
+          data: {
+            projectId: position.projectId,
+            positionId: validatedData.positionId,
+            staffId: validatedData.staffId,
+            utilization: validatedData.utilization,
+            startDate: parseDateFromInput(validatedData.startDate),
+            endDate: parseDateFromInput(validatedData.endDate),
+            status: validatedData.status,
+            notes: validatedData.notes && validatedData.notes !== '' ? validatedData.notes : null,
+          },
+          include: {
+            staff: true,
+            position: {
+              select: {
+                id: true,
+                designation: true,
+                project: {
+                  select: {
+                    id: true,
+                    projectName: true,
+                  },
+                },
+              },
+            },
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+              },
             },
           },
-        },
+        });
+
+        // Create assignment history record
+        await tx.staffMovementHistory.create({
+          data: {
+            staffId: validatedData.staffId,
+            type: 'assignment',
+            fromProjectId: null,
+            fromProjectName: null,
+            fromPositionId: null,
+            fromPositionName: null,
+            toProjectId: position.projectId,
+            toProjectName: staffAssignment.project.projectName,
+            toPositionId: validatedData.positionId,
+            toPositionName: staffAssignment.position.designation,
+            movedBy: null,
+            movementDate: validatedData.startDate && validatedData.startDate !== '' 
+              ? parseDateFromInput(validatedData.startDate) || new Date()
+              : new Date(),
+            notes: validatedData.notes && validatedData.notes !== '' ? validatedData.notes : null,
+            projectStaffId: staffAssignment.id,
+          },
+        });
+
+        return staffAssignment;
       });
 
       return NextResponse.json({
         success: true,
-        data: staffAssignment,
+        data: result,
         message: 'Staff assigned to position successfully',
       });
     } else {

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 const updateProjectLabourSchema = z.object({
   labourId: z.number().int().positive().nullable().optional(),
@@ -81,10 +82,10 @@ export async function PUT(
     const updateData: any = {};
     if (validatedData.utilization !== undefined) updateData.utilization = validatedData.utilization;
     if (validatedData.startDate !== undefined) {
-      updateData.startDate = validatedData.startDate ? new Date(validatedData.startDate) : null;
+      updateData.startDate = parseDateFromInput(validatedData.startDate);
     }
     if (validatedData.endDate !== undefined) {
-      updateData.endDate = validatedData.endDate ? new Date(validatedData.endDate) : null;
+      updateData.endDate = parseDateFromInput(validatedData.endDate);
     }
     if (validatedData.status !== undefined) updateData.status = validatedData.status;
     if (validatedData.notes !== undefined) updateData.notes = validatedData.notes || null;

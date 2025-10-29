@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { z } from 'zod';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 // Schema for updating project staff assignment
 const updateProjectStaffSchema = z.object({
@@ -81,12 +82,12 @@ export async function PUT(
 
     const updateData: any = { ...validatedData };
     
-    // Handle date fields
+    // Handle date fields - parse as date-only, no timezone conversion
     if (validatedData.startDate !== undefined) {
-      updateData.startDate = validatedData.startDate ? new Date(validatedData.startDate) : null;
+      updateData.startDate = parseDateFromInput(validatedData.startDate);
     }
     if (validatedData.endDate !== undefined) {
-      updateData.endDate = validatedData.endDate ? new Date(validatedData.endDate) : null;
+      updateData.endDate = parseDateFromInput(validatedData.endDate);
     }
 
     const updatedProjectStaff = await prisma.projectStaff.update({

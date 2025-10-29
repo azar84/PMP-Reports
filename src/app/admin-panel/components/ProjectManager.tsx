@@ -5,6 +5,7 @@ import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { formatCurrency } from '@/lib/currency';
+import { formatDateForInput } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -601,8 +602,8 @@ export default function ProjectManager() {
       costConsultantId: project.costConsultantId ?? undefined,
       projectDirectorId: project.projectDirectorId ?? undefined,
       projectManagerId: project.projectManagerId ?? undefined,
-      startDate: project.startDate ? new Date(project.startDate).toISOString().split('T')[0] : '',
-      endDate: project.endDate ? new Date(project.endDate).toISOString().split('T')[0] : '',
+      startDate: formatDateForInput(project.startDate),
+      endDate: formatDateForInput(project.endDate),
       duration: project.duration || '',
       eot: project.eot || '',
       projectValue: project.projectValue ?? undefined,
