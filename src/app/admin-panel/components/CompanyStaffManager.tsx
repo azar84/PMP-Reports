@@ -84,6 +84,7 @@ export default function CompanyStaffManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [positionSearchTerm, setPositionSearchTerm] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'utilized'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all');
   const [showPositionDropdown, setShowPositionDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<CompanyStaff | null>(null);
@@ -328,7 +329,13 @@ export default function CompanyStaffManager() {
       matchesAvailability = !isAvailable;
     }
 
-    return matchesSearch && matchesAvailability;
+    // Apply active filter
+    let matchesActive = true;
+    if (activeFilter === 'active') {
+      matchesActive = staffMember.isActive === true;
+    }
+
+    return matchesSearch && matchesAvailability && matchesActive;
   });
 
   const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
@@ -847,6 +854,19 @@ export default function CompanyStaffManager() {
         />
         </div>
         <div className="flex items-center space-x-2">
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active')}
+            className="px-4 py-2 border rounded-lg text-sm"
+            style={{
+              backgroundColor: colors.backgroundSecondary,
+              borderColor: colors.border,
+              color: colors.textPrimary
+            }}
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active Only</option>
+          </select>
           <select
             value={availabilityFilter}
             onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'utilized')}

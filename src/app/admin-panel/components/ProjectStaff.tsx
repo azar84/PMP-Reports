@@ -434,7 +434,9 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   };
 
   // Use company positions for filter dropdown
-  const filteredStaff = staff.filter(member =>
+  const filteredStaff = staff
+    .filter(member => member.isActive === true) // Only show active staff
+    .filter(member =>
     member.staffName.toLowerCase().includes(searchTerm.toLowerCase()) ||
     member.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     (member.email && member.email.toLowerCase().includes(searchTerm.toLowerCase())) ||

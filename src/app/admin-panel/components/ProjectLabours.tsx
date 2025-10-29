@@ -104,11 +104,16 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
   const [editingTrade, setEditingTrade] = useState<ProjectTrade | null>(null);
   const [editUseFullDuration, setEditUseFullDuration] = useState(false);
   
-  const [newLabour, setNewLabour] = useState<Partial<Labour>>({
+  // Trade dropdown state for new labour form
+  const [showTradeDropdown, setShowTradeDropdown] = useState(false);
+  const [tradeSearchTerm, setTradeSearchTerm] = useState('');
+  
+  const [newLabour, setNewLabour] = useState<Partial<Labour & { tradeId?: number }>>({
     labourName: '',
     employeeNumber: '',
     phone: '',
     trade: '',
+    tradeId: undefined,
     isActive: true,
   });
 
@@ -312,7 +317,21 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     setErrorMessage('');
 
     try {
-      const response = await post<{ success: boolean; data: Labour }>('/api/admin/labours', newLabour);
+      // Get the trade name from the selected tradeId
+      const selectedTrade = trades.find(t => t.id === newLabour.tradeId);
+      
+      const labourData = {
+        ...newLabour,
+        employeeNumber: newLabour.employeeNumber || undefined,
+        phone: newLabour.phone || undefined,
+        trade: selectedTrade?.name || newLabour.trade || undefined,
+      };
+
+      // Remove tradeId from the payload
+      const { tradeId, ...payloadWithoutTradeId } = labourData;
+      const finalPayload = payloadWithoutTradeId;
+
+      const response = await post<{ success: boolean; data: Labour }>('/api/admin/labours', finalPayload);
       if (response.success) {
         await fetchLabours();
         setNewLabour({
@@ -320,8 +339,11 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
           employeeNumber: '',
           phone: '',
           trade: '',
+          tradeId: undefined,
           isActive: true,
         });
+        setShowTradeDropdown(false);
+        setTradeSearchTerm('');
         setShowAddModal(false);
         setErrorMessage('');
       }
@@ -333,17 +355,19 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     }
   };
 
-  const filteredLabours = labours.filter(member =>
-    member.labourName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    member.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (member.phone && member.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
-    (member.trade && member.trade.toLowerCase().includes(searchTerm.toLowerCase()))
-  ).filter(member => {
-    if (tradeFilter && member.trade && !member.trade.toLowerCase().includes(tradeFilter.toLowerCase())) {
-      return false;
-    }
-    return true;
-  });
+  const filteredLabours = labours
+    .filter(member => member.isActive === true) // Only show active labours
+    .filter(member =>
+      member.labourName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      member.employeeNumber?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (member.phone && member.phone.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (member.trade && member.trade.toLowerCase().includes(searchTerm.toLowerCase()))
+    ).filter(member => {
+      if (tradeFilter && member.trade && !member.trade.toLowerCase().includes(tradeFilter.toLowerCase())) {
+        return false;
+      }
+      return true;
+    });
 
   const calculateProjectStatistics = () => {
     const allAssignments = projectTrades.flatMap(trade => trade.labourAssignments || []);
@@ -732,8 +756,11 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       employeeNumber: '',
                       phone: '',
                       trade: '',
+                      tradeId: undefined,
                       isActive: true,
                     });
+                    setShowTradeDropdown(false);
+                    setTradeSearchTerm('');
                     setErrorMessage('');
                   }}
                   variant="ghost"
@@ -861,13 +888,77 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                     placeholder="e.g., +1 234 567 8900"
                   />
 
-                  <Input
-                    type="text"
-                    label="Trade"
-                    value={newLabour.trade || ''}
-                    onChange={(e) => setNewLabour({ ...newLabour, trade: e.target.value })}
-                    placeholder="e.g., Carpenter"
-                  />
+                  <div className="relative">
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Trade
+                    </label>
+                    <div className="relative">
+                      <div
+                        onClick={() => setShowTradeDropdown(!showTradeDropdown)}
+                        className="w-full px-3 py-2 border rounded-lg cursor-pointer flex items-center justify-between"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: colors.border,
+                          color: colors.textPrimary
+                        }}
+                      >
+                        <span>
+                          {newLabour.tradeId 
+                            ? trades.find(t => t.id === newLabour.tradeId)?.name 
+                            : 'Select a trade...'}
+                        </span>
+                        <span>{showTradeDropdown ? '▲' : '▼'}</span>
+                      </div>
+                      
+                      {showTradeDropdown && (
+                        <div 
+                          className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                          style={{
+                            backgroundColor: colors.backgroundSecondary,
+                            borderColor: colors.border
+                          }}
+                        >
+                          <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                            <input
+                              type="text"
+                              placeholder="Search trades..."
+                              value={tradeSearchTerm}
+                              onChange={(e) => setTradeSearchTerm(e.target.value)}
+                              className="w-full px-3 py-2 border rounded-lg"
+                              style={{
+                                backgroundColor: colors.backgroundPrimary,
+                                borderColor: colors.border,
+                                color: colors.textPrimary
+                              }}
+                              autoFocus
+                            />
+                          </div>
+                          <div className="max-h-48 overflow-auto">
+                            {trades
+                              .filter(t => t.isActive)
+                              .filter(t => t.name.toLowerCase().includes(tradeSearchTerm.toLowerCase()))
+                              .map((trade) => (
+                                <div
+                                  key={trade.id}
+                                  onClick={() => {
+                                    setNewLabour({ ...newLabour, tradeId: trade.id });
+                                    setShowTradeDropdown(false);
+                                    setTradeSearchTerm('');
+                                  }}
+                                  className="px-3 py-2 hover:opacity-75 cursor-pointer"
+                                  style={{
+                                    backgroundColor: newLabour.tradeId === trade.id ? colors.primary : 'transparent',
+                                    color: newLabour.tradeId === trade.id ? '#FFFFFF' : colors.textPrimary
+                                  }}
+                                >
+                                  {trade.name}
+                                </div>
+                              ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
 
                   <div className="flex justify-end space-x-3">
                     <Button

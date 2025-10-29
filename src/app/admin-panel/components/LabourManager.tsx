@@ -75,6 +75,7 @@ export default function LabourManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [tradeSearchTerm, setTradeSearchTerm] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'utilized'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all');
   const [showTradeDropdown, setShowTradeDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingLabour, setEditingLabour] = useState<Labour | null>(null);
@@ -290,7 +291,13 @@ export default function LabourManager() {
       matchesAvailability = labour.isUtilized === true;
     }
 
-    return matchesSearch && matchesAvailability;
+    // Apply active filter
+    let matchesActive = true;
+    if (activeFilter === 'active') {
+      matchesActive = labour.isActive === true;
+    }
+
+    return matchesSearch && matchesAvailability && matchesActive;
   });
 
   if (loading) {
@@ -620,6 +627,19 @@ export default function LabourManager() {
         />
         </div>
         <div className="flex items-center space-x-2">
+          <select
+            value={activeFilter}
+            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active')}
+            className="px-4 py-2 border rounded-lg text-sm"
+            style={{
+              backgroundColor: colors.backgroundSecondary,
+              borderColor: colors.border,
+              color: colors.textPrimary
+            }}
+          >
+            <option value="all">All Status</option>
+            <option value="active">Active Only</option>
+          </select>
           <select
             value={availabilityFilter}
             onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'utilized')}
