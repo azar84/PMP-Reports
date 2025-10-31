@@ -58,6 +58,8 @@ interface CompanyStaff {
   updatedAt: string;
   totalUtilization?: number;
   remainingCapacity?: number;
+  vacationStartDate?: string | null;
+  vacationEndDate?: string | null;
   projectStaff: Array<{
     id: number;
     utilization: number;
@@ -95,7 +97,6 @@ interface MovementHistory {
   toPositionName: string;
   movementDate: string;
   notes?: string;
-  movedBy?: string;
 }
 
 export default function CompanyStaffManager() {
@@ -111,7 +112,7 @@ export default function CompanyStaffManager() {
   const [searchTerm, setSearchTerm] = useState('');
   const [positionSearchTerm, setPositionSearchTerm] = useState('');
   const [availabilityFilter, setAvailabilityFilter] = useState<'all' | 'available' | 'utilized'>('all');
-  const [activeFilter, setActiveFilter] = useState<'all' | 'active'>('all');
+  const [activeFilter, setActiveFilter] = useState<'all' | 'active' | 'onLeave'>('all');
   const [showPositionDropdown, setShowPositionDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingStaff, setEditingStaff] = useState<CompanyStaff | null>(null);
@@ -131,6 +132,42 @@ export default function CompanyStaffManager() {
   // Movement history state
   const [movementHistory, setMovementHistory] = useState<MovementHistory[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  // Leave history state
+  interface LeaveHistoryEntry {
+    id: number;
+    leaveStartDate: string;
+    leaveEndDate: string;
+    returnDate?: string | null;
+    isReturned: boolean;
+    notes?: string | null;
+    createdAt: string;
+  }
+  const [leaveHistory, setLeaveHistory] = useState<LeaveHistoryEntry[]>([]);
+  const [loadingLeaveHistory, setLoadingLeaveHistory] = useState(false);
+  const [historyTab, setHistoryTab] = useState<'movement' | 'leave'>('movement');
+
+  useEffect(() => {
+    const fetchLeaveHistory = async () => {
+      if (!viewingStaff) return;
+      try {
+        setLoadingLeaveHistory(true);
+        const res = await get<{ success: boolean; data: LeaveHistoryEntry[] }>(`/api/admin/company-staff/${viewingStaff.id}/leave-history`);
+        if (res.success) setLeaveHistory(res.data);
+      } catch (e) {
+        console.error('Failed to fetch staff leave history', e);
+      } finally {
+        setLoadingLeaveHistory(false);
+      }
+    };
+    fetchLeaveHistory();
+  }, [viewingStaff]);
+  
+  // Vacation management state
+  const [showVacationModal, setShowVacationModal] = useState(false);
+  const [vacationStartDate, setVacationStartDate] = useState('');
+  const [vacationEndDate, setVacationEndDate] = useState('');
+  const [updatingVacation, setUpdatingVacation] = useState(false);
+  
   const [showImportModal, setShowImportModal] = useState(false);
   const [importFile, setImportFile] = useState<File | null>(null);
   const [importing, setImporting] = useState(false);
@@ -228,6 +265,124 @@ export default function CompanyStaffManager() {
       console.error('Error fetching movement history:', error);
     } finally {
       setLoadingHistory(false);
+    }
+  };
+
+  const handleOpenVacationModal = (staff: CompanyStaff) => {
+    setViewingStaff(staff);
+    // Fix timezone issue: use local date strings to avoid day shift
+    if (staff.vacationStartDate) {
+      const date = new Date(staff.vacationStartDate);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      setVacationStartDate(`${year}-${month}-${day}`);
+    } else {
+      setVacationStartDate('');
+    }
+    if (staff.vacationEndDate) {
+      const date = new Date(staff.vacationEndDate);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      setVacationEndDate(`${year}-${month}-${day}`);
+    } else {
+      setVacationEndDate('');
+    }
+    setShowVacationModal(true);
+  };
+
+  const handleSaveVacation = async () => {
+    if (!viewingStaff) return;
+    
+    // Validate dates
+    if (!vacationStartDate || !vacationEndDate) {
+      alert('Please provide both start and end dates');
+      return;
+    }
+
+    const startDate = new Date(vacationStartDate);
+    const endDate = new Date(vacationEndDate);
+
+    if (startDate > endDate) {
+      alert('End date must be after start date');
+      return;
+    }
+    
+    console.log('Saving vacation for staff', viewingStaff.id, vacationStartDate, vacationEndDate);
+
+    try {
+      setUpdatingVacation(true);
+      const response = await put<{ success: boolean; data: CompanyStaff; error?: string }>(
+        `/api/admin/company-staff/${viewingStaff.id}/vacation`,
+        {
+          startDate: vacationStartDate || null,
+          endDate: vacationEndDate || null,
+        }
+      );
+
+      if (response.success) {
+        await fetchStaff();
+        setShowVacationModal(false);
+        if (viewingStaff) {
+          const updatedStaff = staff.find(s => s.id === viewingStaff.id);
+          if (updatedStaff) {
+            setViewingStaff({
+              ...viewingStaff,
+              vacationStartDate: response.data.vacationStartDate,
+              vacationEndDate: response.data.vacationEndDate,
+            });
+          } else {
+            setViewingStaff(response.data);
+          }
+        }
+      } else {
+        alert(response.error || 'Failed to update vacation dates');
+      }
+    } catch (error: any) {
+      console.error('Error updating vacation:', error);
+      const errorMessage = error?.response?.data?.error || error?.message || 'Failed to update vacation dates';
+      alert(errorMessage);
+    } finally {
+      setUpdatingVacation(false);
+    }
+  };
+
+  const handleClearVacation = async () => {
+    if (!viewingStaff) return;
+    
+    try {
+      setUpdatingVacation(true);
+      const response = await put<{ success: boolean; data: CompanyStaff }>(
+        `/api/admin/company-staff/${viewingStaff.id}/vacation`,
+        {
+          startDate: null,
+          endDate: null,
+        }
+      );
+
+      if (response.success) {
+        await fetchStaff();
+        setVacationStartDate('');
+        setVacationEndDate('');
+        if (viewingStaff) {
+          const updatedStaff = staff.find(s => s.id === viewingStaff.id);
+          if (updatedStaff) {
+            setViewingStaff({
+              ...viewingStaff,
+              vacationStartDate: null,
+              vacationEndDate: null,
+            });
+          } else {
+            setViewingStaff(response.data);
+          }
+        }
+      }
+    } catch (error: any) {
+      console.error('Error clearing vacation:', error);
+      alert('Failed to clear vacation dates');
+    } finally {
+      setUpdatingVacation(false);
     }
   };
   
@@ -402,6 +557,17 @@ export default function CompanyStaffManager() {
     return designations;
   };
 
+  // Check if staff member is currently on leave
+  const isOnLeave = (staffMember: CompanyStaff): boolean => {
+    if (!staffMember.vacationStartDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(staffMember.vacationStartDate);
+    startDate.setHours(0, 0, 0, 0);
+    // Remains on leave until cleared (dates removed)
+    return today >= startDate;
+  };
+
   // Position management functions
   const handlePositionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -493,7 +659,9 @@ export default function CompanyStaffManager() {
     // Apply active filter
     let matchesActive = true;
     if (activeFilter === 'active') {
-      matchesActive = staffMember.isActive === true;
+      matchesActive = staffMember.isActive === true && !isOnLeave(staffMember);
+    } else if (activeFilter === 'onLeave') {
+      matchesActive = staffMember.isActive === true && isOnLeave(staffMember);
     }
 
     return matchesSearch && matchesAvailability && matchesActive;
@@ -659,17 +827,498 @@ export default function CompanyStaffManager() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-            Company Staff Management
-          </h1>
-          <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Manage your company staff members and their roles
-          </p>
-        </div>
-        <div className="flex items-center space-x-3">
+      {viewingStaff ? (
+        <>
+          {/* Staff Details View */}
+          <div className="space-y-6">
+            {/* Detail View Header */}
+            <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-4">
+                  <Button
+                    onClick={() => setViewingStaff(null)}
+                    variant="ghost"
+                    className="p-2"
+                    title="Back to Staff List"
+                  >
+                    <ArrowRight className="w-5 h-5 rotate-180" />
+                  </Button>
+                  <div className="h-16 w-16 rounded-full flex items-center justify-center shadow-lg" style={{ backgroundColor: colors.primary }}>
+                    <User className="w-8 h-8 text-white" />
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                      {viewingStaff.staffName}
+                    </h2>
+                    <div className="flex items-center space-x-3 mt-1">
+                      <p className="text-sm" style={{ color: colors.textMuted }}>
+                        {viewingStaff.position || 'Staff Member'}
+                      </p>
+                      <span className="text-sm" style={{ color: colors.border }}>•</span>
+                      <p className="text-sm font-mono" style={{ color: colors.textSecondary }}>
+                        ID: #{viewingStaff.id}
+                      </p>
+                      {viewingStaff.employeeNumber && (
+                        <>
+                          <span className="text-sm" style={{ color: colors.border }}>•</span>
+                          <p className="text-sm font-mono" style={{ color: colors.textSecondary }}>
+                            {viewingStaff.employeeNumber}
+                          </p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-3">
+                  <Button
+                    onClick={() => {
+                      setViewingStaff(null);
+                      handleEdit(viewingStaff);
+                    }}
+                    variant="primary"
+                    className="flex items-center space-x-2"
+                  >
+                    <Edit className="w-4 h-4" />
+                    <span>Edit</span>
+                  </Button>
+                </div>
+              </div>
+            </Card>
+            
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Left Sidebar - Basic Info & Summary */}
+              <div className="lg:col-span-1 space-y-4">
+                {/* Contact Information */}
+                <Card className="p-5" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <h3 className="text-base font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                    <Mail className="w-4 h-4" />
+                    <span>Contact Information</span>
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-3 p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <Mail className="w-4 h-4 flex-shrink-0" style={{ color: colors.primary }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium mb-1" style={{ color: colors.textMuted }}>Email</p>
+                        <p className="text-sm truncate" style={{ color: colors.textPrimary }}>
+                          {viewingStaff.email || 'Not provided'}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center space-x-3 p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <Phone className="w-4 h-4 flex-shrink-0" style={{ color: colors.primary }} />
+                      <div className="min-w-0 flex-1">
+                        <p className="text-xs font-medium mb-1" style={{ color: colors.textMuted }}>Phone</p>
+                        <p className="text-sm" style={{ color: colors.textPrimary }}>
+                          {viewingStaff.phone || 'Not provided'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Utilization Summary */}
+                <Card className="p-5" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <h3 className="text-base font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                    <Clock className="w-4 h-4" />
+                    <span>Workload Summary</span>
+                  </h3>
+                  <div className="space-y-4">
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Total Utilization
+                        </span>
+                        <span className="text-lg font-bold" style={{ color: colors.primary }}>
+                          {viewingStaff.totalUtilization || 0}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${Math.min(viewingStaff.totalUtilization || 0, 100)}%`,
+                            backgroundColor: (viewingStaff.totalUtilization || 0) > 100 ? colors.warning : colors.primary
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+                    
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="flex items-center justify-between mb-3">
+                        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Available Capacity
+                        </span>
+                        <span className="text-lg font-bold" style={{ color: colors.success }}>
+                          {viewingStaff.remainingCapacity !== undefined ? viewingStaff.remainingCapacity : 100}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-2">
+                        <div 
+                          className="h-2 rounded-full transition-all duration-500"
+                          style={{ 
+                            width: `${viewingStaff.remainingCapacity !== undefined ? viewingStaff.remainingCapacity : 100}%`,
+                            backgroundColor: colors.success
+                          }}
+                        ></div>
+                      </div>
+                    </div>
+
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          Active Projects
+                        </span>
+                        <span className="text-lg font-bold" style={{ color: colors.info }}>
+                          {viewingStaff.projectStaff.length}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {viewingStaff.totalUtilization && viewingStaff.totalUtilization > 100 && (
+                    <div className="mt-4 p-3 rounded-lg flex items-center space-x-2" style={{ backgroundColor: colors.warning + '15', borderLeft: `3px solid ${colors.warning}` }}>
+                      <AlertCircle className="w-4 h-4 flex-shrink-0" style={{ color: colors.warning }} />
+                      <div>
+                        <p className="text-xs font-semibold" style={{ color: colors.warning }}>
+                          Over-allocated by {viewingStaff.totalUtilization - 100}%
+                        </p>
+                      </div>
+                    </div>
+                  )}
+                </Card>
+
+                {/* Status & Metadata */}
+                <Card className="p-5" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <h3 className="text-base font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                    <Calendar className="w-4 h-4" />
+                    <span>Status</span>
+                  </h3>
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Status</span>
+                      <span 
+                        className="px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap inline-block"
+                        style={{ 
+                          backgroundColor: !viewingStaff.isActive ? colors.error :
+                                         isOnLeave(viewingStaff) ? colors.warning : colors.success,
+                          color: '#FFFFFF'
+                        }}
+                      >
+                        {!viewingStaff.isActive ? 'Inactive' : 
+                         isOnLeave(viewingStaff) ? 'On Leave' : 'Active'}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Created</span>
+                      <span className="text-xs font-mono" style={{ color: colors.textSecondary }}>
+                        {new Date(viewingStaff.createdAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Last Updated</span>
+                      <span className="text-xs font-mono" style={{ color: colors.textSecondary }}>
+                        {new Date(viewingStaff.updatedAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+
+                {/* Vacation Section */}
+                <Card className="p-5" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <h3 className="text-base font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                    <Calendar className="w-4 h-4" />
+                    <span>Leave Days (Vacation)</span>
+                  </h3>
+                  <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                    {isOnLeave(viewingStaff) ? (
+                      <div className="space-y-2">
+                        <div className="flex items-center space-x-2">
+                          <Calendar className="w-4 h-4" style={{ color: colors.warning }} />
+                          <span className="text-sm" style={{ color: colors.textPrimary }}>
+                            On Vacation
+                          </span>
+                        </div>
+                        <div className="text-sm space-y-1" style={{ color: colors.textSecondary }}>
+                          <div>
+                            <span className="font-medium">From:</span> {viewingStaff.vacationStartDate ? new Date(viewingStaff.vacationStartDate).toLocaleDateString() : '-'}
+                          </div>
+                          <div>
+                            <span className="font-medium">To:</span> {viewingStaff.vacationEndDate ? new Date(viewingStaff.vacationEndDate).toLocaleDateString() : '-'}
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center space-x-2">
+                        <CheckCircle className="w-4 h-4" style={{ color: colors.success }} />
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>
+                          Not on vacation
+                        </span>
+                      </div>
+                    )}
+                    <Button
+                      onClick={() => handleOpenVacationModal(viewingStaff)}
+                      variant="ghost"
+                      size="sm"
+                      className="mt-3"
+                      style={{ color: colors.primary }}
+                    >
+                      {viewingStaff.vacationStartDate ? 'Update Leave Days' : 'Mark on Leave'}
+                    </Button>
+                  </div>
+                </Card>
+              </div>
+
+              {/* Right Content - Project Assignments & History */}
+              <div className="lg:col-span-2 space-y-4">
+                {/* Project Assignments */}
+                <Card className="p-5" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="flex items-center justify-between mb-4">
+                    <h3 className="text-lg font-semibold flex items-center space-x-2" style={{ color: colors.textPrimary }}>
+                      <Briefcase className="w-5 h-5" />
+                      <span>Project Assignments</span>
+                    </h3>
+                    <span className="text-sm font-medium px-2 py-1 rounded-full" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textSecondary }}>
+                      {viewingStaff.projectStaff.length} {viewingStaff.projectStaff.length === 1 ? 'project' : 'projects'}
+                    </span>
+                  </div>
+
+                  {viewingStaff.projectStaff.length > 0 ? (
+                    <div className="space-y-3">
+                      {viewingStaff.projectStaff.map((assignment) => (
+                        <div 
+                          key={assignment.id}
+                          className="p-4 rounded-lg border hover:shadow-sm transition-all duration-200"
+                          style={{ 
+                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.border
+                          }}
+                        >
+                          <div className="flex items-center justify-between mb-3">
+                            <div className="flex-1 min-w-0">
+                              <h4 className="text-base font-semibold mb-1 truncate" style={{ color: colors.textPrimary }}>
+                                {assignment.project.projectName}
+                              </h4>
+                              <div className="flex items-center space-x-2 text-sm">
+                                <span className="font-mono" style={{ color: colors.textMuted }}>
+                                  {assignment.project.projectCode}
+                                </span>
+                                <span style={{ color: colors.border }}>•</span>
+                                <span style={{ color: colors.textSecondary }}>
+                                  {assignment.position.designation}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex items-center space-x-4 ml-4">
+                              <div className="text-right">
+                                <div className="text-base font-bold mb-1" style={{ color: colors.primary }}>
+                                  {assignment.utilization}%
+                                </div>
+                                <div className="w-20 bg-gray-200 rounded-full h-1.5">
+                                  <div 
+                                    className="h-1.5 rounded-full"
+                                    style={{ 
+                                      width: `${Math.min(assignment.utilization, 100)}%`,
+                                      backgroundColor: colors.primary
+                                    }}
+                                  ></div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                          {/* Single status is shown at staff-level only; omit per-assignment status badge */}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-12 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                      <Briefcase className="w-12 h-12 mb-3" style={{ color: colors.textMuted }} />
+                      <h4 className="text-base font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                        No Project Assignments
+                      </h4>
+                      <p className="text-xs text-center max-w-sm" style={{ color: colors.textSecondary }}>
+                        This staff member is not currently assigned to any projects
+                      </p>
+                    </div>
+                  )}
+                </Card>
+                
+                {/* History Tabs */}
+                <Card className="p-5" style={{ backgroundColor: colors.backgroundSecondary }}>
+                  <div className="mb-4">
+                    <div className="flex space-x-1" style={{ borderBottom: `1px solid ${colors.border}` }}>
+                      <button
+                        onClick={() => setHistoryTab('movement')}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${historyTab === 'movement' ? 'border-current' : 'border-transparent'}`}
+                        onMouseEnter={(e) => { if (historyTab !== 'movement') { e.currentTarget.style.borderColor = colors.borderLight; } }}
+                        onMouseLeave={(e) => { if (historyTab !== 'movement') { e.currentTarget.style.borderColor = 'transparent'; } }}
+                        style={{ color: historyTab === 'movement' ? colors.primary : colors.textSecondary, borderBottomColor: historyTab === 'movement' ? colors.primary : 'transparent' }}
+                      >
+                        Movement History
+                      </button>
+                      <button
+                        onClick={() => setHistoryTab('leave')}
+                        className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${historyTab === 'leave' ? 'border-current' : 'border-transparent'}`}
+                        onMouseEnter={(e) => { if (historyTab !== 'leave') { e.currentTarget.style.borderColor = colors.borderLight; } }}
+                        onMouseLeave={(e) => { if (historyTab !== 'leave') { e.currentTarget.style.borderColor = 'transparent'; } }}
+                        style={{ color: historyTab === 'leave' ? colors.primary : colors.textSecondary, borderBottomColor: historyTab === 'leave' ? colors.primary : 'transparent' }}
+                      >
+                        Leave History
+                      </button>
+                    </div>
+                  </div>
+
+                  {historyTab === 'movement' ? (
+                    loadingHistory ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto" style={{ borderColor: colors.primary }}></div>
+                      </div>
+                    ) : movementHistory.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr style={{ borderBottom: `2px solid ${colors.borderLight}` }}>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>Date</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>From</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>To</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {movementHistory.map((history) => (
+                              <tr key={history.id} className="border-b hover:opacity-80 transition-opacity" style={{ borderColor: colors.borderLight }}>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Calendar className="w-3 h-3" style={{ color: colors.textMuted }} />
+                                    <span className="text-sm font-mono" style={{ color: colors.textPrimary }}>
+                                      {new Date(history.movementDate).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                  <span className="text-xs" style={{ color: colors.textMuted }}>
+                                    {new Date(history.movementDate).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  {history.fromProjectName ? (
+                                    <div>
+                                      <div className="flex items-center space-x-2">
+                                        <Building2 className="w-3 h-3" style={{ color: colors.textMuted }} />
+                                        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                          {history.fromProjectName}
+                                        </span>
+                                      </div>
+                                      {history.fromPositionName && (
+                                        <span className="text-xs mt-1 inline-block px-2 py-0.5 rounded" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textSecondary }}>
+                                          {history.fromPositionName}
+                                        </span>
+                                      )}
+                                    </div>
+                                  ) : (
+                                    <span className="text-sm italic" style={{ color: colors.textMuted }}>
+                                      Initial Assignment
+                                    </span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div>
+                                    <div className="flex items-center space-x-2">
+                                      <Building2 className="w-3 h-3" style={{ color: colors.primary }} />
+                                      <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                        {history.toProjectName}
+                                      </span>
+                                    </div>
+                                    {history.toPositionName && (
+                                      <span className="text-xs mt-1 inline-block px-2 py-0.5 rounded" style={{ backgroundColor: colors.primary + '20', color: colors.primary }}>
+                                        {history.toPositionName}
+                                      </span>
+                                    )}
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-sm" style={{ color: colors.textSecondary }}>
+                                    {history.notes || '-'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-sm" style={{ color: colors.textSecondary }}>
+                        No movement history found
+                      </div>
+                    )
+                  ) : (
+                    loadingLeaveHistory ? (
+                      <div className="text-center py-8">
+                        <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto" style={{ borderColor: colors.primary }}></div>
+                      </div>
+                    ) : leaveHistory.length > 0 ? (
+                      <div className="overflow-x-auto">
+                        <table className="w-full">
+                          <thead>
+                            <tr style={{ borderBottom: `2px solid ${colors.borderLight}` }}>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>Start</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>End</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>Returned</th>
+                              <th className="text-left py-3 px-4 text-xs font-semibold uppercase tracking-wider" style={{ color: colors.textMuted }}>Notes</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {leaveHistory.map((entry) => (
+                              <tr key={entry.id} className="border-b" style={{ borderColor: colors.borderLight }}>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center space-x-2">
+                                    <Calendar className="w-3 h-3" style={{ color: colors.textMuted }} />
+                                    <span style={{ color: colors.textPrimary }}>
+                                      {new Date(entry.leaveStartDate).toLocaleDateString()}
+                                    </span>
+                                  </div>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span style={{ color: colors.textPrimary }}>
+                                    {new Date(entry.leaveEndDate).toLocaleDateString()}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="px-2 py-1 text-xs rounded-full whitespace-nowrap inline-block" style={{ backgroundColor: entry.isReturned ? colors.success : colors.warning, color: '#FFFFFF' }}>
+                                    {entry.isReturned ? (entry.returnDate ? `Returned ${new Date(entry.returnDate).toLocaleDateString()}` : 'Returned') : 'On Leave'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span style={{ color: colors.textSecondary }}>
+                                    {entry.notes || '-'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    ) : (
+                      <div className="text-center py-6 text-sm" style={{ color: colors.textSecondary }}>
+                        No leave history found
+                      </div>
+                    )
+                  )}
+                </Card>
+              </div>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
+          {/* Header */}
+          <div className="flex items-center justify-between">
+            <div>
+              <h1 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                Company Staff Management
+              </h1>
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                Manage your company staff members and their roles
+              </p>
+            </div>
+            <div className="flex items-center space-x-3">
           <Button
             onClick={() => setShowPositionsSection(!showPositionsSection)}
             className="flex items-center space-x-2"
@@ -1017,7 +1666,7 @@ export default function CompanyStaffManager() {
         <div className="flex items-center space-x-2">
           <select
             value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active')}
+            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active' | 'onLeave')}
             className="px-4 py-2 border rounded-lg text-sm"
             style={{
               backgroundColor: colors.backgroundSecondary,
@@ -1027,6 +1676,7 @@ export default function CompanyStaffManager() {
           >
             <option value="all">All Status</option>
             <option value="active">Active Only</option>
+            <option value="onLeave">On Leave</option>
           </select>
           <select
             value={availabilityFilter}
@@ -1412,13 +2062,15 @@ export default function CompanyStaffManager() {
                   </td>
                   <td className="px-6 py-4 text-center">
                     <span 
-                      className="px-2 py-1 text-xs rounded-full"
+                      className="px-2 py-1 text-xs rounded-full whitespace-nowrap inline-block"
                       style={{ 
-                        backgroundColor: staffMember.isActive ? colors.success : colors.error,
+                        backgroundColor: !staffMember.isActive ? colors.error :
+                                       isOnLeave(staffMember) ? colors.warning : colors.success,
                         color: '#FFFFFF'
                       }}
                     >
-                      {staffMember.isActive ? 'Active' : 'Inactive'}
+                      {!staffMember.isActive ? 'Inactive' : 
+                       isOnLeave(staffMember) ? 'On Leave' : 'Active'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">
@@ -1470,437 +2122,18 @@ export default function CompanyStaffManager() {
         </div>
       </Card>
 
-      {filteredStaff.length === 0 && (
-        <Card className="p-8 text-center" style={{ backgroundColor: colors.backgroundSecondary }}>
-          <User className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
-          <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
-            No staff members found
-          </h3>
-          <p className="text-sm" style={{ color: colors.textSecondary }}>
-            {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first staff member'}
-          </p>
-        </Card>
-      )}
-
-      {/* Staff Details Modal */}
-      {viewingStaff && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 flex items-center justify-center z-50 p-2">
-          <div 
-            className="rounded-xl shadow-2xl w-full max-w-7xl h-[95vh] overflow-hidden flex flex-col"
-            style={{ backgroundColor: colors.backgroundSecondary }}
-          >
-            {/* Modal Header */}
-            <div 
-              className="flex items-center justify-between p-8 border-b-2"
-              style={{ 
-                borderColor: colors.border,
-                backgroundColor: colors.backgroundPrimary
-              }}
-            >
-              <div className="flex items-center space-x-4">
-                <div 
-                  className="p-4 rounded-xl shadow-lg"
-                  style={{ backgroundColor: colors.primary }}
-                >
-                  <User className="w-8 h-8 text-white" />
-                </div>
-                <div>
-                  <h2 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>
-                    {viewingStaff.staffName}
-                  </h2>
-                  <p className="text-sm" style={{ color: colors.textMuted }}>
-                    {viewingStaff.position || 'Staff Member'} • ID: #{viewingStaff.id}
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => setViewingStaff(null)}
-                className="p-3 hover:bg-gray-100 rounded-xl transition-all duration-200 hover:scale-105"
-                style={{ color: colors.textMuted }}
-              >
-                <X className="w-6 h-6" />
-              </button>
-            </div>
-
-            {/* Modal Content */}
-            <div className="flex-1 overflow-hidden">
-              <div className="h-full flex">
-                {/* Left Sidebar - Basic Info & Summary */}
-                <div className="w-1/3 p-8 border-r-2 overflow-y-auto" style={{ borderColor: colors.border }}>
-                  {/* Contact Information */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
-                      <Mail className="w-4 h-4" />
-                      <span>Contact Information</span>
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center space-x-3">
-                          <Mail className="w-4 h-4" style={{ color: colors.primary }} />
-                          <div>
-                            <p className="text-xs font-medium" style={{ color: colors.textMuted }}>Email</p>
-                            <p className="text-sm" style={{ color: colors.textPrimary }}>
-                              {viewingStaff.email || 'Not provided'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center space-x-3">
-                          <Phone className="w-4 h-4" style={{ color: colors.primary }} />
-                          <div>
-                            <p className="text-xs font-medium" style={{ color: colors.textMuted }}>Phone</p>
-                            <p className="text-sm" style={{ color: colors.textPrimary }}>
-                              {viewingStaff.phone || 'Not provided'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center space-x-3">
-                          <Briefcase className="w-4 h-4" style={{ color: colors.primary }} />
-                          <div>
-                            <p className="text-xs font-medium" style={{ color: colors.textMuted }}>Position</p>
-                            <p className="text-sm" style={{ color: colors.textPrimary }}>
-                              {viewingStaff.position || 'Not specified'}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* Utilization Summary */}
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
-                      <Clock className="w-4 h-4" />
-                      <span>Workload Summary</span>
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="p-6 rounded-xl text-center" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-center space-x-2 mb-2">
-                          <Clock className="w-4 h-4" style={{ color: colors.primary }} />
-                          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
-                            Total Utilization
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold mb-2" style={{ color: colors.primary }}>
-                          {viewingStaff.totalUtilization || 0}%
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className="h-3 rounded-full transition-all duration-500"
-                            style={{ 
-                              width: `${Math.min(viewingStaff.totalUtilization || 0, 100)}%`,
-                              backgroundColor: (viewingStaff.totalUtilization || 0) > 100 ? colors.warning : colors.primary
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-                      
-                      <div className="p-6 rounded-xl text-center" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-center space-x-2 mb-2">
-                          <CheckCircle className="w-4 h-4" style={{ color: colors.success }} />
-                          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
-                            Available Capacity
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold mb-2" style={{ color: colors.success }}>
-                          {viewingStaff.remainingCapacity || 100}%
-                        </div>
-                        <div className="w-full bg-gray-200 rounded-full h-3">
-                          <div 
-                            className="h-3 rounded-full transition-all duration-500"
-                            style={{ 
-                              width: `${viewingStaff.remainingCapacity || 100}%`,
-                              backgroundColor: colors.success
-                            }}
-                          ></div>
-                        </div>
-                      </div>
-
-                      <div className="p-6 rounded-xl text-center" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-center space-x-2 mb-2">
-                          <Users className="w-4 h-4" style={{ color: colors.info }} />
-                          <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
-                            Active Projects
-                          </span>
-                        </div>
-                        <div className="text-2xl font-bold" style={{ color: colors.info }}>
-                          {viewingStaff.projectStaff.length}
-                        </div>
-                      </div>
-                    </div>
-
-                    {viewingStaff.totalUtilization && viewingStaff.totalUtilization > 100 && (
-                      <div className="mt-6 p-4 rounded-xl flex items-center space-x-3" style={{ backgroundColor: colors.warning + '20' }}>
-                        <AlertCircle className="w-6 h-6" style={{ color: colors.warning }} />
-                        <div>
-                          <p className="font-semibold" style={{ color: colors.warning }}>
-                            Over-allocated
-                          </p>
-                          <p className="text-sm" style={{ color: colors.warning }}>
-                            {viewingStaff.totalUtilization - 100}% over capacity
-                          </p>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-
-                  {/* Status & Metadata */}
-                  <div>
-                    <h3 className="text-lg font-semibold mb-4 flex items-center space-x-2" style={{ color: colors.textPrimary }}>
-                      <Calendar className="w-4 h-4" />
-                      <span>Status & Metadata</span>
-                    </h3>
-                    <div className="space-y-4">
-                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Status</span>
-                          <span 
-                            className="px-2 py-1 rounded-full text-xs font-semibold"
-                            style={{ 
-                              backgroundColor: viewingStaff.isActive ? colors.success : colors.error,
-                              color: '#FFFFFF'
-                            }}
-                          >
-                            {viewingStaff.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Created</span>
-                          <span className="text-xs" style={{ color: colors.textSecondary }}>
-                            {new Date(viewingStaff.createdAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                      <div className="p-4 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>Last Updated</span>
-                          <span className="text-xs" style={{ color: colors.textSecondary }}>
-                            {new Date(viewingStaff.updatedAt).toLocaleDateString()}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Right Content - Project Assignments */}
-                <div className="flex-1 p-8 overflow-y-auto">
-                  <div className="flex items-center justify-between mb-8">
-                    <h3 className="text-xl font-semibold flex items-center space-x-3" style={{ color: colors.textPrimary }}>
-                      <Briefcase className="w-5 h-5" />
-                      <span>Project Assignments</span>
-                    </h3>
-                    <div className="text-sm font-medium" style={{ color: colors.textMuted }}>
-                      {viewingStaff.projectStaff.length} project{viewingStaff.projectStaff.length !== 1 ? 's' : ''}
-                    </div>
-                  </div>
-
-                  {viewingStaff.projectStaff.length > 0 ? (
-                    <div className="grid gap-6">
-                      {viewingStaff.projectStaff.map((assignment, index) => (
-                        <div 
-                          key={assignment.id}
-                          className="p-6 rounded-xl border-2 shadow-lg hover:shadow-xl transition-all duration-200"
-                          style={{ 
-                            backgroundColor: colors.backgroundPrimary,
-                            borderColor: colors.border
-                          }}
-                        >
-                          <div className="flex items-start justify-between mb-6">
-                            <div className="flex items-start space-x-4">
-                              <div 
-                                className="p-3 rounded-xl shadow-md"
-                                style={{ backgroundColor: colors.primary }}
-                              >
-                                <Briefcase className="w-6 h-6 text-white" />
-                              </div>
-                              <div>
-                                <h4 className="text-lg font-semibold mb-1" style={{ color: colors.textPrimary }}>
-                                  {assignment.project.projectName}
-                                </h4>
-                                <p className="text-sm font-medium mb-1" style={{ color: colors.textMuted }}>
-                                  {assignment.project.projectCode}
-                                </p>
-                                <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                  {assignment.position.designation}
-                                </p>
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className="text-xl font-bold mb-1" style={{ color: colors.primary }}>
-                                {assignment.utilization}%
-                              </div>
-                              <div className="text-xs font-medium" style={{ color: colors.textMuted }}>
-                                utilization
-                              </div>
-                              <div className="w-16 bg-gray-200 rounded-full h-1.5 mt-1">
-                                <div 
-                                  className="h-1.5 rounded-full"
-                                  style={{ 
-                                    width: `${Math.min(assignment.utilization, 100)}%`,
-                                    backgroundColor: colors.primary
-                                  }}
-                                ></div>
-                              </div>
-                            </div>
-                          </div>
-                          
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                              <div className="flex items-center space-x-2 mb-1">
-                                <CheckCircle className="w-3 h-3" style={{ color: colors.info }} />
-                                <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>Status</span>
-                              </div>
-                              <span 
-                                className="px-2 py-0.5 rounded-full text-xs font-semibold"
-                                style={{ 
-                                  backgroundColor: assignment.status === 'Active' ? colors.success : 
-                                                 assignment.status === 'Completed' ? colors.info : colors.warning,
-                                  color: '#FFFFFF'
-                                }}
-                              >
-                                {assignment.status}
-                              </span>
-                            </div>
-                            
-                            <div className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                              <div className="flex items-center space-x-2 mb-1">
-                                <Briefcase className="w-3 h-3" style={{ color: colors.info }} />
-                                <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>Position</span>
-                              </div>
-                              <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                {assignment.position.designation}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center h-64 rounded-xl" style={{ backgroundColor: colors.backgroundPrimary }}>
-                      <Briefcase className="w-16 h-16 mb-6" style={{ color: colors.textMuted }} />
-                      <h4 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
-                        No Project Assignments
-                      </h4>
-                      <p className="text-sm text-center max-w-md" style={{ color: colors.textSecondary }}>
-                        This staff member is not currently assigned to any projects
-                      </p>
-                    </div>
-                  )}
-                  
-                  {/* Movement History Section */}
-                  {movementHistory.length > 0 && (
-                    <div className="mt-8 pt-8 border-t" style={{ borderColor: colors.border }}>
-                      <div className="flex items-center space-x-2 mb-4">
-                        <History className="w-5 h-5" style={{ color: colors.primary }} />
-                        <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
-                          Movement History
-                        </h3>
-                      </div>
-                      <div className="space-y-3 max-h-64 overflow-y-auto">
-                        {loadingHistory ? (
-                          <div className="text-center py-4">
-                            <div className="animate-spin rounded-full h-6 w-6 border-b-2 mx-auto" style={{ borderColor: colors.primary }}></div>
-                          </div>
-                        ) : (
-                          movementHistory.map((history) => (
-                            <Card 
-                              key={history.id}
-                              className="p-4"
-                              style={{ backgroundColor: colors.backgroundSecondary }}
-                            >
-                              <div className="flex items-start justify-between">
-                                <div className="flex-1">
-                                  <div className="flex items-center space-x-2 mb-2">
-                                    {history.fromProjectName ? (
-                                      <>
-                                        <Building2 className="w-4 h-4" style={{ color: colors.textMuted }} />
-                                        <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                                          {history.fromProjectName}
-                                        </span>
-                                        {history.fromPositionName && (
-                                          <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textSecondary }}>
-                                            {history.fromPositionName}
-                                          </span>
-                                        )}
-                                        <ArrowRight className="w-3 h-3" style={{ color: colors.textMuted }} />
-                                      </>
-                                    ) : (
-                                      <span className="text-xs" style={{ color: colors.textMuted }}>Initial Assignment</span>
-                                    )}
-                                    <Building2 className="w-4 h-4" style={{ color: colors.primary }} />
-                                    <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                                      {history.toProjectName}
-                                    </span>
-                                    <span className="text-xs px-2 py-0.5 rounded-full" style={{ backgroundColor: colors.primary + '20', color: colors.primary }}>
-                                      {history.toPositionName}
-                                    </span>
-                                  </div>
-                                  <div className="flex items-center space-x-2 text-xs" style={{ color: colors.textMuted }}>
-                                    <Calendar className="w-3 h-3" />
-                                    <span>{new Date(history.movementDate).toLocaleString()}</span>
-                                    {history.movedBy && (
-                                      <>
-                                        <span>•</span>
-                                        <span>Moved by: {history.movedBy}</span>
-                                      </>
-                                    )}
-                                  </div>
-                                  {history.notes && (
-                                    <div className="mt-1 text-sm" style={{ color: colors.textSecondary }}>
-                                      <span className="font-medium">Notes:</span> {history.notes}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </Card>
-                          ))
-                        )}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Modal Footer */}
-            <div 
-              className="flex items-center justify-between p-8 border-t-2"
-              style={{ 
-                borderColor: colors.border,
-                backgroundColor: colors.backgroundPrimary
-              }}
-            >
-              <div className="text-xs" style={{ color: colors.textMuted }}>
-                Last updated: {new Date(viewingStaff.updatedAt).toLocaleString()}
-              </div>
-              <div className="flex items-center space-x-3">
-                <Button
-                  onClick={() => setViewingStaff(null)}
-                  variant="ghost"
-                  className="px-4 py-2 text-sm"
-                >
-                  Close
-                </Button>
-                <Button
-                  onClick={() => {
-                    setViewingStaff(null);
-                    handleEdit(viewingStaff);
-                  }}
-                  className="px-6 py-2 text-sm font-semibold"
-                  style={{ backgroundColor: colors.primary }}
-                >
-                  Edit Staff Member
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
+          {filteredStaff.length === 0 && (
+            <Card className="p-8 text-center" style={{ backgroundColor: colors.backgroundSecondary }}>
+              <User className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+              <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                No staff members found
+              </h3>
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first staff member'}
+              </p>
+            </Card>
+          )}
+        </>
       )}
       
       {/* Move Staff Modal */}
@@ -2065,7 +2298,7 @@ export default function CompanyStaffManager() {
                       setSelectedProjectId(null);
                       setSelectedPositionId(null);
                       setAvailablePositions([]);
-                      setMoveReason('');
+                      setMoveDate('');
                       setMoveNotes('');
                       setMoveErrorMessage('');
                     }}
@@ -2257,6 +2490,95 @@ export default function CompanyStaffManager() {
               </Button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Vacation Modal */}
+      {showVacationModal && viewingStaff && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card 
+            className="w-full max-w-md"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Leave Days Management
+                </h2>
+                <Button
+                  onClick={() => setShowVacationModal(false)}
+                  variant="ghost"
+                  className="p-2"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Start Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={vacationStartDate}
+                    onChange={(e) => setVacationStartDate(e.target.value)}
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    End Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={vacationEndDate}
+                    onChange={(e) => setVacationEndDate(e.target.value)}
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.border,
+                      color: colors.textPrimary
+                    }}
+                  />
+                </div>
+
+                <div className="flex justify-end space-x-3 pt-4">
+                  <Button
+                    onClick={() => setShowVacationModal(false)}
+                    variant="ghost"
+                    type="button"
+                    disabled={updatingVacation}
+                  >
+                    Cancel
+                  </Button>
+                  {viewingStaff.vacationStartDate && (
+                    <Button
+                      onClick={handleClearVacation}
+                      variant="ghost"
+                      type="button"
+                      disabled={updatingVacation}
+                      style={{ color: colors.error }}
+                    >
+                      Clear
+                    </Button>
+                  )}
+                  <Button
+                    onClick={handleSaveVacation}
+                    type="button"
+                    disabled={updatingVacation}
+                    style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+                  >
+                    {updatingVacation ? 'Saving...' : 'Save'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          </Card>
         </div>
       )}
 

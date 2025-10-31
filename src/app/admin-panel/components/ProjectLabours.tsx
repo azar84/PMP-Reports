@@ -37,6 +37,8 @@ interface Labour {
   isActive: boolean;
   createdAt: string;
   updatedAt: string;
+  vacationStartDate?: string | null;
+  vacationEndDate?: string | null;
 }
 
 interface ProjectLabourAssignment {
@@ -118,6 +120,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
   const [assignmentEndDate, setAssignmentEndDate] = useState('');
   const [useProjectStartDate, setUseProjectStartDate] = useState(true);
   const [useProjectEndDate, setUseProjectEndDate] = useState(true);
+  const [assignmentUtilization, setAssignmentUtilization] = useState<number>(100);
   
   // Trade dropdown state for new labour form
   const [showTradeDropdown, setShowTradeDropdown] = useState(false);
@@ -178,12 +181,24 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     setSelectedLabourForAssignment({ labourId, tradeId });
     setUseProjectStartDate(true);
     setUseProjectEndDate(true);
+    setAssignmentUtilization(100);
     // Initialize with formatted project dates
     const formattedStart = formatDateForInput(projectStartDate) || '';
     const formattedEnd = formatDateForInput(projectEndDate) || '';
     setAssignmentStartDate(formattedStart);
     setAssignmentEndDate(formattedEnd);
     setDateValidationError('');
+  };
+
+  // Helper function to check if labour is currently on leave
+  const isOnLeave = (labour: Labour): boolean => {
+    if (!labour.vacationStartDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(labour.vacationStartDate);
+    startDate.setHours(0, 0, 0, 0);
+    // Remains on leave until cleared (dates removed)
+    return today >= startDate;
   };
 
   // Helper function to validate dates
@@ -232,7 +247,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
       const response = await post<{ success: boolean; data: any }>('/api/admin/project-labours', {
         tradeId: selectedLabourForAssignment.tradeId,
         labourId: selectedLabourForAssignment.labourId,
-        utilization: 1,
+        utilization: Math.max(0, Math.min(100, Math.round(assignmentUtilization))),
         startDate: startDate,
         endDate: endDate,
         status: 'Active',
@@ -250,6 +265,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
         setUseProjectStartDate(true);
         setUseProjectEndDate(true);
         setDateValidationError('');
+        setAssignmentUtilization(100);
       } else {
         throw new Error('Failed to assign labour to trade');
       }
@@ -329,6 +345,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
       }
       
       const response = await put<{ success: boolean; data: any }>(`/api/admin/project-labours/${editingLabourAssignment.id}`, {
+        utilization: Math.max(0, Math.min(100, Math.round(editingLabourAssignment.utilization))),
         startDate: startDate,
         endDate: endDate,
         status: editingLabourAssignment.status,
@@ -786,15 +803,24 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                               </span>
                             </td>
                             <td className="py-3 px-4">
-                              <span 
-                                className={`px-2 py-1 text-xs rounded-full ${
-                                  assignment.status === 'Active' ? 'bg-green-100 text-green-800' : 
-                                  assignment.status === 'Inactive' ? 'bg-gray-100 text-gray-800' : 
-                                  'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                {assignment.status}
-                              </span>
+                              {assignment.labour ? (
+                                (() => {
+                                  const onLeave = isOnLeave(assignment.labour);
+                                  const activeStatus = assignment.labour.isActive && !onLeave;
+                                  const statusText = onLeave ? 'On Leave' : (activeStatus ? 'Active' : 'Inactive');
+                                  const statusColor = onLeave ? 'bg-yellow-100 text-yellow-800' : 
+                                                    (activeStatus ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800');
+                                  return (
+                                    <span 
+                                      className={`px-2 py-1 text-xs rounded-full ${statusColor}`}
+                                    >
+                                      {statusText}
+                                    </span>
+                                  );
+                                })()
+                              ) : (
+                                <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Unassigned</span>
+                              )}
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center space-x-2">
@@ -1237,6 +1263,36 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       </div>
                     </div>
 
+                    {/* Utilization */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Utilization (%)
+                      </label>
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={assignmentUtilization}
+                          onChange={(e) => setAssignmentUtilization(parseInt(e.target.value) || 0)}
+                          className="flex-1"
+                        />
+                        <Input
+                          type="number"
+                          value={assignmentUtilization}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value);
+                            if (isNaN(val)) return setAssignmentUtilization(0);
+                            setAssignmentUtilization(Math.max(0, Math.min(100, val)));
+                          }}
+                          min={0}
+                          max={100}
+                          className="w-24"
+                        />
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>%</span>
+                      </div>
+                    </div>
+
                     <div>
                       <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                         Start Date
@@ -1463,7 +1519,13 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       <Button
                         onClick={handleAssignLabourToTrade}
                         variant="primary"
-                        disabled={isSubmitting || (!useProjectStartDate && !assignmentStartDate) || (!useProjectEndDate && !assignmentEndDate) || !!dateValidationError}
+                        disabled={
+                          isSubmitting ||
+                          (!useProjectStartDate && !assignmentStartDate) ||
+                          (!useProjectEndDate && !assignmentEndDate) ||
+                          !!dateValidationError ||
+                          assignmentUtilization < 0 || assignmentUtilization > 100
+                        }
                       >
                         {isSubmitting ? 'Assigning...' : 'Confirm Assignment'}
                       </Button>
@@ -1510,6 +1572,34 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
               )}
 
               <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Utilization (%)
+                  </label>
+                  <div className="flex items-center space-x-3">
+                    <input
+                      type="range"
+                      min={0}
+                      max={100}
+                      value={editingLabourAssignment.utilization}
+                      onChange={(e) => setEditingLabourAssignment({ ...editingLabourAssignment, utilization: parseInt(e.target.value) || 0 })}
+                      className="flex-1"
+                    />
+                    <Input
+                      type="number"
+                      value={editingLabourAssignment.utilization}
+                      onChange={(e) => {
+                        const val = parseInt(e.target.value);
+                        if (isNaN(val)) return setEditingLabourAssignment({ ...editingLabourAssignment, utilization: 0 });
+                        setEditingLabourAssignment({ ...editingLabourAssignment, utilization: Math.max(0, Math.min(100, val)) });
+                      }}
+                      min={0}
+                      max={100}
+                      className="w-24"
+                    />
+                    <span className="text-sm" style={{ color: colors.textSecondary }}>%</span>
+                  </div>
+                </div>
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                     Status
@@ -1789,7 +1879,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   <Button
                     onClick={handleUpdateLabourAssignment}
                     variant="primary"
-                    disabled={isSubmitting || !!editDateValidationError}
+                  disabled={isSubmitting || !!editDateValidationError || editingLabourAssignment.utilization < 0 || editingLabourAssignment.utilization > 100}
                   >
                     {isSubmitting ? 'Updating...' : 'Update'}
                   </Button>

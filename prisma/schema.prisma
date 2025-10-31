@@ -287,21 +287,22 @@ model ConsultantType {
 }
 
 model CompanyStaff {
-  id                 Int            @id @default(autoincrement())
+  id                 Int                    @id @default(autoincrement())
   staffName          String
   email              String?
   phone              String?
   position           String?
-  isActive           Boolean        @default(true)
-  createdAt          DateTime       @default(now())
-  updatedAt          DateTime       @updatedAt
+  isActive           Boolean                @default(true)
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
   employeeNumber     String?
   vacationStartDate  DateTime?
   vacationEndDate    DateTime?
   projectStaff       ProjectStaff[]
-  projectsAsManager  Project[]      @relation("ProjectManager")
-  projectsAsDirector Project[]      @relation("ProjectDirector")
+  projectsAsManager  Project[]              @relation("ProjectManager")
+  projectsAsDirector Project[]              @relation("ProjectDirector")
   movementHistory    StaffMovementHistory[]
+  leaveHistory       LeaveHistory[]         @relation("StaffLeaveHistory")
 
   @@map("company_staff")
 }
@@ -410,20 +411,20 @@ model ProjectPosition {
 }
 
 model ProjectStaff {
-  id          Int             @id @default(autoincrement())
-  projectId   Int
-  positionId  Int
-  staffId     Int?
-  utilization Int             @default(100)
-  startDate   DateTime?
-  endDate     DateTime?
-  status      String          @default("Active")
-  notes       String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
-  staff       CompanyStaff?   @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  position    ProjectPosition @relation(fields: [positionId], references: [id], onDelete: Cascade)
-  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id              Int                    @id @default(autoincrement())
+  projectId       Int
+  positionId      Int
+  staffId         Int?
+  utilization     Int                    @default(100)
+  startDate       DateTime?
+  endDate         DateTime?
+  status          String                 @default("Active")
+  notes           String?
+  createdAt       DateTime               @default(now())
+  updatedAt       DateTime               @updatedAt
+  staff           CompanyStaff?          @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  position        ProjectPosition        @relation(fields: [positionId], references: [id], onDelete: Cascade)
+  project         Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   movementHistory StaffMovementHistory[] @relation("ProjectStaffHistory")
 
   @@unique([projectId, staffId])
@@ -431,24 +432,24 @@ model ProjectStaff {
 }
 
 model StaffMovementHistory {
-  id                    Int       @id @default(autoincrement())
-  staffId               Int
-  type                  String    @default("movement") // "assignment" or "movement"
-  fromProjectId         Int?
-  fromProjectName       String?
-  fromPositionId        Int?
-  fromPositionName      String?
-  toProjectId           Int
-  toProjectName         String
-  toPositionId          Int
-  toPositionName        String
-  movedBy               String?
-  movementDate          DateTime  @default(now())
-  notes                 String?
-  createdAt             DateTime  @default(now())
-  projectStaffId        Int?
-  staff                 CompanyStaff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
-  projectStaff          ProjectStaff? @relation("ProjectStaffHistory", fields: [projectStaffId], references: [id], onDelete: SetNull)
+  id               Int           @id @default(autoincrement())
+  staffId          Int
+  type             String        @default("movement") // "assignment" or "movement"
+  fromProjectId    Int?
+  fromProjectName  String?
+  fromPositionId   Int?
+  fromPositionName String?
+  toProjectId      Int
+  toProjectName    String
+  toPositionId     Int
+  toPositionName   String
+  movedBy          String?
+  movementDate     DateTime      @default(now())
+  notes            String?
+  createdAt        DateTime      @default(now())
+  projectStaffId   Int?
+  staff            CompanyStaff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  projectStaff     ProjectStaff? @relation("ProjectStaffHistory", fields: [projectStaffId], references: [id], onDelete: SetNull)
 
   @@index([staffId])
   @@index([toProjectId])
@@ -492,51 +493,52 @@ model Trade {
 }
 
 model Labour {
-  id            Int            @id @default(autoincrement())
-  labourName    String
-  employeeNumber String?
-  phone         String?
-  trade         String?
-  isActive      Boolean        @default(true)
-  createdAt     DateTime       @default(now())
-  updatedAt     DateTime       @updatedAt
+  id                Int                     @id @default(autoincrement())
+  labourName        String
+  employeeNumber    String?
+  phone             String?
+  trade             String?
+  isActive          Boolean                 @default(true)
+  createdAt         DateTime                @default(now())
+  updatedAt         DateTime                @updatedAt
   vacationStartDate DateTime?
   vacationEndDate   DateTime?
-  projectLabours ProjectLabour[]
-  movementHistory LabourMovementHistory[] @relation("LabourHistory")
+  projectLabours    ProjectLabour[]
+  movementHistory   LabourMovementHistory[] @relation("LabourHistory")
+  leaveHistory      LeaveHistory[]          @relation("LabourLeaveHistory")
 
   @@map("labours")
 }
 
 model ProjectTrade {
-  id                  Int            @id @default(autoincrement())
-  projectId           Int
-  trade                String
-  requiredQuantity     Int            @default(1)
-  createdAt            DateTime       @default(now())
-  updatedAt            DateTime       @updatedAt
-  project              Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  labourAssignments    ProjectLabour[]
+  id                Int             @id @default(autoincrement())
+  projectId         Int
+  trade             String
+  requiredQuantity  Int             @default(1)
+  createdAt         DateTime        @default(now())
+  updatedAt         DateTime        @updatedAt
+  project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  labourAssignments ProjectLabour[]
 
   @@unique([projectId, trade])
   @@map("project_trades")
 }
 
 model ProjectLabour {
-  id          Int          @id @default(autoincrement())
-  projectId   Int
-  tradeId     Int
-  labourId    Int?
-  utilization Int          @default(100)
-  startDate   DateTime?
-  endDate     DateTime?
-  status      String       @default("Active")
-  notes       String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  labour      Labour?      @relation(fields: [labourId], references: [id], onDelete: Cascade)
-  trade       ProjectTrade  @relation(fields: [tradeId], references: [id], onDelete: Cascade)
-  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id              Int                     @id @default(autoincrement())
+  projectId       Int
+  tradeId         Int
+  labourId        Int?
+  utilization     Int                     @default(100)
+  startDate       DateTime?
+  endDate         DateTime?
+  status          String                  @default("Active")
+  notes           String?
+  createdAt       DateTime                @default(now())
+  updatedAt       DateTime                @updatedAt
+  labour          Labour?                 @relation(fields: [labourId], references: [id], onDelete: Cascade)
+  trade           ProjectTrade            @relation(fields: [tradeId], references: [id], onDelete: Cascade)
+  project         Project                 @relation(fields: [projectId], references: [id], onDelete: Cascade)
   movementHistory LabourMovementHistory[] @relation("ProjectLabourHistory")
 
   @@unique([projectId, labourId])
@@ -544,28 +546,52 @@ model ProjectLabour {
 }
 
 model LabourMovementHistory {
-  id                    Int       @id @default(autoincrement())
-  labourId              Int
-  type                  String    @default("movement") // "assignment" or "movement"
-  fromProjectId         Int?
-  fromProjectName       String?
-  fromTradeId           Int?
-  fromTradeName         String?
-  toProjectId           Int
-  toProjectName         String
-  toTradeId             Int
-  toTradeName           String
-  movedBy               String?   // Could be admin user ID or name
-  movementDate          DateTime  @default(now())
-  notes                 String?
-  createdAt             DateTime  @default(now())
-  projectLabourId       Int?      // Reference to the ProjectLabour assignment
-  labour                Labour    @relation("LabourHistory", fields: [labourId], references: [id], onDelete: Cascade)
-  projectLabour         ProjectLabour? @relation("ProjectLabourHistory", fields: [projectLabourId], references: [id], onDelete: SetNull)
+  id              Int            @id @default(autoincrement())
+  labourId        Int
+  type            String         @default("movement") // "assignment" or "movement"
+  fromProjectId   Int?
+  fromProjectName String?
+  fromTradeId     Int?
+  fromTradeName   String?
+  toProjectId     Int
+  toProjectName   String
+  toTradeId       Int
+  toTradeName     String
+  movedBy         String? // Could be admin user ID or name
+  movementDate    DateTime       @default(now())
+  notes           String?
+  createdAt       DateTime       @default(now())
+  projectLabourId Int? // Reference to the ProjectLabour assignment
+  labour          Labour         @relation("LabourHistory", fields: [labourId], references: [id], onDelete: Cascade)
+  projectLabour   ProjectLabour? @relation("ProjectLabourHistory", fields: [projectLabourId], references: [id], onDelete: SetNull)
 
   @@index([labourId])
   @@index([toProjectId])
   @@map("labour_movement_history")
+}
+
+model LeaveHistory {
+  id             Int           @id @default(autoincrement())
+  entityType     String // "staff" or "labour"
+  staffId        Int? // Reference to CompanyStaff if entityType is "staff"
+  labourId       Int? // Reference to Labour if entityType is "labour"
+  leaveStartDate DateTime
+  leaveEndDate   DateTime
+  returnDate     DateTime? // Optional return date if marked as returned
+  isReturned     Boolean       @default(false)
+  notes          String?
+  createdBy      String? // Admin user who created the record
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  staff          CompanyStaff? @relation("StaffLeaveHistory", fields: [staffId], references: [id], onDelete: Cascade)
+  labour         Labour?       @relation("LabourLeaveHistory", fields: [labourId], references: [id], onDelete: Cascade)
+
+  @@index([staffId])
+  @@index([labourId])
+  @@index([entityType])
+  @@index([leaveStartDate])
+  @@index([leaveEndDate])
+  @@map("leave_history")
 }
 
 model ConsultantToConsultantType {

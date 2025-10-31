@@ -64,6 +64,8 @@ interface Staff {
   totalUtilization?: number; // Total utilization across all projects
   remainingCapacity?: number; // Remaining capacity (100% - totalUtilization)
   projectStaff?: ProjectStaffDetails[]; // Current assignments
+  vacationStartDate?: string | null;
+  vacationEndDate?: string | null;
 }
 
 interface ProjectStaffAssignment {
@@ -232,6 +234,17 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     setAssignmentStartDate(formattedStart);
     setAssignmentEndDate(formattedEnd);
     setDateValidationError('');
+  };
+
+  // Helper function to check if staff member is currently on leave
+  const isOnLeave = (staffMember: Staff): boolean => {
+    if (!staffMember.vacationStartDate) return false;
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const startDate = new Date(staffMember.vacationStartDate);
+    startDate.setHours(0, 0, 0, 0);
+    // Remains on leave until cleared (dates removed)
+    return today >= startDate;
   };
 
   // Helper function to validate dates
@@ -916,15 +929,24 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                               </span>
                             </td>
                             <td className="py-3 px-4">
-                              <span 
-                                className={`px-2 py-1 text-xs rounded-full ${
-                                  assignment.status === 'Active' ? 'bg-green-100 text-green-800' : 
-                                  assignment.status === 'Inactive' ? 'bg-gray-100 text-gray-800' : 
-                                  'bg-blue-100 text-blue-800'
-                                }`}
-                              >
-                                {assignment.status}
-                              </span>
+                              {assignment.staff ? (
+                                (() => {
+                                  const onLeave = isOnLeave(assignment.staff);
+                                  const activeStatus = assignment.staff.isActive && !onLeave;
+                                  const statusText = onLeave ? 'On Leave' : (activeStatus ? 'Active' : 'Inactive');
+                                  const statusColor = onLeave ? 'bg-yellow-100 text-yellow-800' : 
+                                                    (activeStatus ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800');
+                                  return (
+                                    <span 
+                                      className={`px-2 py-1 text-xs rounded-full ${statusColor}`}
+                                    >
+                                      {statusText}
+                                    </span>
+                                  );
+                                })()
+                              ) : (
+                                <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Unassigned</span>
+                              )}
                             </td>
                             <td className="py-3 px-4">
                               <div className="flex items-center space-x-2">
@@ -1600,6 +1622,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     }}
                   >
                     <option value="Active">Active</option>
+                    <option value="On Leave">On Leave</option>
                     <option value="Inactive">Inactive</option>
                     <option value="Completed">Completed</option>
                   </select>
@@ -1958,6 +1981,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   }}
                 >
                   <option value="Active">Active</option>
+                  <option value="On Leave">On Leave</option>
                   <option value="Inactive">Inactive</option>
                   <option value="Completed">Completed</option>
                 </select>
