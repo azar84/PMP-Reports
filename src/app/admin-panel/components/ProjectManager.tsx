@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { formatCurrency } from '@/lib/currency';
 import { formatDateForInput } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/Input';
 import ProjectChecklist from './ProjectChecklist';
 import ProjectStaff from './ProjectStaff';
 import ProjectLabours from './ProjectLabours';
+import ProjectLabourSupply from './ProjectLabourSupply';
 import { 
   Plus, 
   Edit, 
@@ -30,7 +32,8 @@ import {
   Eye,
   FileText,
   ClipboardList,
-  UserCheck
+  UserCheck,
+  Wrench
 } from 'lucide-react';
 
 interface Project {
@@ -123,6 +126,14 @@ export default function ProjectManager() {
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
   const { siteSettings } = useSiteSettings();
+  const { permissions } = useUserPermissions();
+
+  // Permission checks
+  const canCreateClients = hasPermission(permissions, 'clients.create');
+  const canCreateConsultants = hasPermission(permissions, 'consultants.create');
+  const canCreateStaff = hasPermission(permissions, 'staff.create');
+  const canCreateLabours = hasPermission(permissions, 'labours.create');
+  const canCreateContacts = hasPermission(permissions, 'contacts.create');
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -136,7 +147,7 @@ export default function ProjectManager() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showDetailView, setShowDetailView] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'checklist' | 'staff' | 'labours'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'checklist' | 'staff' | 'labours' | 'labourSupply'>('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -1268,6 +1279,33 @@ export default function ProjectManager() {
                 <span>Labours</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('labourSupply')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'labourSupply' 
+                  ? 'border-current' 
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'labourSupply') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'labourSupply') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{ 
+                color: activeTab === 'labourSupply' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'labourSupply' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Wrench className="w-4 h-4" />
+                <span>Labour Supply</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -1716,6 +1754,15 @@ export default function ProjectManager() {
                 />
               )}
             </div>
+          ) : activeTab === 'labourSupply' ? (
+            <div>
+              {selectedProject && (
+                <ProjectLabourSupply 
+                  projectId={selectedProject.id} 
+                  projectName={selectedProject.projectName}
+                />
+              )}
+            </div>
           ) : null}
         </div>
       ) : (
@@ -1855,15 +1902,17 @@ export default function ProjectManager() {
                         <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                         Client
                       </label>
-                        <Button
-                          type="button"
-                          onClick={() => setShowClientForm(true)}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          New Client
-                        </Button>
+                        {canCreateClients && (
+                          <Button
+                            type="button"
+                            onClick={() => setShowClientForm(true)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            New Client
+                          </Button>
+                        )}
                       </div>
                       <select
                         value={formData.clientId || ''}
@@ -1895,29 +1944,31 @@ export default function ProjectManager() {
                           <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                           Client Contacts
                         </label>
-                          <Button
-                            type="button"
-                            onClick={() => {
-                              setShowClientContactForm(true);
-                              setClientContactFormData({
-                                firstName: '',
-                                lastName: '',
-                                email: '',
-                                phone: '',
-                                position: '',
-                                notes: '',
-                                isPrimary: false,
-                                isActive: true,
-                                entityType: 'client',
-                                entityId: formData.clientId,
-                              });
-                            }}
-                            variant="secondary"
-                            size="sm"
-                          >
-                            <Plus className="w-3 h-3 mr-1" />
-                            Add Contact
-                          </Button>
+                          {canCreateContacts && (
+                            <Button
+                              type="button"
+                              onClick={() => {
+                                setShowClientContactForm(true);
+                                setClientContactFormData({
+                                  firstName: '',
+                                  lastName: '',
+                                  email: '',
+                                  phone: '',
+                                  position: '',
+                                  notes: '',
+                                  isPrimary: false,
+                                  isActive: true,
+                                  entityType: 'client',
+                                  entityId: formData.clientId,
+                                });
+                              }}
+                              variant="secondary"
+                              size="sm"
+                            >
+                              <Plus className="w-3 h-3 mr-1" />
+                              Add Contact
+                            </Button>
+                          )}
                         </div>
                         
                         {/* Pending Contacts Display */}
@@ -2130,7 +2181,7 @@ export default function ProjectManager() {
                     )}
 
                     {/* Client Contact Creation Form */}
-                    {showClientContactForm && (
+                    {showClientContactForm && canCreateContacts && (
                       <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
@@ -2277,7 +2328,7 @@ export default function ProjectManager() {
                     )}
 
                     {/* Client Creation Form */}
-                    {showClientForm && (
+                    {showClientForm && canCreateClients && (
                       <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                         <div className="flex items-center justify-between mb-4">
                           <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
@@ -2405,15 +2456,17 @@ export default function ProjectManager() {
                         <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                         PMC Consultant
                       </label>
-                        <Button
-                          type="button"
-                          onClick={() => setShowConsultantModal(true)}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          New Consultant
-                        </Button>
+                        {canCreateConsultants && (
+                          <Button
+                            type="button"
+                            onClick={() => setShowConsultantModal(true)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            New Consultant
+                          </Button>
+                        )}
                       </div>
                       <select
                         value={formData.projectManagementConsultantId || ''}
@@ -3569,15 +3622,17 @@ export default function ProjectManager() {
                         <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                         Design Consultant
                       </label>
-                        <Button
-                          type="button"
-                          onClick={() => setShowConsultantModal(true)}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          New Consultant
-                        </Button>
+                        {canCreateConsultants && (
+                          <Button
+                            type="button"
+                            onClick={() => setShowConsultantModal(true)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            New Consultant
+                          </Button>
+                        )}
                       </div>
                       <select
                         value={formData.designConsultantId || ''}
@@ -3867,15 +3922,17 @@ export default function ProjectManager() {
                         <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                         Cost Consultant
                       </label>
-                        <Button
-                          type="button"
-                          onClick={() => setShowConsultantModal(true)}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          New Consultant
-                        </Button>
+                        {canCreateConsultants && (
+                          <Button
+                            type="button"
+                            onClick={() => setShowConsultantModal(true)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            New Consultant
+                          </Button>
+                        )}
                       </div>
                       <select
                         value={formData.costConsultantId || ''}
@@ -4159,15 +4216,17 @@ export default function ProjectManager() {
                         <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
                         Supervision Consultant
                       </label>
-                        <Button
-                          type="button"
-                          onClick={() => setShowConsultantModal(true)}
-                          variant="secondary"
-                          size="sm"
-                        >
-                          <Plus className="w-3 h-3 mr-1" />
-                          New Consultant
-                        </Button>
+                        {canCreateConsultants && (
+                          <Button
+                            type="button"
+                            onClick={() => setShowConsultantModal(true)}
+                            variant="secondary"
+                            size="sm"
+                          >
+                            <Plus className="w-3 h-3 mr-1" />
+                            New Consultant
+                          </Button>
+                        )}
                       </div>
                       <select
                         value={formData.supervisionConsultantId || ''}
@@ -4602,30 +4661,34 @@ export default function ProjectManager() {
                   <div className="border-t mb-4" style={{ borderColor: colors.borderLight }}></div>
 
                   {/* Additional Staff Section */}
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center space-x-2">
-                      <Users className="w-5 h-5" style={{ color: colors.primary }} />
-                      <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Additional Staff</h3>
-                    </div>
-                    <Button
-                      onClick={() => setShowStaffForm(true)}
-                      type="button"
-                      variant="secondary"
-                      size="sm"
-                    >
-                      <Plus className="w-4 h-4 mr-1" />
-                      Add Staff Member
-                    </Button>
-                  </div>
-                  
-                  <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
-                    Add new staff members to your company database. These staff members can then be assigned to projects later.
-                  </p>
+                  {canCreateStaff && (
+                    <>
+                      <div className="flex items-center justify-between mb-2">
+                        <div className="flex items-center space-x-2">
+                          <Users className="w-5 h-5" style={{ color: colors.primary }} />
+                          <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Additional Staff</h3>
+                        </div>
+                        <Button
+                          onClick={() => setShowStaffForm(true)}
+                          type="button"
+                          variant="secondary"
+                          size="sm"
+                        >
+                          <Plus className="w-4 h-4 mr-1" />
+                          Add Staff Member
+                        </Button>
+                      </div>
+                      
+                      <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                        Add new staff members to your company database. These staff members can then be assigned to projects later.
+                      </p>
+                    </>
+                  )}
                 </div>
               </div>
 
               {/* Staff Creation Form */}
-              {showStaffForm && (
+              {showStaffForm && canCreateStaff && (
                 <div className="mt-4 p-4 rounded-lg border" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                   <div className="flex items-center justify-between mb-4">
                     <h4 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
@@ -5247,7 +5310,7 @@ export default function ProjectManager() {
       )}
 
       {/* Consultant Creation Modal */}
-      {showConsultantModal && (
+      {showConsultantModal && canCreateConsultants && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="rounded-lg p-6 w-full max-w-2xl mx-4 max-h-[90vh] overflow-y-auto border" style={{ 
             backgroundColor: colors.backgroundSecondary,

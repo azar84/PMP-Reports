@@ -228,23 +228,152 @@ model MediaUsage {
   @@map("media_usage")
 }
 
-model AdminUser {
-  id           Int       @id @default(autoincrement())
-  username     String    @unique
-  email        String    @unique
-  passwordHash String
-  name         String?
-  role         String    @default("admin")
-  isActive     Boolean   @default(true)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+model Tenant {
+  id          Int       @id @default(autoincrement())
+  name        String
+  slug        String    @unique
+  isActive    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  users       AdminUser[]
+  roles       Role[]
+  permissions Permission[]
+  projects    Project[]
+  clients     Client[]
+  consultants Consultant[]
+  staff       CompanyStaff[]
+  labours     Labour[]
+  auditLogs   AuditLog[]
 
+  @@index([slug])
+  @@map("tenants")
+}
+
+model AdminUser {
+  id                  Int       @id @default(autoincrement())
+  tenantId            Int       @default(1) // Default tenant for migration
+  username            String
+  email               String
+  passwordHash        String
+  name                String?
+  role                String    @default("admin") // Legacy field, keep for backward compatibility
+  isActive            Boolean   @default(true)
+  hasAllProjectsAccess Boolean  @default(false) // If true, user can access all projects regardless of memberships
+  lastLoginAt         DateTime?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles           UserRole[]
+  projectMemberships  ProjectMembership[]
+
+  @@unique([tenantId, username])
+  @@unique([tenantId, email])
+  @@index([tenantId])
   @@map("admin_users")
+}
+
+model Permission {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int      @default(1) // Permissions are tenant-scoped but can share keys
+  key         String   // e.g., "project.view_basic", "staff.assign_to_project"
+  resource    String   // e.g., "project", "staff", "labour", "admin"
+  description String?
+  isSystem    Boolean  @default(false) // System permissions cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+
+  @@unique([tenantId, key])
+  @@index([tenantId])
+  @@index([resource])
+  @@map("permissions")
+}
+
+model Role {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  name        String
+  description String?
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  rolePermissions RolePermission[]
+  userRoles   UserRole[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("roles")
+}
+
+model RolePermission {
+  id           Int        @id @default(autoincrement())
+  roleId       Int
+  permissionId Int
+  action       String     @default("allow") // "allow" or "deny" - deny wins
+  createdAt    DateTime   @default(now())
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  roleId    Int
+  createdAt DateTime @default(now())
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId])
+  @@index([userId])
+  @@index([roleId])
+  @@map("user_roles")
+}
+
+model ProjectMembership {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  projectId Int
+  createdAt DateTime @default(now())
+  user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, projectId])
+  @@index([userId])
+  @@index([projectId])
+  @@map("project_memberships")
+}
+
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  tenantId    Int
+  userId      Int?
+  action      String   // e.g., "staff.move", "project.create", "permission.denied"
+  resource    String   // e.g., "staff", "project"
+  resourceId  Int?
+  details     Json?    // Additional context
+  ipAddress   String?
+  userAgent   String?
+  createdAt   DateTime @default(now())
+  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([userId])
+  @@index([action])
+  @@index([resource, resourceId])
+  @@index([createdAt])
+  @@map("audit_logs")
 }
 
 model Client {
   id            Int       @id @default(autoincrement())
+  tenantId      Int       @default(1)
   name          String
   officeAddress String?
   phone         String?
@@ -252,13 +381,16 @@ model Client {
   isActive      Boolean   @default(true)
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   projects      Project[]
 
+  @@index([tenantId])
   @@map("clients")
 }
 
 model Consultant {
   id                         Int                          @id @default(autoincrement())
+  tenantId                   Int                          @default(1)
   name                       String
   officeAddress              String?
   phone                      String?
@@ -266,12 +398,14 @@ model Consultant {
   isActive                   Boolean                      @default(true)
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime                     @updatedAt
+  tenant                     Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ConsultantToConsultantType ConsultantToConsultantType[]
   projectsAsCost             Project[]                    @relation("CostConsultant")
   projectsAsSupervision      Project[]                    @relation("SupervisionConsultant")
   projectsAsDesign           Project[]                    @relation("DesignConsultant")
   projectsAsPMC              Project[]                    @relation("ProjectManagementConsultant")
 
+  @@index([tenantId])
   @@map("consultants")
 }
 
@@ -288,6 +422,7 @@ model ConsultantType {
 
 model CompanyStaff {
   id                 Int                    @id @default(autoincrement())
+  tenantId           Int                    @default(1)
   staffName          String
   email              String?
   phone              String?
@@ -298,12 +433,14 @@ model CompanyStaff {
   employeeNumber     String?
   vacationStartDate  DateTime?
   vacationEndDate    DateTime?
+  tenant             Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   projectStaff       ProjectStaff[]
   projectsAsManager  Project[]              @relation("ProjectManager")
   projectsAsDirector Project[]              @relation("ProjectDirector")
   movementHistory    StaffMovementHistory[]
   leaveHistory       LeaveHistory[]         @relation("StaffLeaveHistory")
 
+  @@index([tenantId])
   @@map("company_staff")
 }
 
@@ -342,7 +479,8 @@ model ProjectContact {
 
 model Project {
   id                            Int                    @id @default(autoincrement())
-  projectCode                   String                 @unique
+  tenantId                      Int                    @default(1)
+  projectCode                   String
   projectName                   String
   projectDescription            String?
   clientId                      Int?
@@ -360,12 +498,15 @@ model Project {
   lastUpdate                    DateTime               @default(now()) @updatedAt
   createdAt                     DateTime               @default(now())
   updatedAt                     DateTime               @updatedAt
+  tenant                        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   projectChecklistItems         ProjectChecklistItem[]
   projectContacts               ProjectContact[]
   projectPositions              ProjectPosition[]
   projectStaff                  ProjectStaff[]
   projectTrades                 ProjectTrade[]
   projectLabours                ProjectLabour[]
+  projectLabourSupplies         ProjectLabourSupply[]
+  projectMemberships            ProjectMembership[]
   projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
   projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
   costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
@@ -374,6 +515,8 @@ model Project {
   projectManagementConsultant   Consultant?            @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
   client                        Client?                @relation(fields: [clientId], references: [id])
 
+  @@unique([tenantId, projectCode])
+  @@index([tenantId])
   @@map("projects")
 }
 
@@ -494,6 +637,7 @@ model Trade {
 
 model Labour {
   id                Int                     @id @default(autoincrement())
+  tenantId          Int                     @default(1)
   labourName        String
   employeeNumber    String?
   phone             String?
@@ -503,10 +647,12 @@ model Labour {
   updatedAt         DateTime                @updatedAt
   vacationStartDate DateTime?
   vacationEndDate   DateTime?
+  tenant            Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   projectLabours    ProjectLabour[]
   movementHistory   LabourMovementHistory[] @relation("LabourHistory")
   leaveHistory      LeaveHistory[]          @relation("LabourLeaveHistory")
 
+  @@index([tenantId])
   @@map("labours")
 }
 
@@ -592,6 +738,21 @@ model LeaveHistory {
   @@index([leaveStartDate])
   @@index([leaveEndDate])
   @@map("leave_history")
+}
+
+model ProjectLabourSupply {
+  id             Int      @id @default(autoincrement())
+  projectId      Int
+  trade          String
+  numberOfLabour Int
+  pricePerHour   Decimal
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, trade])
+  @@index([projectId])
+  @@map("project_labour_supplies")
 }
 
 model ConsultantToConsultantType {
