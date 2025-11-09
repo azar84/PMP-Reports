@@ -522,6 +522,7 @@ model Project {
   controlMilestones             ProjectControlMilestone[]
   qualityE1Logs                 ProjectQualityE1Log[]
   qualityE2Logs                 ProjectQualityE2Log[]
+  qualityChecklistEntries       ProjectQualityChecklistEntry[]
 
   @@unique([tenantId, projectCode])
   @@index([tenantId])
@@ -606,6 +607,25 @@ model ProjectQualityE2Log {
   @@index([projectId])
   @@index([sortOrder])
   @@map("project_quality_e2_logs")
+}
+
+model ProjectQualityChecklistEntry {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  submissionType String
+  submitted      Int?
+  approved       Int?
+  underReview    Int?
+  rejected       Int?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, submissionType])
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_quality_checklist_entries")
 }
 
 model ProjectChecklistItem {

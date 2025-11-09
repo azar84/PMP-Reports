@@ -20,6 +20,13 @@ const DEFAULT_E2_LOG_TYPES = [
   'Long Lead Items',
 ];
 
+const DEFAULT_CHECKLIST_TYPES = [
+  "WIR's",
+  'Site Observation',
+  "NCR's",
+  'Quality Check',
+];
+
 const orderByClause = [
   { sortOrder: 'asc' as const },
   { id: 'asc' as const },
@@ -66,7 +73,7 @@ function normalizeSubmissionType(value: unknown, fallback?: string): string {
   return fallback ?? '';
 }
 
-type SanitizedEntry = {
+type SanitizedLogEntry = {
   submissionType: string;
   totalNumber: number | null;
   submitted: number | null;
@@ -76,7 +83,16 @@ type SanitizedEntry = {
   sortOrder: number;
 };
 
-function sanitizeEntries(rawEntries: any[], defaultTypes: string[]): SanitizedEntry[] {
+type SanitizedChecklistEntry = {
+  submissionType: string;
+  submitted: number | null;
+  approved: number | null;
+  underReview: number | null;
+  rejected: number | null;
+  sortOrder: number;
+};
+
+function sanitizeLogEntries(rawEntries: any[], defaultTypes: string[]): SanitizedLogEntry[] {
   return rawEntries
     .map((entry: any, index: number) => {
       const submissionType = normalizeSubmissionType(entry?.submissionType, defaultTypes[index]);
@@ -93,6 +109,24 @@ function sanitizeEntries(rawEntries: any[], defaultTypes: string[]): SanitizedEn
       };
     })
     .filter(Boolean) as SanitizedEntry[];
+}
+
+function sanitizeChecklistEntries(rawEntries: any[], defaultTypes: string[]): SanitizedChecklistEntry[] {
+  return rawEntries
+    .map((entry: any, index: number) => {
+      const submissionType = normalizeSubmissionType(entry?.submissionType, DEFAULT_CHECKLIST_TYPES[index]);
+      if (!submissionType) return null;
+
+      return {
+        submissionType,
+        submitted: parseOptionalInteger(entry?.submitted),
+        approved: parseOptionalInteger(entry?.approved),
+        underReview: parseOptionalInteger(entry?.underReview),
+        rejected: parseOptionalInteger(entry?.rejected),
+        sortOrder: typeof entry?.sortOrder === 'number' ? entry.sortOrder : index,
+      };
+    })
+    .filter(Boolean) as SanitizedChecklistEntry[];
 }
 
 export async function GET(
@@ -118,12 +152,16 @@ export async function GET(
       );
     }
 
-    const [e1Entries, e2Entries] = await Promise.all([
+    const [e1Entries, e2Entries, checklistEntries] = await Promise.all([
       prisma.projectQualityE1Log.findMany({
         where: { projectId },
         orderBy: orderByClause,
       }),
       prisma.projectQualityE2Log.findMany({
+        where: { projectId },
+        orderBy: orderByClause,
+      }),
+      prisma.projectQualityChecklistEntry.findMany({
         where: { projectId },
         orderBy: orderByClause,
       }),
@@ -136,6 +174,8 @@ export async function GET(
         e2Entries,
         defaultE1Types: DEFAULT_E1_LOG_TYPES,
         defaultE2Types: DEFAULT_E2_LOG_TYPES,
+        checklistEntries,
+        defaultChecklistTypes: DEFAULT_CHECKLIST_TYPES,
       },
     });
   } catch (error) {
@@ -178,12 +218,15 @@ export async function PUT(
         : [];
     const rawE2Entries = Array.isArray(body?.e2Entries) ? body.e2Entries : [];
 
-    const sanitizedE1Entries = sanitizeEntries(rawE1Entries, DEFAULT_E1_LOG_TYPES);
-    const sanitizedE2Entries = sanitizeEntries(rawE2Entries, DEFAULT_E2_LOG_TYPES);
+    const sanitizedE1Entries = sanitizeLogEntries(rawE1Entries, DEFAULT_E1_LOG_TYPES);
+    const sanitizedE2Entries = sanitizeLogEntries(rawE2Entries, DEFAULT_E2_LOG_TYPES);
+    const rawChecklistEntries = Array.isArray(body?.checklistEntries) ? body.checklistEntries : [];
+    const sanitizedChecklistEntries = sanitizeChecklistEntries(rawChecklistEntries, DEFAULT_CHECKLIST_TYPES);
 
-    const [nextE1Entries, nextE2Entries] = await prisma.$transaction(async (tx) => {
+    const [nextE1Entries, nextE2Entries, nextChecklistEntries] = await prisma.$transaction(async (tx) => {
       await tx.projectQualityE1Log.deleteMany({ where: { projectId } });
       await tx.projectQualityE2Log.deleteMany({ where: { projectId } });
+      await tx.projectQualityChecklistEntry.deleteMany({ where: { projectId } });
 
       if (sanitizedE1Entries.length > 0) {
         await tx.projectQualityE1Log.createMany({
@@ -215,7 +258,21 @@ export async function PUT(
         });
       }
 
-      const [freshE1Entries, freshE2Entries] = await Promise.all([
+      if (sanitizedChecklistEntries.length > 0) {
+        await tx.projectQualityChecklistEntry.createMany({
+          data: sanitizedChecklistEntries.map((entry) => ({
+            projectId,
+            submissionType: entry.submissionType,
+            submitted: entry.submitted,
+            approved: entry.approved,
+            underReview: entry.underReview,
+            rejected: entry.rejected,
+            sortOrder: entry.sortOrder,
+          })),
+        });
+      }
+
+      const [freshE1Entries, freshE2Entries, freshChecklistEntries] = await Promise.all([
         tx.projectQualityE1Log.findMany({
           where: { projectId },
           orderBy: orderByClause,
@@ -224,9 +281,13 @@ export async function PUT(
           where: { projectId },
           orderBy: orderByClause,
         }),
+        tx.projectQualityChecklistEntry.findMany({
+          where: { projectId },
+          orderBy: orderByClause,
+        }),
       ]);
 
-      return [freshE1Entries, freshE2Entries] as const;
+      return [freshE1Entries, freshE2Entries, freshChecklistEntries] as const;
     });
 
     return NextResponse.json({
@@ -234,6 +295,7 @@ export async function PUT(
       data: {
         e1Entries: nextE1Entries,
         e2Entries: nextE2Entries,
+        checklistEntries: nextChecklistEntries,
       },
     });
   } catch (error) {
