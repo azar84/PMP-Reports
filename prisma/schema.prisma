@@ -106,29 +106,29 @@ model SitemapSubmissionLog {
 
 model DesignSystem {
   id                           Int      @id @default(autoincrement())
-  primaryColor                 String   @default("#5243E9")
-  primaryColorLight            String   @default("#6366F1")
-  primaryColorDark             String   @default("#4338CA")
-  secondaryColor               String   @default("#7C3AED")
+  primaryColor                 String   @default("#EF2908")
+  primaryColorLight            String   @default("#FF4013")
+  primaryColorDark             String   @default("#C71508")
+  secondaryColor               String   @default("#FFFFFF")
   accentColor                  String   @default("#06B6D4")
   successColor                 String   @default("#10B981")
   warningColor                 String   @default("#F59E0B")
   errorColor                   String   @default("#EF4444")
   infoColor                    String   @default("#3B82F6")
-  borderLight                  String   @default("#F9FAFB")
-  borderStrong                 String   @default("#374151")
+  borderLight                  String   @default("#EBEBEB")
+  borderStrong                 String   @default("#D6D6D6")
   backgroundPrimary            String   @default("#FFFFFF")
-  backgroundSecondary          String   @default("#F6F8FC")
-  backgroundDark               String   @default("#0F1A2A")
-  headerBackgroundColor        String   @default("#F6F8FC")
-  sidebarHeaderBackgroundColor String   @default("#F6F8FC")
-  sidebarBackgroundColor       String   @default("#0F1A2A")
+  backgroundSecondary          String   @default("#F5F8F8")
+  backgroundDark               String   @default("#F1F1F1")
+  headerBackgroundColor        String   @default("#FF2600")
+  sidebarHeaderBackgroundColor String   @default("#FF2600")
+  sidebarBackgroundColor       String   @default("#FFFFFF")
   textPrimary                  String   @default("#4B5563")
   textSecondary                String   @default("#9CA3AF")
-  textMuted                    String   @default("#D1D5DB")
-  headerTextColor              String   @default("#4B5563")
-  sidebarTextColor             String   @default("#4B5563")
-  sidebarHeaderColor           String   @default("#4B5563")
+  textMuted                    String   @default("#AAAAAA")
+  headerTextColor              String   @default("#FFFFFF")
+  sidebarTextColor             String   @default("#000000")
+  sidebarHeaderColor           String   @default("#FFFFFF")
   fontFamily                   String   @default("Manrope")
   fontFamilyMono               String   @default("ui-monospace")
   fontSizeBase                 String   @default("16px")
@@ -492,11 +492,11 @@ model Project {
   costConsultantId              Int?
   projectDirectorId             Int?
   projectManagerId              Int?
-  startDate                     DateTime?
-  endDate                       DateTime?
+  startDate                     DateTime
+  endDate                       DateTime
   duration                      String?
   eot                           String?
-  projectValue                  Decimal?
+  projectValue                  Decimal
   lastUpdate                    DateTime               @default(now()) @updatedAt
   createdAt                     DateTime               @default(now())
   updatedAt                     DateTime               @updatedAt
@@ -520,6 +520,8 @@ model Project {
   client                        Client?                @relation(fields: [clientId], references: [id])
   projectPlanning               ProjectPlanning?
   controlMilestones             ProjectControlMilestone[]
+  qualityE1Logs                 ProjectQualityE1Log[]
+  qualityE2Logs                 ProjectQualityE2Log[]
 
   @@unique([tenantId, projectCode])
   @@index([tenantId])
@@ -566,6 +568,46 @@ model ProjectControlMilestone {
   @@map("project_control_milestones")
 }
 
+model ProjectQualityE1Log {
+  id                 Int       @id @default(autoincrement())
+  projectId          Int
+  submissionType     String
+  totalNumber        Int?
+  submitted          Int?
+  underReview        Int?
+  approved           Int?
+  reviseAndResubmit  Int?
+  sortOrder          Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, submissionType])
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_quality_e1_logs")
+}
+
+model ProjectQualityE2Log {
+  id                 Int       @id @default(autoincrement())
+  projectId          Int
+  submissionType     String
+  totalNumber        Int?
+  submitted          Int?
+  underReview        Int?
+  approved           Int?
+  reviseAndResubmit  Int?
+  sortOrder          Int       @default(0)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, submissionType])
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_quality_e2_logs")
+}
+
 model ProjectChecklistItem {
   id           Int       @id @default(autoincrement())
   projectId    Int
@@ -590,6 +632,8 @@ model ProjectPosition {
   projectId           Int
   designation         String
   requiredUtilization Int            @default(100)
+  startDate           DateTime?
+  endDate             DateTime?
   createdAt           DateTime       @default(now())
   updatedAt           DateTime       @updatedAt
   project             Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -708,6 +752,8 @@ model ProjectTrade {
   projectId         Int
   trade             String
   requiredQuantity  Int             @default(1)
+  startDate         DateTime?
+  endDate           DateTime?
   createdAt         DateTime        @default(now())
   updatedAt         DateTime        @updatedAt
   project           Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -867,6 +913,8 @@ model ProjectLabourSupply {
   trade          String
   numberOfLabour Int
   pricePerHour   Decimal
+  startDate      DateTime?
+  endDate        DateTime?
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
   project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
