@@ -31,7 +31,8 @@ import {
   User,
   Briefcase,
   HardHat,
-  Shield
+  Shield,
+  Factory
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
@@ -44,6 +45,7 @@ import ClientManager from './components/ClientManager';
 import ConsultantManager from './components/ConsultantManager';
 import CompanyStaffManager from './components/CompanyStaffManager';
 import LabourManager from './components/LabourManager';
+import PlantManager from './components/PlantManager';
 import ContactManager from './components/ContactManager';
 import RolesManager from './components/RolesManager';
 import type { PermissionKey } from '@/lib/permissionsCatalog';
@@ -59,6 +61,7 @@ type Section =
   | 'consultants'
   | 'company-staff'
   | 'labours'
+  | 'plants'
   | 'contacts'
   | 'media-library'
   | 'users'
@@ -86,6 +89,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
     { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
     { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning, permission: 'staff.view' },
     { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
+    { id: 'plants', name: 'Plants', icon: Factory, color: colors.success, permission: 'projects.view' },
     { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info, permission: 'contacts.view' },
     { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary, permission: 'media-library.view' },
     { id: 'users', name: 'Users', icon: Users, color: colors.error, permission: 'users.view' },
@@ -357,6 +361,15 @@ export default function AdminPanel() {
             style={{ backgroundColor: colors.backgroundPrimary }}
           >
             <LabourManager />
+          </div>
+        );
+      case 'plants':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <PlantManager />
           </div>
         );
       case 'contacts':

@@ -831,6 +831,10 @@ model ProjectPlantRequirement {
   description      String?
   requiredQuantity Int             @default(1)
   notes            String?
+  plannedStartDate DateTime?
+  plannedEndDate   DateTime?
+  monthlyBudget    Float?
+  useSlotDates            Boolean  @default(false)
   createdAt        DateTime        @default(now())
   updatedAt        DateTime        @updatedAt
   project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -846,6 +850,7 @@ model ProjectPlant {
   projectId      Int
   plantId        Int?
   requirementId  Int?
+  slotIndex      Int?
   startDate      DateTime?
   endDate        DateTime?
   status         String    @default("Active")
@@ -869,6 +874,8 @@ model ProjectPlantRequirementSlot {
   slotIndex     Int
   startDate     DateTime?
   endDate       DateTime?
+  plannedStartDate DateTime?
+  plannedEndDate   DateTime?
   createdAt     DateTime                 @default(now())
   updatedAt     DateTime                 @updatedAt
   requirement   ProjectPlantRequirement  @relation(fields: [requirementId], references: [id], onDelete: Cascade)

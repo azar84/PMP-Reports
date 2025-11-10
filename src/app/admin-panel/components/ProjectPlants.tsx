@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
@@ -22,6 +22,10 @@ import {
   X,
   AlertCircle,
   Calculator,
+  UserX,
+  Mail,
+  Phone,
+  Briefcase,
 } from 'lucide-react';
 
 interface Plant {
@@ -44,6 +48,16 @@ interface ProjectPlantRequirement {
   description?: string | null;
   requiredQuantity: number;
   notes?: string | null;
+  plannedStartDate?: string | null;
+  plannedEndDate?: string | null;
+  monthlyBudget?: number | null;
+  useSlotDates?: boolean;
+  slots?: Array<{
+    id: number;
+    slotIndex: number;
+    plannedStartDate?: string | null;
+    plannedEndDate?: string | null;
+  }>;
   createdAt: string;
   updatedAt: string;
   assignments: ProjectPlant[];
@@ -59,6 +73,7 @@ interface ProjectPlant {
   status: string;
   notes?: string | null;
   monthlyCost?: number | null;
+  slotIndex?: number | null;
   createdAt: string;
   updatedAt: string;
   plant?: Plant | null;
@@ -80,6 +95,9 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
   const { get, post, put, delete: del } = useAdminApi();
   const { siteSettings } = useSiteSettings();
 
+  const defaultPlannedStart = projectStartDate ? formatDateForInput(projectStartDate) : '';
+  const defaultPlannedEnd = projectEndDate ? formatDateForInput(projectEndDate) : '';
+
   const [requirements, setRequirements] = useState<ProjectPlantRequirement[]>([]);
   const [projectPlants, setProjectPlants] = useState<ProjectPlant[]>([]);
   const [plants, setPlants] = useState<Plant[]>([]);
@@ -93,6 +111,15 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
     description: '',
     requiredQuantity: 1,
     notes: '',
+    plannedStartDate: defaultPlannedStart,
+    plannedEndDate: defaultPlannedEnd,
+    monthlyBudget: '',
+    useSlotDates: false,
+    slots: [] as Array<{
+      slotIndex: number;
+      plannedStartDate: string;
+      plannedEndDate: string;
+    }>,
   });
   const [isSavingRequirement, setIsSavingRequirement] = useState(false);
 
@@ -109,6 +136,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
   const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<ProjectPlant | null>(null);
   const [showCostBreakdownModal, setShowCostBreakdownModal] = useState(false);
+  const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
   const [newPlantData, setNewPlantData] = useState({
     plantDescription: '',
@@ -119,6 +147,54 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
     monthlyCost: 0,
     isActive: true,
   });
+
+  useEffect(() => {
+    if (editingRequirement) return;
+    setRequirementFormData((prev) => ({
+      ...prev,
+      plannedStartDate: projectStartDate ? formatDateForInput(projectStartDate) : '',
+      plannedEndDate: projectEndDate ? formatDateForInput(projectEndDate) : '',
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectStartDate, projectEndDate]);
+
+  useEffect(() => {
+    setRequirementFormData((prev) => {
+      if (!prev.useSlotDates) {
+        return {
+          ...prev,
+          slots: [],
+        };
+      }
+      const targetLength = prev.requiredQuantity;
+      let updatedSlots = prev.slots ?? [];
+      if (updatedSlots.length < targetLength) {
+        const baseStart = prev.plannedStartDate || '';
+        const baseEnd = prev.plannedEndDate || '';
+        const extraSlots = Array.from({ length: targetLength - updatedSlots.length }, (_, index) => ({
+          slotIndex: updatedSlots.length + index,
+          plannedStartDate: baseStart,
+          plannedEndDate: baseEnd,
+        }));
+        updatedSlots = [...updatedSlots, ...extraSlots];
+      } else if (updatedSlots.length > targetLength) {
+        updatedSlots = updatedSlots.slice(0, targetLength);
+      }
+      updatedSlots = updatedSlots.map((slot, index) => ({
+        ...slot,
+        slotIndex: index,
+      }));
+      return {
+        ...prev,
+        slots: updatedSlots,
+      };
+    });
+  }, [
+    requirementFormData.useSlotDates,
+    requirementFormData.requiredQuantity,
+    requirementFormData.plannedStartDate,
+    requirementFormData.plannedEndDate,
+  ]);
 
   useEffect(() => {
     fetchData();
@@ -166,6 +242,11 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
       description: '',
       requiredQuantity: 1,
       notes: '',
+      plannedStartDate: projectStartDate ? formatDateForInput(projectStartDate) : '',
+      plannedEndDate: projectEndDate ? formatDateForInput(projectEndDate) : '',
+      monthlyBudget: '',
+      useSlotDates: false,
+      slots: [],
     });
     setEditingRequirement(null);
     setIsSavingRequirement(false);
@@ -173,6 +254,14 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
 
   const handleRequirementSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
+
+    if (requirementFormData.useSlotDates) {
+      if (!requirementFormData.slots || requirementFormData.slots.length !== requirementFormData.requiredQuantity) {
+        setErrorMessage('Please define start and end dates for each required plant slot.');
+        return;
+      }
+    }
+
     if (!requirementFormData.title.trim()) {
       setErrorMessage('Requirement title is required.');
       return;
@@ -188,6 +277,19 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         description: requirementFormData.description.trim(),
         requiredQuantity: requirementFormData.requiredQuantity,
         notes: requirementFormData.notes.trim(),
+        plannedStartDate: requirementFormData.plannedStartDate || undefined,
+        plannedEndDate: requirementFormData.plannedEndDate || undefined,
+        monthlyBudget: requirementFormData.monthlyBudget !== ''
+          ? Number(requirementFormData.monthlyBudget)
+          : undefined,
+        useSlotDates: requirementFormData.useSlotDates,
+        slots: requirementFormData.useSlotDates
+          ? requirementFormData.slots.map((slot, index) => ({
+              slotIndex: index,
+              plannedStartDate: slot.plannedStartDate || undefined,
+              plannedEndDate: slot.plannedEndDate || undefined,
+            }))
+          : [],
       };
 
       if (editingRequirement) {
@@ -232,6 +334,18 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
       description: requirement.description || '',
       requiredQuantity: requirement.requiredQuantity,
       notes: requirement.notes || '',
+      plannedStartDate: requirement.plannedStartDate ? formatDateForInput(requirement.plannedStartDate) : '',
+      plannedEndDate: requirement.plannedEndDate ? formatDateForInput(requirement.plannedEndDate) : '',
+      monthlyBudget: requirement.monthlyBudget !== null && requirement.monthlyBudget !== undefined
+        ? String(requirement.monthlyBudget)
+        : '',
+      useSlotDates: requirement.useSlotDates ?? false,
+      slots:
+        requirement.slots?.map((slot) => ({
+          slotIndex: slot.slotIndex,
+          plannedStartDate: slot.plannedStartDate ? formatDateForInput(slot.plannedStartDate) : '',
+          plannedEndDate: slot.plannedEndDate ? formatDateForInput(slot.plannedEndDate) : '',
+        })) ?? [],
     });
     setShowRequirementForm(true);
   };
@@ -246,7 +360,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         setProjectPlants(
           projectPlants.map((assignment) =>
             assignment.requirementId === id
-              ? { ...assignment, requirementId: null, requirement: null }
+              ? { ...assignment, requirementId: null, requirement: null, slotIndex: null }
               : assignment
           )
         );
@@ -278,11 +392,57 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
       monthlyCost: 0,
       isActive: true,
     });
+    setSelectedSlotIndex(null);
   };
 
-  const openAssignmentModal = (requirement?: ProjectPlantRequirement | null) => {
+  const openAssignmentModal = (requirement?: ProjectPlantRequirement | null, slotIndex?: number | null) => {
     resetAssignmentModal();
     setSelectedRequirement(requirement ?? null);
+    if (requirement?.useSlotDates) {
+      const totalSlots = requirement.slots && requirement.slots.length > 0
+        ? requirement.slots.length
+        : requirement.requiredQuantity;
+      const assignedSlots = new Set<number>();
+      requirement.assignments?.forEach((assignment) => {
+        if (assignment.slotIndex !== null && assignment.slotIndex !== undefined) {
+          assignedSlots.add(Number(assignment.slotIndex));
+        }
+      });
+
+      let targetSlotIndex: number | null =
+        slotIndex !== undefined && slotIndex !== null ? slotIndex : null;
+
+      if (targetSlotIndex === null) {
+        for (let i = 0; i < totalSlots; i += 1) {
+          if (!assignedSlots.has(i)) {
+            targetSlotIndex = i;
+            break;
+          }
+        }
+      }
+
+      if (targetSlotIndex !== null && targetSlotIndex >= totalSlots) {
+        targetSlotIndex = null;
+      }
+
+      setSelectedSlotIndex(targetSlotIndex);
+
+      const fallbackStart = requirement.plannedStartDate ? formatDateForInput(requirement.plannedStartDate) : '';
+      const fallbackEnd = requirement.plannedEndDate ? formatDateForInput(requirement.plannedEndDate) : '';
+
+      if (targetSlotIndex !== null) {
+        const slotMeta = requirement.slots?.find((slot) => slot.slotIndex === targetSlotIndex);
+        setAssignmentStartDate(
+          slotMeta?.plannedStartDate ? formatDateForInput(slotMeta.plannedStartDate) : fallbackStart
+        );
+        setAssignmentEndDate(
+          slotMeta?.plannedEndDate ? formatDateForInput(slotMeta.plannedEndDate) : fallbackEnd
+        );
+      } else {
+        setAssignmentStartDate(fallbackStart);
+        setAssignmentEndDate(fallbackEnd);
+      }
+    }
     setShowAssignmentModal(true);
   };
 
@@ -298,7 +458,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
 
   const stats = useMemo(() => {
     const totalRequirements = requirements.length;
-    const totalRequiredQuantity = requirements.reduce((total, req) => total + req.requiredQuantity, 0);
+    const totalRequiredQuantity = requirements.reduce((total, req) => {
+      if (req.useSlotDates && req.slots && req.slots.length > 0) {
+        return total + req.slots.length;
+      }
+      return total + req.requiredQuantity;
+    }, 0);
 
     const assignedPlantAssignments = projectPlants.filter(
       (assignment) => assignment.plantId && assignment.plant && assignment.requirementId
@@ -324,6 +489,24 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
     };
   }, [requirements, projectPlants]);
 
+  const getSlotsForRequirement = (requirement?: ProjectPlantRequirement | null) => {
+    if (!requirement || !requirement.useSlotDates) return [];
+    if (requirement.slots && requirement.slots.length > 0) {
+      return requirement.slots.map((slot, index) => ({
+        id: slot.id ?? slot.slotIndex ?? index,
+        slotIndex: slot.slotIndex ?? index,
+        plannedStartDate: slot.plannedStartDate ?? requirement.plannedStartDate ?? null,
+        plannedEndDate: slot.plannedEndDate ?? requirement.plannedEndDate ?? null,
+      }));
+    }
+    return Array.from({ length: requirement.requiredQuantity }, (_, index) => ({
+      id: index,
+      slotIndex: index,
+      plannedStartDate: requirement.plannedStartDate ?? null,
+      plannedEndDate: requirement.plannedEndDate ?? null,
+    }));
+  };
+
   const handleAssignmentSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setIsSubmittingAssignment(true);
@@ -340,6 +523,15 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         monthlyCost: assignmentMonthlyCost,
       };
 
+      if (selectedRequirement?.useSlotDates) {
+        if (selectedSlotIndex === null || selectedSlotIndex === undefined) {
+          setIsSubmittingAssignment(false);
+          setErrorMessage('Please select a plant slot to assign.');
+          return;
+        }
+        payload.slotIndex = selectedSlotIndex;
+      }
+
       if (editingAssignment) {
         payload.plantId = selectedPlantId ?? undefined;
         const response = await put<{ success: boolean; data: ProjectPlant; error?: string }>(
@@ -350,36 +542,32 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         if (response.success) {
           const updatedAssignment = response.data;
           setProjectPlants(projectPlants.map((assignment) => (assignment.id === updatedAssignment.id ? updatedAssignment : assignment)));
-          setRequirements(requirements.map((requirement) => {
-            const wasAssigned = editingAssignment.requirementId === requirement.id;
-            const isAssignedNow = updatedAssignment.requirementId === requirement.id;
-
-            if (wasAssigned && !isAssignedNow) {
-              return {
-                ...requirement,
-                assignments: requirement.assignments.filter((item) => item.id !== updatedAssignment.id),
-              };
+          setRequirements((prevRequirements) => {
+            let updated = prevRequirements;
+            const previousRequirementId = editingAssignment.requirementId;
+            if (previousRequirementId && previousRequirementId !== updatedAssignment.requirementId) {
+              updated = updated.map((requirement) =>
+                requirement.id === previousRequirementId
+                  ? {
+                      ...requirement,
+                      assignments: requirement.assignments.filter((item) => item.id !== updatedAssignment.id),
+                    }
+                  : requirement
+              );
             }
-
-            if (!wasAssigned && isAssignedNow) {
-              return {
-                ...requirement,
-                assignments: [updatedAssignment, ...requirement.assignments.filter((item) => item.id !== updatedAssignment.id)],
-              };
+            if (updatedAssignment.requirement) {
+              updated = updated.map((requirement) =>
+                requirement.id === updatedAssignment.requirement!.id
+                  ? updatedAssignment.requirement!
+                  : requirement
+              );
             }
-
-            if (wasAssigned && isAssignedNow) {
-              return {
-                ...requirement,
-                assignments: requirement.assignments.map((item) => (item.id === updatedAssignment.id ? updatedAssignment : item)),
-              };
-            }
-
-            return requirement;
-          }));
+            return updated;
+          });
           setShowAssignmentModal(false);
           resetAssignmentModal();
           setSelectedRequirement(null);
+          setSelectedSlotIndex(null);
         } else if (response.error) {
           setErrorMessage(response.error);
         }
@@ -400,7 +588,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         payload.plantData = {
           plantDescription: newPlantData.plantDescription.trim(),
           plantCode: newPlantData.plantCode.trim(),
-          plateNumber: newPlantData.plateNumber.trim(),
+          plateNumber: newPlantData.plateNumber?.trim() || undefined,
           plantType: newPlantData.plantType,
           isOwned: newPlantData.isOwned,
           monthlyCost: newPlantData.monthlyCost,
@@ -416,15 +604,10 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
       if (response.success && response.data) {
         const newAssignment = response.data;
         setProjectPlants([newAssignment, ...projectPlants]);
-        if (newAssignment.requirementId) {
+        if (newAssignment.requirement) {
           setRequirements(
             requirements.map((requirement) =>
-              requirement.id === newAssignment.requirementId
-                ? {
-                    ...requirement,
-                    assignments: [newAssignment, ...requirement.assignments.filter((item) => item.id !== newAssignment.id)],
-                  }
-                : requirement
+              requirement.id === newAssignment.requirement!.id ? newAssignment.requirement! : requirement
             )
           );
         }
@@ -450,11 +633,22 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
     setSelectedRequirement(assignment.requirement || null);
     setModalTab('existing');
     setSelectedPlantId(assignment.plantId || null);
+    setPlantSearchTerm('');
     setAssignmentStartDate(assignment.startDate ? formatDateForInput(assignment.startDate) : '');
     setAssignmentEndDate(assignment.endDate ? formatDateForInput(assignment.endDate) : '');
     setAssignmentStatus(assignment.status || 'Active');
     setAssignmentNotes(assignment.notes || '');
     setAssignmentMonthlyCost(assignment.monthlyCost ?? assignment.plant?.monthlyCost ?? undefined);
+  setSelectedSlotIndex(assignment.slotIndex ?? null);
+  if (assignment.requirement?.useSlotDates) {
+    const slotMeta = assignment.requirement.slots?.find((slot) => slot.slotIndex === assignment.slotIndex);
+    if (!assignment.startDate && slotMeta?.plannedStartDate) {
+      setAssignmentStartDate(formatDateForInput(slotMeta.plannedStartDate));
+    }
+    if (!assignment.endDate && slotMeta?.plannedEndDate) {
+      setAssignmentEndDate(formatDateForInput(slotMeta.plannedEndDate));
+    }
+  }
     setShowAssignmentModal(true);
   };
 
@@ -529,6 +723,8 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
   const totalBreakdownCost = costBreakdownRows.reduce((sum, row) => sum + row.totalCost, 0);
   const totalDurationCost = totalBreakdownCost;
 
+  const selectedRequirementSlots = getSlotsForRequirement(selectedRequirement);
+
   return (
     <div className="space-y-8">
       <div className="flex items-center justify-between">
@@ -576,7 +772,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
           <div className="flex items-center space-x-3">
             <ClipboardList className="h-6 w-6" style={{ color: colors.primary }} />
             <div>
-              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Required Plant Slots</p>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Required Units</p>
               <p className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{stats.totalRequiredQuantity}</p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
                 {stats.totalRequirements} requirement{stats.totalRequirements === 1 ? '' : 's'} defined
@@ -688,6 +884,146 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
               onChange={(event) => setRequirementFormData((prev) => ({ ...prev, notes: event.target.value }))}
               style={{ backgroundColor: colors.backgroundPrimary }}
             />
+            <Input
+              label="Budgeted Monthly Cost"
+              type="number"
+              min={0}
+              value={requirementFormData.monthlyBudget}
+              onChange={(event) => setRequirementFormData((prev) => ({ ...prev, monthlyBudget: event.target.value }))}
+              placeholder="Enter monthly budget"
+              style={{ backgroundColor: colors.backgroundPrimary }}
+            />
+            <div className="md:col-span-2 space-y-3">
+              <div className="flex items-center justify-between p-3 rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  Set individual start/end dates per unit
+                </span>
+                <button
+                  type="button"
+                  onClick={() =>
+                    setRequirementFormData((prev) => ({
+                      ...prev,
+                      useSlotDates: !prev.useSlotDates,
+                      slots: !prev.useSlotDates
+                        ? prev.slots.length
+                          ? prev.slots
+                          : Array.from({ length: prev.requiredQuantity }, (_, index) => ({
+                              slotIndex: index,
+                              plannedStartDate: prev.plannedStartDate,
+                              plannedEndDate: prev.plannedEndDate,
+                            }))
+                        : [],
+                    }))
+                  }
+                  className="relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2"
+                  style={{
+                    backgroundColor: requirementFormData.useSlotDates ? colors.primary : colors.borderLight,
+                    '--tw-ring-color': colors.primary,
+                  } as React.CSSProperties & { '--tw-ring-color': string }}
+                  role="switch"
+                  aria-checked={requirementFormData.useSlotDates}
+                  aria-label="Toggle individual slot dates"
+                >
+                  <span
+                    className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
+                      requirementFormData.useSlotDates ? 'translate-x-6' : 'translate-x-1'
+                    }`}
+                  />
+                </button>
+              </div>
+              {!requirementFormData.useSlotDates && (
+                <div className="grid grid-cols-2 gap-3">
+                  <Input
+                    label="Planned Start Date"
+                    type="date"
+                    value={requirementFormData.plannedStartDate}
+                    onChange={(event) => setRequirementFormData((prev) => ({ ...prev, plannedStartDate: event.target.value }))}
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                  <Input
+                    label="Planned End Date"
+                    type="date"
+                    value={requirementFormData.plannedEndDate}
+                    onChange={(event) => setRequirementFormData((prev) => ({ ...prev, plannedEndDate: event.target.value }))}
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+              )}
+            </div>
+            {requirementFormData.useSlotDates && (
+              <div className="md:col-span-2 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                    Planned Dates per Unit
+                  </span>
+                  <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    {requirementFormData.slots.length} slot{requirementFormData.slots.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {requirementFormData.slots.map((slot, index) => (
+                    <div
+                      key={slot.slotIndex}
+                      className="rounded-lg border p-3 space-y-2"
+                      style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
+                    >
+                      <div className="flex items-center justify-between text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        <span>Unit {index + 1}</span>
+                      </div>
+                      <Input
+                        label="Start Date"
+                        type="date"
+                        value={slot.plannedStartDate}
+                        onChange={(event) =>
+                          setRequirementFormData((prev) => {
+                            const updatedSlots = prev.slots.map((s) =>
+                              s.slotIndex === slot.slotIndex ? { ...s, plannedStartDate: event.target.value } : s
+                            );
+                            return { ...prev, slots: updatedSlots };
+                          })
+                        }
+                        style={{ backgroundColor: colors.backgroundSecondary }}
+                      />
+                      <Input
+                        label="End Date"
+                        type="date"
+                        value={slot.plannedEndDate}
+                        onChange={(event) =>
+                          setRequirementFormData((prev) => {
+                            const updatedSlots = prev.slots.map((s) =>
+                              s.slotIndex === slot.slotIndex ? { ...s, plannedEndDate: event.target.value } : s
+                            );
+                            return { ...prev, slots: updatedSlots };
+                          })
+                        }
+                        style={{ backgroundColor: colors.backgroundSecondary }}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        className="text-xs px-2 py-1"
+                        onClick={() =>
+                          setRequirementFormData((prev) => {
+                            const updatedSlots = prev.slots.map((s) =>
+                              s.slotIndex === slot.slotIndex
+                                ? {
+                                    ...s,
+                                    plannedStartDate: prev.plannedStartDate || '',
+                                    plannedEndDate: prev.plannedEndDate || '',
+                                  }
+                                : s
+                            );
+                            return { ...prev, slots: updatedSlots };
+                          })
+                        }
+                      >
+                        Reset to default
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
             <div className="md:col-span-2 flex flex-wrap items-center gap-3">
               <Button type="submit" variant="primary" disabled={isSavingRequirement} className="flex items-center space-x-2">
                 <CheckCircle className="h-4 w-4" />
@@ -735,135 +1071,273 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         )}
 
         {requirements.length > 0 && (
-          <div className="space-y-4">
-            {requirements.map((requirement) => {
-              const assignedToRequirement = getAssignmentsForRequirement(requirement.id);
-              const assignedPlantAssignments = assignedToRequirement.filter(
-                (assignment) => assignment.plantId && assignment.plant
-              );
-              return (
-                <div
-                  key={requirement.id}
-                  className="rounded-xl border p-5 space-y-4"
-                  style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
-                >
-                  <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                    <div className="space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="text-base font-semibold" style={{ color: colors.textPrimary }}>{requirement.title}</h4>
-                        <span
-                          className="inline-flex items-center space-x-1 text-xs font-medium px-2 py-1 rounded-full"
-                          style={{
-                            backgroundColor: colors.backgroundSecondary,
-                            color: colors.textSecondary,
-                            border: `1px solid ${colors.borderLight}`
-                          }}
-                        >
-                          <ClipboardList className="h-3 w-3" />
-                          <span>{assignedPlantAssignments.length}/{requirement.requiredQuantity} assigned</span>
-                        </span>
-                      </div>
-                      {requirement.description && (
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>{requirement.description}</p>
-                      )}
-                      {requirement.notes && (
-                        <p className="text-xs italic" style={{ color: colors.textSecondary }}>Notes: {requirement.notes}</p>
-                      )}
-                      <p className="text-xs" style={{ color: colors.textMuted }}>
-                        Created {formatDateForDisplay(requirement.createdAt)}
-                      </p>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        className="flex items-center space-x-1"
-                        onClick={() => openAssignmentModal(requirement)}
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Assign Plant</span>
-                      </Button>
-                      <Button variant="ghost" size="sm" className="p-2" onClick={() => handleRequirementEdit(requirement)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="sm" className="p-2" onClick={() => handleRequirementDelete(requirement.id)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  </div>
+          <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
+            <div className="flex items-center space-x-3 mb-4">
+              <Factory className="w-5 h-5" style={{ color: colors.textMuted }} />
+              <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                Current Project Plants
+              </h3>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full">
+                <thead>
+                  <tr className="border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Requirement</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Assigned Plant</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Duration</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Start Date</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>End Date</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
+                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {requirements.map((requirement) => {
+                    const assignedToRequirement = getAssignmentsForRequirement(requirement.id);
+                    const assignedPlantAssignments = assignedToRequirement.filter(
+                      (assignment) => assignment.plantId && assignment.plant
+                    );
+                    const slotsForDisplay = getSlotsForRequirement(requirement);
+                    const assignmentsBySlot = new Map<number, ProjectPlant>();
+                    assignedToRequirement.forEach((assignment) => {
+                      if (assignment.slotIndex !== null && assignment.slotIndex !== undefined) {
+                        assignmentsBySlot.set(Number(assignment.slotIndex), assignment);
+                      }
+                    });
+                    const allSlotsAssigned =
+                      requirement.useSlotDates &&
+                      slotsForDisplay.length > 0 &&
+                      assignmentsBySlot.size >= slotsForDisplay.length;
+                    const isComplete = assignedPlantAssignments.length >= requirement.requiredQuantity;
 
-                  {assignedPlantAssignments.length === 0 ? (
-                    <div
-                      className="rounded-lg border border-dashed p-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between"
-                      style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}
-                    >
-                      <div className="space-y-1">
-                        <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>No plants assigned yet</p>
-                        <p className="text-xs" style={{ color: colors.textSecondary }}>
-                          Assign plants from the company pool or create a new entry directly for this requirement.
-                        </p>
-                      </div>
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        className="flex items-center space-x-1"
-                        onClick={() => openAssignmentModal(requirement)}
-                      >
-                        <Plus className="h-4 w-4" />
-                        <span>Assign Plant</span>
-                      </Button>
-                    </div>
-                  ) : (
-                    <div className="space-y-3">
-                      {assignedPlantAssignments.map((assignment) => (
-                        <div
-                          key={assignment.id}
-                          className="rounded-lg border p-4"
-                          style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}
-                        >
-                          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                            <div className="space-y-2">
-                              <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
-                                {assignment.plant?.plantDescription} ({assignment.plant?.plantCode})
-                              </p>
-                              <div className="flex flex-wrap gap-3 text-xs" style={{ color: colors.textSecondary }}>
-                                <span className="flex items-center space-x-1">
-                                  <Calendar className="h-3 w-3" />
-                                  <span>
-                                    {assignment.startDate
-                                      ? `${formatDateForDisplay(assignment.startDate)}${assignment.endDate ? ` → ${formatDateForDisplay(assignment.endDate)}` : ''}`
-                                      : 'No dates'}
+                    // Get all assignments to display (either slot-based or regular)
+                    const assignmentsToDisplay = requirement.useSlotDates
+                      ? slotsForDisplay.map((slot) => ({
+                          slot,
+                          assignment: assignmentsBySlot.get(slot.slotIndex),
+                          isSlot: true,
+                        }))
+                      : assignedPlantAssignments.map((assignment) => ({
+                          assignment,
+                          isSlot: false,
+                        }));
+
+                    return (
+                      <React.Fragment key={requirement.id}>
+                        {/* Requirement Header Row */}
+                        <tr className="border-b" style={{ borderColor: colors.border, backgroundColor: colors.backgroundSecondary }}>
+                          <td className="py-3 px-4" colSpan={8}>
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center space-x-2">
+                                <Briefcase className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <span className="font-medium" style={{ color: colors.textPrimary }}>
+                                  {requirement.title}
+                                </span>
+                                {requirement.description && (
+                                  <span className="text-sm" style={{ color: colors.textSecondary }}>
+                                    - {requirement.description}
                                   </span>
-                                </span>
-                                <span className="inline-flex items-center space-x-1">
-                                  <CheckCircle className="h-3 w-3" />
-                                  <span>{assignment.status}</span>
-                                </span>
-                                <span>
-                                  Duration: {calculateAssignmentDurationDays(assignment)} day{calculateAssignmentDurationDays(assignment) === 1 ? '' : 's'}
-                                </span>
-                                <span>
-                                  Cost: {formatCurrency(calculateAssignmentCost(assignment), siteSettings?.currencySymbol || '$')}
-                                </span>
+                                )}
+                              </div>
+                              <div className="flex items-center space-x-4">
+                                <div className="flex items-center space-x-2">
+                                  <span 
+                                    className={`text-sm font-medium ${
+                                      isComplete ? 'text-green-600' : 'text-orange-600'
+                                    }`}
+                                  >
+                                    {isComplete 
+                                      ? `Complete (${assignedPlantAssignments.length}/${requirement.requiredQuantity})` 
+                                      : `${requirement.requiredQuantity - assignedPlantAssignments.length} needed`
+                                    }
+                                  </span>
+                                  {!isComplete && (
+                                    <Button
+                                      onClick={() => openAssignmentModal(requirement)}
+                                      variant="ghost"
+                                      size="sm"
+                                      className="p-1"
+                                      title={`Add plant to ${requirement.title}`}
+                                    >
+                                      <Plus className="w-3 h-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                                <div className="flex items-center space-x-2">
+                                  <Button
+                                    onClick={() => handleRequirementEdit(requirement)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="p-1"
+                                    title={`Edit ${requirement.title} requirements`}
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </Button>
+                                  <Button
+                                    onClick={() => handleRequirementDelete(requirement.id)}
+                                    variant="ghost"
+                                    size="sm"
+                                    className="p-1"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
                               </div>
                             </div>
-                            <div className="flex gap-2">
-                              <Button size="sm" variant="ghost" className="p-2" onClick={() => handleAssignmentEdit(assignment)}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="p-2" onClick={() => handleAssignmentDelete(assignment.id)}>
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
+                          </td>
+                        </tr>
+                        
+                        {/* Plant Assignment Rows */}
+                        {assignmentsToDisplay.length > 0 ? (
+                          assignmentsToDisplay.map((item, index) => {
+                            const assignment = item.assignment;
+                            const isAssigned = Boolean(assignment?.plantId && assignment.plant);
+                            const slotLabel = item.isSlot ? `Unit ${index + 1}` : 'Plant Assignment';
+                            
+                            return (
+                              <tr key={item.isSlot ? item.slot.id : assignment?.id || `empty-${index}`} className="border-b" style={{ borderColor: colors.border }}>
+                                <td className="py-3 px-4 pl-8">
+                                  <span style={{ color: colors.textSecondary }}>{slotLabel}</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  {isAssigned && assignment?.plant ? (
+                                    <div className="flex items-center space-x-2">
+                                      <Factory className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <div>
+                                        <p className="font-medium" style={{ color: colors.textPrimary }}>
+                                          {assignment.plant.plantDescription}
+                                        </p>
+                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                          {assignment.plant.plantCode}
+                                          {assignment.plant.plateNumber && ` · ${assignment.plant.plateNumber}`}
+                                        </p>
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center space-x-2">
+                                      <UserX className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                      <span style={{ color: colors.textSecondary }}>Unassigned</span>
+                                    </div>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span style={{ color: colors.textSecondary }}>-</span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span style={{ color: colors.textPrimary }}>
+                                    {assignment && assignment.startDate && assignment.endDate 
+                                      ? (() => {
+                                          try {
+                                            const start = new Date(assignment.startDate);
+                                            const end = new Date(assignment.endDate);
+                                            if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+                                            const diffTime = Math.abs(end.getTime() - start.getTime());
+                                            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                            return `${diffDays} day${diffDays !== 1 ? 's' : ''}`;
+                                          } catch (error) {
+                                            return '-';
+                                          }
+                                        })()
+                                      : '-'
+                                    }
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span style={{ color: colors.textPrimary }}>
+                                    {assignment?.startDate ? formatDateForDisplay(assignment.startDate) : '-'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span style={{ color: colors.textPrimary }}>
+                                    {assignment?.endDate ? formatDateForDisplay(assignment.endDate) : '-'}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  {isAssigned && assignment ? (
+                                    <span 
+                                      className={`px-2 py-1 text-xs rounded-full ${
+                                        assignment.status === 'Active' 
+                                          ? 'bg-green-100 text-green-800' 
+                                          : assignment.status === 'On Hold'
+                                          ? 'bg-yellow-100 text-yellow-800'
+                                          : 'bg-gray-100 text-gray-800'
+                                      }`}
+                                    >
+                                      {assignment.status}
+                                    </span>
+                                  ) : (
+                                    <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Unassigned</span>
+                                  )}
+                                </td>
+                                <td className="py-3 px-4">
+                                  <div className="flex items-center space-x-2">
+                                    {isAssigned && assignment ? (
+                                      <>
+                                        <Button
+                                          onClick={() => handleAssignmentDelete(assignment.id)}
+                                          variant="ghost"
+                                          size="sm"
+                                          className="p-1"
+                                        >
+                                          <UserX className="w-4 h-4" />
+                                        </Button>
+                                        <Button
+                                          onClick={() => handleAssignmentEdit(assignment)}
+                                          variant="ghost"
+                                          size="sm"
+                                          className="p-1"
+                                        >
+                                          <Edit className="w-4 h-4" />
+                                        </Button>
+                                      </>
+                                    ) : (
+                                      <Button
+                                        onClick={() => {
+                                          if (item.isSlot) {
+                                            openAssignmentModal(requirement, item.slot.slotIndex);
+                                          } else {
+                                            openAssignmentModal(requirement);
+                                          }
+                                        }}
+                                        variant="ghost"
+                                        size="sm"
+                                        className="p-1"
+                                      >
+                                        <Plus className="w-4 h-4" />
+                                      </Button>
+                                    )}
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        ) : (
+                          <tr className="border-b" style={{ borderColor: colors.border }}>
+                            <td className="py-3 px-4 pl-8" colSpan={8}>
+                              <div className="flex items-center space-x-2">
+                                <UserX className="w-4 h-4" style={{ color: colors.textMuted }} />
+                                <span style={{ color: colors.textSecondary }}>No plants assigned</span>
+                                <Button
+                                  onClick={() => openAssignmentModal(requirement)}
+                                  variant="ghost"
+                                  size="sm"
+                                  className="p-1"
+                                >
+                                  <Plus className="w-3 h-3" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Card>
         )}
       </Card>
 
@@ -1057,6 +1531,8 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             value={plant.id}
                             checked={selectedPlantId === plant.id}
                             onChange={() => setSelectedPlantId(plant.id)}
+                            className="h-4 w-4 border border-gray-300 rounded-full"
+                            style={{ accentColor: colors.primary }}
                           />
                         </label>
                       ))
@@ -1094,6 +1570,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             type="radio"
                             checked={newPlantData.plantType === type}
                             onChange={() => setNewPlantData((prev) => ({ ...prev, plantType: type }))}
+                            className="h-4 w-4 border-2 rounded-full cursor-pointer"
+                            style={{ 
+                              accentColor: colors.primary,
+                              borderColor: colors.borderLight,
+                              backgroundColor: newPlantData.plantType === type ? colors.primary : 'transparent',
+                            }}
                           />
                           <span className="capitalize">{type}</span>
                         </label>
@@ -1108,6 +1590,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                           type="radio"
                           checked={newPlantData.isOwned}
                           onChange={() => setNewPlantData((prev) => ({ ...prev, isOwned: true }))}
+                          className="h-4 w-4 border-2 rounded-full cursor-pointer"
+                          style={{ 
+                            accentColor: colors.primary,
+                            borderColor: colors.borderLight,
+                            backgroundColor: newPlantData.isOwned ? colors.primary : 'transparent',
+                          }}
                         />
                         <span>Owned</span>
                       </label>
@@ -1116,6 +1604,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                           type="radio"
                           checked={!newPlantData.isOwned}
                           onChange={() => setNewPlantData((prev) => ({ ...prev, isOwned: false }))}
+                          className="h-4 w-4 border-2 rounded-full cursor-pointer"
+                          style={{ 
+                            accentColor: colors.primary,
+                            borderColor: colors.borderLight,
+                            backgroundColor: !newPlantData.isOwned ? colors.primary : 'transparent',
+                          }}
                         />
                         <span>Hired</span>
                       </label>
@@ -1135,9 +1629,100 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                       type="checkbox"
                       checked={newPlantData.isActive}
                       onChange={(event) => setNewPlantData((prev) => ({ ...prev, isActive: event.target.checked }))}
+                      className="h-4 w-4 border-2 rounded cursor-pointer"
+                      style={{ 
+                        accentColor: colors.primary,
+                        borderColor: colors.borderLight,
+                        backgroundColor: newPlantData.isActive ? colors.primary : 'transparent',
+                      }}
                     />
                     <span>Active Plant</span>
                   </label>
+                </div>
+              )}
+
+              {selectedRequirement?.useSlotDates && (
+                <div className="space-y-3">
+                  <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                    Select Unit
+                  </p>
+                  <div className="space-y-2">
+                    {selectedRequirementSlots.map((slot, index) => {
+                      const slotAssignment = selectedRequirement.assignments?.find(
+                        (assignment) => assignment.slotIndex === slot.slotIndex
+                      );
+                      const isOccupied = Boolean(
+                        slotAssignment &&
+                          (!editingAssignment || (editingAssignment && slotAssignment.id !== editingAssignment.id))
+                      );
+                      const plannedLabel = `${slot.plannedStartDate ? formatDateForDisplay(slot.plannedStartDate) : 'TBD'}${
+                        slot.plannedEndDate ? ` → ${formatDateForDisplay(slot.plannedEndDate)}` : ''
+                      }`;
+                      return (
+                        <label
+                          key={slot.id}
+                          className={`flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
+                            selectedSlotIndex === slot.slotIndex ? 'ring-2 ring-offset-1' : ''
+                          }`}
+                          style={{
+                            borderColor:
+                              selectedSlotIndex === slot.slotIndex ? colors.primary : colors.borderLight,
+                            backgroundColor: colors.backgroundPrimary,
+                          }}
+                        >
+                          <div className="flex items-start gap-3">
+                            <input
+                              type="radio"
+                              name="plantSlot"
+                              value={slot.slotIndex}
+                              checked={selectedSlotIndex === slot.slotIndex}
+                              disabled={isOccupied}
+                              onChange={() => {
+                                setSelectedSlotIndex(slot.slotIndex);
+                                const defaultStart =
+                                  slot.plannedStartDate || selectedRequirement.plannedStartDate || '';
+                                const defaultEnd =
+                                  slot.plannedEndDate || selectedRequirement.plannedEndDate || '';
+                                setAssignmentStartDate(defaultStart ? formatDateForInput(defaultStart) : '');
+                                setAssignmentEndDate(defaultEnd ? formatDateForInput(defaultEnd) : '');
+                              }}
+                              className="h-4 w-4 border border-gray-300 rounded-full mt-1"
+                              style={{ accentColor: colors.primary }}
+                            />
+                            <div className="space-y-1" style={{ color: colors.textSecondary }}>
+                              <div className="flex items-center gap-2">
+                                <span style={{ color: colors.textPrimary }}>
+                                  Plant Slot {index + 1}
+                                </span>
+                                {isOccupied && slotAssignment?.plant && (
+                                  <span
+                                    className="text-xs px-2 py-0.5 rounded-full"
+                                    style={{ backgroundColor: 'rgba(16,185,129,0.12)', color: colors.success }}
+                                  >
+                                    Assigned to {slotAssignment.plant.plantDescription}
+                                  </span>
+                                )}
+                                {isOccupied && !slotAssignment?.plant && (
+                                  <span
+                                    className="text-xs px-2 py-0.5 rounded-full"
+                                    style={{ backgroundColor: 'rgba(245,158,11,0.12)', color: colors.warning }}
+                                  >
+                                    Slot occupied
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-xs">Planned: {plannedLabel}</p>
+                            </div>
+                          </div>
+                        </label>
+                      );
+                    })}
+                    {selectedRequirementSlots.length === 0 && (
+                      <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        No available slots configured for this requirement.
+                      </p>
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1205,7 +1790,15 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                 >
                   Cancel
                 </Button>
-                <Button type="submit" variant="primary" disabled={isSubmittingAssignment}>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  disabled={
+                    isSubmittingAssignment ||
+                    (selectedRequirement?.useSlotDates === true &&
+                      (selectedSlotIndex === null || selectedSlotIndex === undefined))
+                  }
+                >
                   {editingAssignment ? 'Save Changes' : 'Assign Plant'}
                 </Button>
               </div>
