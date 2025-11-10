@@ -17,6 +17,8 @@ import ProjectLabourSupply from './ProjectLabourSupply';
 import ProjectPlanning from './ProjectPlanning';
 import ProjectQuality from './ProjectQuality';
 import ProjectPlants from './ProjectPlants';
+import ProjectHSE from './ProjectHSE';
+import ProjectRisks from './ProjectRisks';
 import { 
   Plus, 
   Edit, 
@@ -38,7 +40,9 @@ import {
   UserCheck,
   Wrench,
   ShieldCheck,
-  Bus
+  Bus,
+  LifeBuoy,
+  AlertTriangle
 } from 'lucide-react';
 
 interface Project {
@@ -153,7 +157,16 @@ export default function ProjectManager() {
   const [showDetailView, setShowDetailView] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'planning' | 'quality' | 'checklist' | 'staff' | 'labours' | 'labourSupply' | 'plants'
+    | 'overview'
+    | 'planning'
+    | 'quality'
+    | 'risks'
+    | 'hse'
+    | 'checklist'
+    | 'staff'
+    | 'labours'
+    | 'labourSupply'
+    | 'plants'
   >('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
@@ -1394,6 +1407,60 @@ export default function ProjectManager() {
                 <span>Quality</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('risks')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'risks'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'risks') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'risks') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'risks' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'risks' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Risks</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('hse')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'hse'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'hse') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'hse') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'hse' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'hse' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <LifeBuoy className="w-4 h-4" />
+                <span>HSE</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -1830,6 +1897,24 @@ export default function ProjectManager() {
                   projectName={selectedProject.projectName}
                   projectStartDate={selectedProject.startDate}
                   projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'risks' ? (
+            <div>
+              {selectedProject && (
+                <ProjectRisks
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                />
+              )}
+            </div>
+          ) : activeTab === 'hse' ? (
+            <div>
+              {selectedProject && (
+                <ProjectHSE
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
                 />
               )}
             </div>
