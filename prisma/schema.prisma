@@ -194,6 +194,7 @@ model MediaLibrary {
   updatedAt    DateTime     @updatedAt
   folder       MediaFolder? @relation(fields: [folderId], references: [id])
   usages       MediaUsage[]
+  projectPictures ProjectPicture[]
 
   @@map("media_library")
 }
@@ -514,6 +515,8 @@ model Project {
   hseChecklistItems             ProjectHseChecklistItem[]
   nocTrackerEntries             ProjectNocTrackerEntry[]
   projectRisks                  ProjectRiskEntry[]
+  projectAssets                 ProjectAsset[]
+  projectPictures               ProjectPicture[]
   projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
   projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
   costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
@@ -1003,6 +1006,38 @@ model ProjectRiskEntry {
 
   @@index([projectId])
   @@map("project_risk_entries")
+}
+
+model ProjectAsset {
+  id          Int       @id @default(autoincrement())
+  projectId   Int
+  type        String
+  description String
+  assetNumber String?
+  status      String    @default("Active")
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_assets")
+}
+
+model ProjectPicture {
+  id          Int          @id @default(autoincrement())
+  projectId   Int
+  mediaId     Int
+  caption     String?
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media       MediaLibrary @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([mediaId])
+  @@map("project_pictures")
 }
 
 model ConsultantToConsultantType {

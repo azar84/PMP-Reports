@@ -19,6 +19,8 @@ import ProjectQuality from './ProjectQuality';
 import ProjectPlants from './ProjectPlants';
 import ProjectHSE from './ProjectHSE';
 import ProjectRisks from './ProjectRisks';
+import ProjectAssets from './ProjectAssets';
+import ProjectPictures from './ProjectPictures';
 import { 
   Plus, 
   Edit, 
@@ -42,7 +44,9 @@ import {
   ShieldCheck,
   Bus,
   LifeBuoy,
-  AlertTriangle
+  AlertTriangle,
+  Package,
+  Camera
 } from 'lucide-react';
 
 interface Project {
@@ -167,6 +171,8 @@ export default function ProjectManager() {
     | 'labours'
     | 'labourSupply'
     | 'plants'
+    | 'assets'
+    | 'pictures'
   >('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
@@ -1354,6 +1360,33 @@ export default function ProjectManager() {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('assets')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'assets'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'assets') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'assets') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'assets' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'assets' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Package className="w-4 h-4" />
+                <span>Assets</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('planning')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'planning'
@@ -1459,6 +1492,33 @@ export default function ProjectManager() {
               <div className="flex items-center space-x-2">
                 <LifeBuoy className="w-4 h-4" />
                 <span>HSE</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('pictures')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'pictures'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'pictures') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'pictures') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'pictures' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'pictures' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Camera className="w-4 h-4" />
+                <span>Pictures</span>
               </div>
             </button>
           </div>
@@ -1962,6 +2022,28 @@ export default function ProjectManager() {
             <div>
               {selectedProject && (
                 <ProjectPlants
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'assets' ? (
+            <div>
+              {selectedProject && (
+                <ProjectAssets
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'pictures' ? (
+            <div>
+              {selectedProject && (
+                <ProjectPictures
                   projectId={selectedProject.id}
                   projectName={selectedProject.projectName}
                   projectStartDate={selectedProject.startDate}
