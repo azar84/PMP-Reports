@@ -513,6 +513,7 @@ model Project {
   projectMemberships            ProjectMembership[]
   hseChecklistItems             ProjectHseChecklistItem[]
   nocTrackerEntries             ProjectNocTrackerEntry[]
+  projectRisks                  ProjectRiskEntry[]
   projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
   projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
   costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
@@ -980,6 +981,21 @@ model ProjectNocTrackerEntry {
 
   @@index([projectId])
   @@map("project_noc_tracker_entries")
+}
+
+model ProjectRiskEntry {
+  id        Int       @id @default(autoincrement())
+  projectId Int
+  riskItem  String
+  impact    String?
+  remarks   String?
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_risk_entries")
 }
 
 model ConsultantToConsultantType {

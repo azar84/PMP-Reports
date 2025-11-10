@@ -18,6 +18,7 @@ import ProjectPlanning from './ProjectPlanning';
 import ProjectQuality from './ProjectQuality';
 import ProjectPlants from './ProjectPlants';
 import ProjectHSE from './ProjectHSE';
+import ProjectRisks from './ProjectRisks';
 import { 
   Plus, 
   Edit, 
@@ -40,7 +41,8 @@ import {
   Wrench,
   ShieldCheck,
   Bus,
-  LifeBuoy
+  LifeBuoy,
+  AlertTriangle
 } from 'lucide-react';
 
 interface Project {
@@ -158,6 +160,7 @@ export default function ProjectManager() {
     | 'overview'
     | 'planning'
     | 'quality'
+    | 'risks'
     | 'hse'
     | 'checklist'
     | 'staff'
@@ -1405,6 +1408,33 @@ export default function ProjectManager() {
               </div>
             </button>
             <button
+              onClick={() => setActiveTab('risks')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'risks'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'risks') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'risks') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'risks' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'risks' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <AlertTriangle className="w-4 h-4" />
+                <span>Risks</span>
+              </div>
+            </button>
+            <button
               onClick={() => setActiveTab('hse')}
               className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
                 activeTab === 'hse'
@@ -1867,6 +1897,15 @@ export default function ProjectManager() {
                   projectName={selectedProject.projectName}
                   projectStartDate={selectedProject.startDate}
                   projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'risks' ? (
+            <div>
+              {selectedProject && (
+                <ProjectRisks
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
                 />
               )}
             </div>
