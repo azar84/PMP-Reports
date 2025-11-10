@@ -89,7 +89,7 @@ export default function ProjectPlanning({
   projectStartDate,
   projectEndDate,
   existingPlanning,
-  existingMilestones = [],
+  existingMilestones,
   onPlanningUpdated,
 }: ProjectPlanningProps) {
   const { designSystem } = useDesignSystem();
@@ -102,9 +102,14 @@ export default function ProjectPlanning({
   const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  const normalizedExistingMilestones = useMemo(
+    () => existingMilestones ?? [],
+    [existingMilestones]
+  );
+
   const latestServerSnapshot = useRef<{ planning: PlanningRecord | null; controlMilestones: MilestoneRecord[] }>({
     planning: existingPlanning ?? null,
-    controlMilestones: existingMilestones ?? [],
+    controlMilestones: normalizedExistingMilestones,
   });
   const onPlanningUpdatedRef = useRef(onPlanningUpdated);
 
@@ -136,33 +141,32 @@ export default function ProjectPlanning({
         setPlanningState(emptyPlanningState);
       }
 
+      const sortedControlMilestones = [...controlMilestones].sort((a, b) => a.sortOrder - b.sortOrder);
       setMilestones(
-        controlMilestones
-          .sort((a, b) => a.sortOrder - b.sortOrder)
-          .map((milestone) => ({
-            id: milestone.id,
-            name: milestone.name,
-            startDate: formatDateForInput(milestone.startDate),
-            endDate: formatDateForInput(milestone.endDate),
-            actualStartDate: formatDateForInput(milestone.actualStartDate),
-            actualEndDate: formatDateForInput(milestone.actualEndDate),
-            status:
-              milestone.status && milestone.status.trim().length > 0
-                ? milestone.status
-                : 'Pending',
-          }))
+        sortedControlMilestones.map((milestone) => ({
+          id: milestone.id,
+          name: milestone.name,
+          startDate: formatDateForInput(milestone.startDate),
+          endDate: formatDateForInput(milestone.endDate),
+          actualStartDate: formatDateForInput(milestone.actualStartDate),
+          actualEndDate: formatDateForInput(milestone.actualEndDate),
+          status:
+            milestone.status && milestone.status.trim().length > 0
+              ? milestone.status
+              : 'Pending',
+        }))
       );
     },
     [normalizeDecimalToString]
   );
 
   useEffect(() => {
-    hydrateFromSource(existingPlanning, existingMilestones);
+    hydrateFromSource(existingPlanning, normalizedExistingMilestones);
     latestServerSnapshot.current = {
       planning: existingPlanning ?? null,
-      controlMilestones: existingMilestones,
+      controlMilestones: normalizedExistingMilestones,
     };
-  }, [existingPlanning, existingMilestones, hydrateFromSource]);
+  }, [existingPlanning, normalizedExistingMilestones, hydrateFromSource]);
   
   useEffect(() => {
     let isMounted = true;

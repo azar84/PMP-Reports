@@ -15,9 +15,12 @@ export function useAdminApi() {
   ): Promise<T> => {
     setLoading(true);
     try {
+      const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
+
       const response = await fetch(url, {
         headers: {
           'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
           ...options.headers,
         },
         ...options,

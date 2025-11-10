@@ -1,0 +1,30 @@
+{
+  "menuItems": [
+    { "key": "projects", "label": "Projects" },
+    { "key": "clients", "label": "Clients" },
+    { "key": "consultants", "label": "Consultants" },
+    { "key": "staff", "label": "Staff" },
+    { "key": "labours", "label": "Labours" },
+    { "key": "contacts", "label": "Contacts" },
+    { "key": "media", "label": "Media Library" },
+    { "key": "users", "label": "Users" },
+    { "key": "roles", "label": "Roles & Permissions" },
+    { "key": "scheduler", "label": "Scheduler" },
+    { "key": "design-system", "label": "Design System" },
+    { "key": "settings", "label": "Settings" }
+  ],
+  "operations": [
+    { "key": "create", "label": "Create" },
+    { "key": "view", "label": "View" },
+    { "key": "update", "label": "Update" },
+    { "key": "delete", "label": "Delete" }
+  ],
+  "specialPermissions": [
+    {
+      "key": "admin.all",
+      "label": "Superuser Access",
+      "description": "Full administrative access across all modules"
+    }
+  ]
+}
+

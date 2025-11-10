@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/hooks/useAuth';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
+import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { 
   LayoutDashboard, 
   Users, 
@@ -29,7 +30,8 @@ import {
   Building2,
   User,
   Briefcase,
-  HardHat
+  HardHat,
+  Shield
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
@@ -43,29 +45,54 @@ import ConsultantManager from './components/ConsultantManager';
 import CompanyStaffManager from './components/CompanyStaffManager';
 import LabourManager from './components/LabourManager';
 import ContactManager from './components/ContactManager';
+import RolesManager from './components/RolesManager';
+import type { PermissionKey } from '@/lib/permissionsCatalog';
+import { PERMISSIONS } from '@/lib/permissionsCatalog';
 
 // Force dynamic rendering
 export const dynamic = 'force-dynamic';
 
-type Section = 'dashboard' | 'projects' | 'clients' | 'consultants' | 'company-staff' | 'labours' | 'contacts' | 'media-library' | 'users' | 'scheduler' | 'site-settings' | 'design-system';
+type Section =
+  | 'dashboard'
+  | 'projects'
+  | 'clients'
+  | 'consultants'
+  | 'company-staff'
+  | 'labours'
+  | 'contacts'
+  | 'media-library'
+  | 'users'
+  | 'roles'
+  | 'scheduler'
+  | 'site-settings'
+  | 'design-system';
+
+interface NavigationItem {
+  id: Section;
+  name: string;
+  icon: React.ComponentType<{ className?: string }>;
+  color: string;
+  permission?: PermissionKey | null;
+}
 
 // Navigation items with design system colors
-const getNavigationItems = (designSystem: any) => {
+const getNavigationItems = (designSystem: any): NavigationItem[] => {
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   
   return [
-    { id: 'dashboard', name: 'Home', icon: Home, color: colors.primary },
-    { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary },
-    { id: 'clients', name: 'Clients', icon: Building2, color: colors.info },
-    { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success },
-    { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning },
-    { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent },
-    { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info },
-    { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary },
-    { id: 'users', name: 'Users', icon: Users, color: colors.error },
-    { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning },
-    { id: 'design-system', name: 'Design System', icon: Layers, color: colors.primary },
-    { id: 'site-settings', name: 'Settings', icon: Settings, color: colors.textSecondary },
+    { id: 'dashboard', name: 'Home', icon: Home, color: colors.primary, permission: null },
+    { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary, permission: 'projects.view' },
+    { id: 'clients', name: 'Clients', icon: Building2, color: colors.info, permission: 'clients.view' },
+    { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
+    { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning, permission: 'staff.view' },
+    { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
+    { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info, permission: 'contacts.view' },
+    { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary, permission: 'media-library.view' },
+    { id: 'users', name: 'Users', icon: Users, color: colors.error, permission: 'users.view' },
+    { id: 'roles', name: 'Roles', icon: Shield, color: colors.success, permission: 'roles.view' },
+    { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning, permission: 'scheduler.view' },
+    { id: 'design-system', name: 'Design System', icon: Layers, color: colors.primary, permission: 'design-system.view' },
+    { id: 'site-settings', name: 'Settings', icon: Settings, color: colors.textSecondary, permission: 'settings.view' },
   ];
 };
 
@@ -94,6 +121,7 @@ export default function AdminPanel() {
   const router = useRouter();
   const { designSystem } = useDesignSystem();
   const { get } = useAdminApi();
+  const { permissions: grantedPermissions, isLoading: userPermissionsLoading } = useUserPermissions();
   
   const [activeSection, setActiveSection] = useState<Section>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -158,6 +186,25 @@ export default function AdminPanel() {
     totalConsultants: 0,
     totalStaff: 0
   });
+
+  const navigationItems = useMemo(() => getNavigationItems(designSystem), [designSystem]);
+  const visibleNavigationItems = useMemo(() => {
+    if (userPermissionsLoading) {
+      return navigationItems;
+    }
+    return navigationItems.filter((item) => !item.permission || hasPermission(grantedPermissions, item.permission));
+  }, [navigationItems, grantedPermissions, userPermissionsLoading]);
+
+  useEffect(() => {
+    if (visibleNavigationItems.length === 0) {
+      return;
+    }
+
+    const hasActiveSection = visibleNavigationItems.some((item) => item.id === activeSection);
+    if (!hasActiveSection) {
+      setActiveSection(visibleNavigationItems[0].id);
+    }
+  }, [visibleNavigationItems, activeSection]);
 
   useEffect(() => {
     console.log('🔍 Admin Panel: Checking user authentication...');
@@ -321,6 +368,15 @@ export default function AdminPanel() {
             <ContactManager />
           </div>
         );
+      case 'roles':
+        return (
+          <div
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <RolesManager />
+          </div>
+        );
       case 'media-library':
         return (
           <div 
@@ -474,8 +530,6 @@ export default function AdminPanel() {
     }
   };
 
-  const navigationItems = getNavigationItems(designSystem);
-
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   
   return (
@@ -546,7 +600,7 @@ export default function AdminPanel() {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {navigationItems.map((item) => (
+            {visibleNavigationItems.map((item) => (
               <button
                 key={item.id}
                 onClick={() => {

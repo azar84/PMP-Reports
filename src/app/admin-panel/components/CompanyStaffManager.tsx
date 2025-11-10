@@ -60,6 +60,7 @@ interface CompanyStaff {
   remainingCapacity?: number;
   vacationStartDate?: string | null;
   vacationEndDate?: string | null;
+  monthlyBaseRate?: number | null;
   projectStaff: Array<{
     id: number;
     utilization: number;
@@ -183,6 +184,7 @@ export default function CompanyStaffManager() {
     position: '',
     positionId: undefined,
     isActive: true,
+    monthlyBaseRate: undefined,
   });
 
   // Position management state
@@ -198,6 +200,14 @@ export default function CompanyStaffManager() {
   const [positionErrorMessage, setPositionErrorMessage] = useState<string>('');
   const [isSubmittingPosition, setIsSubmittingPosition] = useState(false);
   const [positionSearchTermForList, setPositionSearchTermForList] = useState('');
+
+  const normalizeStaffMember = (member: CompanyStaff): CompanyStaff => ({
+    ...member,
+    monthlyBaseRate:
+      member.monthlyBaseRate !== undefined && member.monthlyBaseRate !== null
+        ? Number(member.monthlyBaseRate)
+        : null,
+  });
 
   useEffect(() => {
     fetchStaff();
@@ -333,7 +343,7 @@ export default function CompanyStaffManager() {
               vacationEndDate: response.data.vacationEndDate,
             });
           } else {
-            setViewingStaff(response.data);
+            setViewingStaff(normalizeStaffMember(response.data));
           }
         }
       } else {
@@ -374,7 +384,7 @@ export default function CompanyStaffManager() {
               vacationEndDate: null,
             });
           } else {
-            setViewingStaff(response.data);
+            setViewingStaff(normalizeStaffMember(response.data));
           }
         }
       }
@@ -458,7 +468,8 @@ export default function CompanyStaffManager() {
       setLoading(true);
       const response = await get<{ success: boolean; data: CompanyStaff[] }>('/api/admin/company-staff');
       if (response.success) {
-        setStaff(response.data);
+        const normalized = response.data.map(normalizeStaffMember);
+        setStaff(normalized);
       }
     } catch (error) {
       console.error('Error fetching staff:', error);
@@ -479,21 +490,29 @@ export default function CompanyStaffManager() {
         email: formData.email || undefined,
         phone: formData.phone || undefined,
         position: selectedPosition?.name || formData.position || undefined,
+        monthlyBaseRate:
+          formData.monthlyBaseRate === undefined || formData.monthlyBaseRate === null
+            ? null
+            : Number(formData.monthlyBaseRate),
       };
 
-      // Remove positionId from the payload
-      const { positionId, ...payloadWithoutPositionId } = staffData;
-      const finalPayload = payloadWithoutPositionId;
-
       if (editingStaff) {
-        const response = await put<{ success: boolean; data: CompanyStaff }>(`/api/admin/company-staff/${editingStaff.id}`, finalPayload);
+        const response = await put<{ success: boolean; data: CompanyStaff }>(
+          `/api/admin/company-staff/${editingStaff.id}`,
+          staffData
+        );
         if (response.success) {
-          setStaff(staff.map(s => s.id === editingStaff.id ? response.data : s));
+          const updated = normalizeStaffMember(response.data);
+          setStaff(staff.map((s) => (s.id === editingStaff.id ? updated : s)));
         }
       } else {
-        const response = await post<{ success: boolean; data: CompanyStaff }>('/api/admin/company-staff', finalPayload);
+        const response = await post<{ success: boolean; data: CompanyStaff }>(
+          '/api/admin/company-staff',
+          staffData
+        );
         if (response.success) {
-          setStaff([response.data, ...staff]);
+          const created = normalizeStaffMember(response.data);
+          setStaff([created, ...staff]);
         }
       }
 
@@ -509,6 +528,7 @@ export default function CompanyStaffManager() {
         position: '',
         positionId: undefined,
         isActive: true,
+        monthlyBaseRate: undefined,
       });
     } catch (error) {
       console.error('Error saving staff:', error);
@@ -527,6 +547,10 @@ export default function CompanyStaffManager() {
       phone: staffMember.phone || '',
       position: staffMember.position || '',
       isActive: staffMember.isActive,
+    monthlyBaseRate:
+      staffMember.monthlyBaseRate !== undefined && staffMember.monthlyBaseRate !== null
+        ? Number(staffMember.monthlyBaseRate)
+        : undefined,
     });
     setShowForm(true);
   };
@@ -913,6 +937,17 @@ export default function CompanyStaffManager() {
                         </p>
                       </div>
                     </div>
+                <div className="flex items-center space-x-3 p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                  <DollarSign className="w-4 h-4 flex-shrink-0" style={{ color: colors.primary }} />
+                  <div className="min-w-0 flex-1">
+                    <p className="text-xs font-medium mb-1" style={{ color: colors.textMuted }}>Monthly Base Rate</p>
+                    <p className="text-sm" style={{ color: colors.textPrimary }}>
+                      {viewingStaff.monthlyBaseRate !== undefined && viewingStaff.monthlyBaseRate !== null
+                        ? formatCurrency(viewingStaff.monthlyBaseRate, siteSettings?.currencySymbol || '$')
+                        : 'Not set'}
+                    </p>
+                  </div>
+                </div>
                   </div>
                 </Card>
 
@@ -1376,6 +1411,7 @@ export default function CompanyStaffManager() {
                 position: '',
                 positionId: undefined,
                 isActive: true,
+                monthlyBaseRate: undefined,
               });
               setEditingStaff(null);
               setShowForm(true);
@@ -1713,6 +1749,7 @@ export default function CompanyStaffManager() {
                   phone: '',
                   position: '',
                   isActive: true,
+                  monthlyBaseRate: undefined,
                 });
               }}
               variant="ghost"
@@ -1862,6 +1899,33 @@ export default function CompanyStaffManager() {
                 />
               </div>
 
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Monthly Base Rate
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={formData.monthlyBaseRate ?? ''}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      monthlyBaseRate: e.target.value === '' ? undefined : Number(e.target.value),
+                    })
+                  }
+                  placeholder={`e.g., ${siteSettings?.currencySymbol || '$'}5000`}
+                  style={{
+                    backgroundColor: colors.backgroundPrimary,
+                    borderColor: 'rgba(229, 231, 235, 0.1)',
+                    color: colors.textPrimary,
+                  }}
+                />
+                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                  Optional staff-specific base rate used for cost projections.
+                </p>
+              </div>
+
               <div className="flex items-center space-x-2">
                 <label className="flex items-center cursor-pointer">
                   <input
@@ -1978,6 +2042,9 @@ export default function CompanyStaffManager() {
                 <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Phone
                 </th>
+                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  Base Rate
+                </th>
                 <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Total Utilization
                 </th>
@@ -2041,6 +2108,13 @@ export default function CompanyStaffManager() {
                   <td className="px-6 py-4">
                     <span className="text-sm" style={{ color: colors.textPrimary }}>
                       {staffMember.phone || '-'}
+                    </span>
+                  </td>
+                  <td className="px-6 py-4">
+                    <span className="text-sm" style={{ color: colors.textPrimary }}>
+                      {staffMember.monthlyBaseRate !== undefined && staffMember.monthlyBaseRate !== null
+                        ? formatCurrency(staffMember.monthlyBaseRate, siteSettings?.currencySymbol || '$')
+                        : '-'}
                     </span>
                   </td>
                   <td className="px-6 py-4 text-center">

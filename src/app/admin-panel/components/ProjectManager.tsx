@@ -14,6 +14,9 @@ import ProjectChecklist from './ProjectChecklist';
 import ProjectStaff from './ProjectStaff';
 import ProjectLabours from './ProjectLabours';
 import ProjectLabourSupply from './ProjectLabourSupply';
+import ProjectPlanning from './ProjectPlanning';
+import ProjectQuality from './ProjectQuality';
+import ProjectPlants from './ProjectPlants';
 import { 
   Plus, 
   Edit, 
@@ -33,7 +36,9 @@ import {
   FileText,
   ClipboardList,
   UserCheck,
-  Wrench
+  Wrench,
+  ShieldCheck,
+  Bus
 } from 'lucide-react';
 
 interface Project {
@@ -147,7 +152,9 @@ export default function ProjectManager() {
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [showDetailView, setShowDetailView] = useState(false);
   const [selectedProject, setSelectedProject] = useState<Project | null>(null);
-  const [activeTab, setActiveTab] = useState<'overview' | 'checklist' | 'staff' | 'labours' | 'labourSupply'>('overview');
+  const [activeTab, setActiveTab] = useState<
+    'overview' | 'planning' | 'quality' | 'checklist' | 'staff' | 'labours' | 'labourSupply' | 'plants'
+  >('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -1306,6 +1313,87 @@ export default function ProjectManager() {
                 <span>Labour Supply</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('plants')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'plants'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'plants') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'plants') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'plants' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'plants' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Bus className="w-4 h-4" />
+                <span>Plant</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('planning')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'planning'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'planning') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'planning') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'planning' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'planning' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <DraftingCompass className="w-4 h-4" />
+                <span>Planning</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('quality')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'quality'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'quality') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'quality') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'quality' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'quality' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <ShieldCheck className="w-4 h-4" />
+                <span>Quality</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -1723,6 +1811,28 @@ export default function ProjectManager() {
             </div>
           )}
             </div>
+          ) : activeTab === 'planning' ? (
+            <div>
+              {selectedProject && (
+                <ProjectPlanning
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'quality' ? (
+            <div>
+              {selectedProject && (
+                <ProjectQuality
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
           ) : activeTab === 'checklist' ? (
             <div>
               {selectedProject && (
@@ -1760,6 +1870,17 @@ export default function ProjectManager() {
                 <ProjectLabourSupply 
                   projectId={selectedProject.id} 
                   projectName={selectedProject.projectName}
+                />
+              )}
+            </div>
+          ) : activeTab === 'plants' ? (
+            <div>
+              {selectedProject && (
+                <ProjectPlants
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
                 />
               )}
             </div>

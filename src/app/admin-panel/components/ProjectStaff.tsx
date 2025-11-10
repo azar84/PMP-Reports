@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
@@ -66,6 +66,7 @@ interface Staff {
   projectStaff?: ProjectStaffDetails[]; // Current assignments
   vacationStartDate?: string | null;
   vacationEndDate?: string | null;
+  monthlyBaseRate?: number | null;
 }
 
 interface ProjectStaffAssignment {
@@ -171,7 +172,9 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     phone: '',
     positionId: undefined,
     isActive: true,
+    monthlyBaseRate: undefined,
   });
+  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
 
   useEffect(() => {
     fetchStaff();
@@ -195,7 +198,14 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       setLoading(true);
       const response = await get<{ success: boolean; data: Staff[] }>('/api/admin/company-staff');
       if (response.success) {
-        setStaff(response.data);
+        const normalized = response.data.map((member) => ({
+          ...member,
+          monthlyBaseRate:
+            member.monthlyBaseRate !== undefined && member.monthlyBaseRate !== null
+              ? Number(member.monthlyBaseRate)
+              : null,
+        }));
+        setStaff(normalized);
       }
     } catch (error) {
       console.error('Error fetching staff:', error);
@@ -215,7 +225,26 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
             console.log(`Assignment ${assignment.id}: startDate=${assignment.startDate}, endDate=${assignment.endDate}`);
           });
         });
-        setProjectPositions(response.data);
+        const normalized = response.data.map((position) => ({
+          ...position,
+          monthlyRate:
+            position.monthlyRate !== undefined && position.monthlyRate !== null
+              ? Number(position.monthlyRate)
+              : null,
+          staffAssignments: position.staffAssignments.map((assignment) => ({
+            ...assignment,
+            staff: assignment.staff
+              ? {
+                  ...assignment.staff,
+                  monthlyBaseRate:
+                    assignment.staff.monthlyBaseRate !== undefined && assignment.staff.monthlyBaseRate !== null
+                      ? Number(assignment.staff.monthlyBaseRate)
+                      : null,
+                }
+              : null,
+          })),
+        }));
+        setProjectPositions(normalized);
       }
     } catch (error) {
       console.error('Error fetching project positions:', error);
@@ -527,7 +556,14 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       
       const staffPayload = {
         ...newStaffData,
+        employeeNumber: newStaffData.employeeNumber || undefined,
+        email: newStaffData.email || undefined,
+        phone: newStaffData.phone || undefined,
         position: selectedPosition?.name || '',
+        monthlyBaseRate:
+          newStaffData.monthlyBaseRate === undefined || newStaffData.monthlyBaseRate === null
+            ? null
+            : Number(newStaffData.monthlyBaseRate),
       };
       
       // Remove positionId from the payload since the API expects position as string
@@ -544,6 +580,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
           phone: '',
           positionId: undefined,
           isActive: true,
+          monthlyBaseRate: undefined,
         });
         setShowPositionDropdownInModal(false);
         setPositionSearchTermInModal('');
@@ -588,43 +625,6 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     );
   });
 
-  // Calculate project-specific statistics
-  const calculateProjectStatistics = () => {
-    const allAssignments = projectPositions.flatMap(position => position.staffAssignments || []);
-    
-    // Calculate required staff (sum of requiredUtilization divided by 100)
-    const requiredStaff = projectPositions.reduce((sum, position) => {
-      return sum + (position.requiredUtilization / 100);
-    }, 0);
-    
-    // Calculate assigned staff (sum of assigned utilization divided by 100)
-    const assignedStaff = allAssignments.reduce((sum, assignment) => {
-      return sum + (assignment.utilization / 100);
-    }, 0);
-    
-    // Calculate involved staff (unique staff working on this project)
-    const involvedStaffIds = new Set(allAssignments.map(assignment => assignment.staffId));
-    const involvedStaff = involvedStaffIds.size;
-    
-    // Calculate expected monthly cost using actual position rates from database
-    const expectedMonthlyCost = projectPositions.reduce((sum, position) => {
-      // Use the monthlyRate from the position if available, otherwise fallback to designation-based lookup
-      const positionSalary = position.monthlyRate || getFallbackSalary(position.designation);
-      const utilizationFactor = position.requiredUtilization / 100;
-      return sum + (positionSalary * utilizationFactor);
-    }, 0);
-    
-    const balanceStaff = requiredStaff - assignedStaff;
-
-    return {
-      requiredStaff: Math.round(requiredStaff * 100) / 100,
-      assignedStaff: Math.round(assignedStaff * 100) / 100,
-      balanceStaff: Math.round(balanceStaff * 100) / 100,
-      involvedStaff,
-      expectedMonthlyCost: Math.round(expectedMonthlyCost)
-    };
-  };
-
   // Fallback salary calculation for positions without monthlyRate
   const getFallbackSalary = (designation: string) => {
     const designationLower = designation.toLowerCase();
@@ -643,7 +643,105 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     }
   };
 
-  const stats = calculateProjectStatistics();
+  const getPositionCostInfo = (position: ProjectPosition) => {
+    const monthlyRate =
+      position.monthlyRate !== undefined && position.monthlyRate !== null
+        ? Number(position.monthlyRate)
+        : getFallbackSalary(position.designation);
+
+    return { monthlyRate };
+  };
+
+  const projectDurationMonths = useMemo(() => {
+    if (!projectStartDate || !projectEndDate) {
+      return null;
+    }
+
+    const start = new Date(projectStartDate);
+    const end = new Date(projectEndDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) {
+      return 0;
+    }
+
+    const months = diffMs / (1000 * 60 * 60 * 24 * 30);
+    return Math.max(1, Math.round(months));
+  }, [projectStartDate, projectEndDate]);
+
+  const costBreakdown = useMemo(() => {
+    const details = projectPositions.map((position) => {
+      const { monthlyRate } = getPositionCostInfo(position);
+      const totalAssignedUtilization = position.staffAssignments.reduce(
+        (sum, assignment) => sum + (assignment.utilization || 0),
+        0
+      );
+
+      const assignedCost = position.staffAssignments.reduce((sum, assignment) => {
+        const staffRate =
+          assignment.staff?.monthlyBaseRate !== undefined && assignment.staff?.monthlyBaseRate !== null
+            ? Number(assignment.staff.monthlyBaseRate)
+            : monthlyRate;
+
+        return sum + staffRate * ((assignment.utilization || 0) / 100);
+      }, 0);
+
+      const remainingUtilizationFraction = Math.max(0, (position.requiredUtilization - totalAssignedUtilization) / 100);
+      const remainingCost = monthlyRate * remainingUtilizationFraction;
+      const monthlyCost = assignedCost + remainingCost;
+      const totalCost = projectDurationMonths ? monthlyCost * projectDurationMonths : null;
+
+      return {
+        designation: position.designation,
+        monthlyRate,
+        utilization: position.requiredUtilization,
+        assignedUtilization: Math.min(totalAssignedUtilization, position.requiredUtilization),
+        monthlyCost,
+        totalCost,
+      };
+    });
+
+    const monthlyTotal = details.reduce((sum, detail) => sum + detail.monthlyCost, 0);
+    const totalCost = details.reduce((sum, detail) => sum + (detail.totalCost ?? 0), 0);
+
+    return {
+      details,
+      monthlyTotal,
+      totalCost: projectDurationMonths ? totalCost : null,
+      durationMonths: projectDurationMonths,
+    };
+  }, [projectPositions, projectDurationMonths]);
+
+  const stats = useMemo(() => {
+    const allAssignments = projectPositions.flatMap((position) => position.staffAssignments || []);
+
+    const requiredStaff = projectPositions.reduce((sum, position) => {
+      return sum + position.requiredUtilization / 100;
+    }, 0);
+
+    const assignedStaff = allAssignments.reduce((sum, assignment) => {
+      return sum + assignment.utilization / 100;
+    }, 0);
+
+    const involvedStaffIds = new Set(allAssignments.map((assignment) => assignment.staffId));
+    const involvedStaff = involvedStaffIds.size;
+
+    const balanceStaff = requiredStaff - assignedStaff;
+
+    return {
+      requiredStaff: Math.round(requiredStaff * 100) / 100,
+      assignedStaff: Math.round(assignedStaff * 100) / 100,
+      balanceStaff: Math.round(balanceStaff * 100) / 100,
+      involvedStaff,
+      expectedMonthlyCost: Math.round(costBreakdown.monthlyTotal),
+    };
+  }, [projectPositions, costBreakdown]);
+
+  const currencySymbol = siteSettings?.currencySymbol || '$';
 
   if (loading) {
     return (
@@ -738,17 +836,25 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
           </div>
         </Card>
 
-        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
+        <Card
+          className="p-4 cursor-pointer transition-colors"
+          style={{ backgroundColor: colors.backgroundSecondary }}
+          onClick={() => costBreakdown.details.length > 0 && setShowCostBreakdown(true)}
+          role="button"
+          tabIndex={0}
+        >
           <div className="flex items-center space-x-3">
             <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.warning }}>
-              {siteSettings?.currencySymbol || '$'}
+              {currencySymbol}
             </div>
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
                 Monthly Cost
               </p>
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                {stats.expectedMonthlyCost.toLocaleString()}
+                {Number.isFinite(stats.expectedMonthlyCost)
+                  ? Number(stats.expectedMonthlyCost).toLocaleString()
+                  : '0'}
               </p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
                 Expected cost
@@ -1065,6 +1171,157 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
           </div>
         )}
       </Card>
+
+      {showCostBreakdown && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div
+            className="w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: colors.borderLight }}
+            >
+              <div>
+                <h3 className="text-xl font-semibold">Monthly Cost Breakdown</h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Review position rates and projected cost across the project duration.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCostBreakdown(false)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close cost breakdown"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="px-6 py-4 space-y-4"
+              style={{
+                overflowY: 'auto',
+                flex: '1 1 auto',
+              }}
+            >
+              <div className="flex flex-wrap gap-4 text-sm" style={{ color: colors.textSecondary }}>
+                <span>
+                  Monthly total:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {formatCurrency(costBreakdown.monthlyTotal, currencySymbol)}
+                  </span>
+                </span>
+                <span>
+                  Project duration:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {costBreakdown.durationMonths !== null
+                      ? costBreakdown.durationMonths === 1
+                        ? '1 month'
+                        : `${costBreakdown.durationMonths} months`
+                      : 'Not specified'}
+                  </span>
+                </span>
+                <span>
+                  Full-duration cost:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {costBreakdown.totalCost !== null
+                      ? formatCurrency(costBreakdown.totalCost, currencySymbol)
+                      : 'N/A'}
+                  </span>
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: colors.backgroundSecondary }}>
+                      {['Position', 'Position Rate', 'Utilization (Assigned / Target)', 'Staff Rate', 'Total Cost'].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-2 text-left font-semibold"
+                          style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {costBreakdown.details.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-4 py-4 text-center"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          No positions found for this project yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      costBreakdown.details.map((detail, index) => (
+                        <tr
+                          key={`${detail.designation}-${index}`}
+                          style={{
+                            backgroundColor:
+                              index % 2 === 0 ? colors.backgroundPrimary : colors.backgroundSecondary,
+                          }}
+                        >
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.designation}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.monthlyRate, currencySymbol)}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            <div className="flex flex-col">
+                              <span style={{ color: colors.textPrimary }}>
+                                {Number(detail.assignedUtilization ?? 0).toLocaleString(undefined, {
+                                  maximumFractionDigits: 1,
+                                })}
+                                %
+                              </span>
+                              <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                Target {Number(detail.utilization ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.monthlyCost, currencySymbol)}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.totalCost !== null
+                              ? formatCurrency(detail.totalCost, currencySymbol)
+                              : 'N/A'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div
+                className="flex justify-end"
+                style={{
+                  flex: '0 0 auto',
+                  paddingTop: '0.5rem',
+                }}
+              >
+                <Button onClick={() => setShowCostBreakdown(false)} style={{ backgroundColor: colors.primary }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Staff Modal */}
       {showAddModal && (
@@ -2380,6 +2637,26 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     value={newStaffData.phone || ''}
                     onChange={(e) => setNewStaffData({ ...newStaffData, phone: e.target.value })}
                     placeholder="+234 123 456 7890"
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Monthly Base Rate
+                  </label>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={newStaffData.monthlyBaseRate ?? ''}
+                    onChange={(e) =>
+                      setNewStaffData({
+                        ...newStaffData,
+                        monthlyBaseRate: e.target.value === '' ? undefined : Number(e.target.value),
+                      })
+                    }
+                    placeholder={`e.g., ${(siteSettings?.currencySymbol || '$') + '5000'}`}
                     style={{ backgroundColor: colors.backgroundPrimary }}
                   />
                 </div>

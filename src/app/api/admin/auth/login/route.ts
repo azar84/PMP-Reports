@@ -18,8 +18,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Check if admin user exists in database
-    const adminUser = await prisma.adminUser.findUnique({
-      where: { username }
+    const adminUser = await prisma.adminUser.findFirst({
+      where: { username },
     });
 
     if (!adminUser) {
@@ -48,15 +48,15 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate JWT token
-    const token = jwt.sign(
-      {
-        userId: adminUser.id,
-        username: adminUser.username,
-        role: adminUser.role
-      },
-      JWT_SECRET,
-      { expiresIn: '24h' }
-    );
+    const tokenPayload = {
+      userId: adminUser.id,
+      username: adminUser.username,
+      role: adminUser.role,
+      tenantId: adminUser.tenantId,
+      hasAllProjectsAccess: adminUser.hasAllProjectsAccess,
+    };
+
+    const token = jwt.sign(tokenPayload, JWT_SECRET, { expiresIn: '24h' });
 
     // Update last login
     await prisma.adminUser.update({
@@ -73,7 +73,9 @@ export async function POST(request: NextRequest) {
         username: adminUser.username,
         email: adminUser.email,
         role: adminUser.role,
-        name: adminUser.name
+        name: adminUser.name,
+        tenantId: adminUser.tenantId,
+        hasAllProjectsAccess: adminUser.hasAllProjectsAccess,
       }
     });
 

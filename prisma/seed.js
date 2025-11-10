@@ -1,7 +1,41 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
+const path = require('path');
 
 const prisma = new PrismaClient();
+
+const permissionCatalog = require(path.join(__dirname, '..', 'src', 'data', 'permission-catalog.json'));
+
+
+function buildPermissionSeedDefinitions(tenantId) {
+  const { menuItems = [], operations = [], specialPermissions = [] } = permissionCatalog;
+
+  const definitions = [];
+
+  for (const special of specialPermissions) {
+    definitions.push({
+      tenantId,
+      key: special.key,
+      resource: special.resource || 'admin',
+      description: special.description || special.label || special.key,
+      isSystem: true,
+    });
+  }
+
+  for (const menuItem of menuItems) {
+    for (const operation of operations) {
+      definitions.push({
+        tenantId,
+        key: `${menuItem.key}.${operation.key}`,
+        resource: menuItem.key,
+        description: `${operation.label} permission for ${menuItem.label}`,
+        isSystem: true,
+      });
+    }
+  }
+
+  return definitions;
+}
 
 async function main() {
   console.log('🌱 Starting database seeding...');
@@ -12,24 +46,173 @@ async function main() {
   const password = 'admin123';
   const passwordHash = await bcrypt.hash(password, 12);
 
-  const existingAdmin = await prisma.adminUser.findFirst({
-    where: { username },
+  // Ensure a default tenant exists
+  const defaultTenant = await prisma.tenant.upsert({
+    where: { slug: 'default' },
+    update: {},
+    create: {
+      name: 'Default Tenant',
+      slug: 'default',
+    },
   });
 
-  if (!existingAdmin) {
-    await prisma.adminUser.create({
+  const existingAdmin = await prisma.adminUser.findFirst({
+    where: {
+      tenantId: defaultTenant.id,
+      username,
+    },
+  });
+
+  // Seed permissions
+  const permissionDefinitions = buildPermissionSeedDefinitions(defaultTenant.id);
+  if (permissionDefinitions.length > 0) {
+    for (const definition of permissionDefinitions) {
+      await prisma.permission.upsert({
+        where: {
+          tenantId_key: {
+            tenantId: definition.tenantId,
+            key: definition.key,
+          },
+        },
+        update: {
+          description: definition.description,
+          resource: definition.resource,
+          isSystem: definition.isSystem,
+        },
+        create: definition,
+      });
+    }
+    console.log(`✅ Seeded ${permissionDefinitions.length} permission definitions`);
+  }
+
+  const allPermissions = await prisma.permission.findMany({
+    where: { tenantId: defaultTenant.id },
+  });
+
+  const createRoleWithPermissions = async (name, description, permissionIds, isSystem = false) => {
+    const role = await prisma.role.upsert({
+      where: {
+        tenantId_name: {
+          tenantId: defaultTenant.id,
+          name,
+        },
+      },
+      update: {},
+      create: {
+        tenantId: defaultTenant.id,
+        name,
+        description,
+        isSystem,
+      },
+    });
+
+    for (const permissionId of permissionIds) {
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: role.id,
+            permissionId,
+          },
+        },
+        update: {
+          action: 'allow',
+        },
+        create: {
+          roleId: role.id,
+          permissionId,
+          action: 'allow',
+        },
+      });
+    }
+
+    return role;
+  };
+
+  // Create SuperUser role with all permissions
+  const allPermissionIds = allPermissions.map((permission) => permission.id);
+  const superUserRole = await createRoleWithPermissions(
+    'SuperUser',
+    'Super user with full access to everything - bypasses all restrictions',
+    allPermissionIds,
+    true
+  );
+
+  // Create Admin role with all permissions (legacy compatibility)
+  await createRoleWithPermissions(
+    'Admin',
+    'Full system administrator with all permissions',
+    allPermissionIds,
+    true
+  );
+
+  // Create Project Manager role with targeted permissions
+  const projectManagerPermissionKeys = [
+    'projects.view',
+    'projects.update',
+    'projects.create',
+    'clients.view',
+    'consultants.view',
+    'staff.view',
+    'staff.update',
+    'labours.view',
+    'labours.update',
+    'contacts.view',
+    'contacts.update',
+    'media.view',
+    'scheduler.view',
+  ];
+
+  const projectManagerPermissionIds = allPermissions
+    .filter((permission) => projectManagerPermissionKeys.includes(permission.key))
+    .map((permission) => permission.id);
+
+  await createRoleWithPermissions(
+    'Project Manager',
+    'Project-level access for managing team, resources, and quality logs',
+    projectManagerPermissionIds,
+    false
+  );
+
+  let adminUserRecord = existingAdmin;
+
+  if (!adminUserRecord) {
+    adminUserRecord = await prisma.adminUser.create({
       data: {
+        tenantId: defaultTenant.id,
         username,
         email,
         passwordHash,
         name: 'Default Admin',
         role: 'admin',
         isActive: true,
+        hasAllProjectsAccess: true,
       },
     });
     console.log('✅ Default admin user created (username: admin, password: admin123)');
   } else {
-    console.log('ℹ️  Admin user already exists, skipping creation.');
+    console.log('ℹ️  Admin user already exists, updating access.');
+  }
+
+  if (adminUserRecord) {
+    await prisma.adminUser.update({
+      where: { id: adminUserRecord.id },
+      data: {
+        hasAllProjectsAccess: true,
+        userRoles: {
+          connectOrCreate: {
+            where: {
+              userId_roleId: {
+                userId: adminUserRecord.id,
+                roleId: superUserRole.id,
+              },
+            },
+            create: {
+              roleId: superUserRole.id,
+            },
+          },
+        },
+      },
+    });
   }
 
   // Create default site settings if they don't exist

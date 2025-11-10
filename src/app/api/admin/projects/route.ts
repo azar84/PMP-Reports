@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
+import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
 
@@ -123,6 +124,13 @@ export async function POST(request: NextRequest) {
       startDate: parseDateFromInput(projectData.startDate),
       endDate: parseDateFromInput(projectData.endDate),
     };
+
+    // Ensure project value satisfies the non-null Decimal requirement
+    const projectValue =
+      projectData.projectValue !== undefined && projectData.projectValue !== null
+        ? new Prisma.Decimal(projectData.projectValue)
+        : new Prisma.Decimal(0);
+    projectDataWithDates.projectValue = projectValue;
 
     // Add director and manager IDs to project data if provided
     if (projectDirectorId !== undefined) {

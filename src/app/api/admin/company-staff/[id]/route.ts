@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 const staffSchema = z.object({
   staffName: z.string().min(1, 'Staff name is required'),
@@ -8,7 +9,9 @@ const staffSchema = z.object({
   email: z.string().email().optional().or(z.literal('')),
   phone: z.string().optional(),
   position: z.string().optional(),
+  positionId: z.number().optional().or(z.literal(null)),
   isActive: z.boolean().optional().default(true),
+  monthlyBaseRate: z.number().min(0, 'Base rate must be a positive number').nullable().optional(),
 });
 
 // GET - Fetch single company staff
@@ -51,7 +54,12 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: staff });
+    const serializedStaff = {
+      ...staff,
+      monthlyBaseRate: staff.monthlyBaseRate ? Number(staff.monthlyBaseRate) : null,
+    };
+
+    return NextResponse.json({ success: true, data: serializedStaff });
   } catch (error) {
     console.error('Error fetching staff:', error);
     return NextResponse.json(
@@ -79,10 +87,27 @@ export async function PUT(
 
     const body = await request.json();
     const validatedData = staffSchema.parse(body);
+    const { monthlyBaseRate, position: rawPosition, positionId, ...rest } = validatedData;
+
+    let positionName =
+      typeof rawPosition === 'string' && rawPosition.trim().length > 0 ? rawPosition.trim() : undefined;
+
+    if (!positionName && typeof positionId === 'number') {
+      const matchingPosition = await prisma.position.findUnique({
+        where: { id: positionId },
+        select: { name: true },
+      });
+      positionName = matchingPosition?.name ?? undefined;
+    }
 
     const staff = await prisma.companyStaff.update({
       where: { id: staffId },
-      data: validatedData,
+      data: {
+        ...rest,
+        position: positionName ?? null,
+        monthlyBaseRate:
+          monthlyBaseRate !== undefined && monthlyBaseRate !== null ? new Prisma.Decimal(monthlyBaseRate) : null,
+      },
       include: {
         projectStaff: {
           include: {
@@ -98,7 +123,12 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({ success: true, data: staff });
+    const serializedStaff = {
+      ...staff,
+      monthlyBaseRate: staff.monthlyBaseRate ? Number(staff.monthlyBaseRate) : null,
+    };
+
+    return NextResponse.json({ success: true, data: serializedStaff });
   } catch (error) {
     console.error('Error updating staff:', error);
     if (error instanceof z.ZodError) {
