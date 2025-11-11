@@ -515,8 +515,10 @@ model Project {
   hseChecklistItems             ProjectHseChecklistItem[]
   nocTrackerEntries             ProjectNocTrackerEntry[]
   projectRisks                  ProjectRiskEntry[]
+  areaOfConcerns                ProjectAreaOfConcern[]
   projectAssets                 ProjectAsset[]
   projectPictures               ProjectPicture[]
+  closeOutEntries               ProjectCloseOutEntry[]
   projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
   projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
   costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
@@ -1008,6 +1010,24 @@ model ProjectRiskEntry {
   @@map("project_risk_entries")
 }
 
+model ProjectAreaOfConcern {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  description    String
+  actionNeeded   String?
+  startedDate    DateTime?
+  resolutionDate DateTime?
+  status         String    @default("Ongoing")
+  remarks        String?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_area_of_concerns")
+}
+
 model ProjectAsset {
   id          Int       @id @default(autoincrement())
   projectId   Int
@@ -1038,6 +1058,26 @@ model ProjectPicture {
   @@index([projectId])
   @@index([mediaId])
   @@map("project_pictures")
+}
+
+model ProjectCloseOutEntry {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  itemType       String
+  totalRequired  Int?
+  submitted      Int?
+  approved       Int?
+  underReview    Int?
+  rejected       Int?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, itemType])
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_close_out_entries")
 }
 
 model ConsultantToConsultantType {

@@ -19,8 +19,10 @@ import ProjectQuality from './ProjectQuality';
 import ProjectPlants from './ProjectPlants';
 import ProjectHSE from './ProjectHSE';
 import ProjectRisks from './ProjectRisks';
+import ProjectAreaOfConcerns from './ProjectAreaOfConcerns';
 import ProjectAssets from './ProjectAssets';
 import ProjectPictures from './ProjectPictures';
+import ProjectCloseOut from './ProjectCloseOut';
 import { 
   Plus, 
   Edit, 
@@ -46,7 +48,8 @@ import {
   LifeBuoy,
   AlertTriangle,
   Package,
-  Camera
+  Camera,
+  ClipboardCheck
 } from 'lucide-react';
 
 interface Project {
@@ -173,6 +176,7 @@ export default function ProjectManager() {
     | 'plants'
     | 'assets'
     | 'pictures'
+    | 'closeOut'
   >('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
@@ -1521,6 +1525,33 @@ export default function ProjectManager() {
                 <span>Pictures</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('closeOut')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'closeOut'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'closeOut') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'closeOut') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'closeOut' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'closeOut' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <ClipboardCheck className="w-4 h-4" />
+                <span>Close Out</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -1961,12 +1992,18 @@ export default function ProjectManager() {
               )}
             </div>
           ) : activeTab === 'risks' ? (
-            <div>
+            <div className="space-y-8">
               {selectedProject && (
-                <ProjectRisks
-                  projectId={selectedProject.id}
-                  projectName={selectedProject.projectName}
-                />
+                <>
+                  <ProjectRisks
+                    projectId={selectedProject.id}
+                    projectName={selectedProject.projectName}
+                  />
+                  <ProjectAreaOfConcerns
+                    projectId={selectedProject.id}
+                    projectName={selectedProject.projectName}
+                  />
+                </>
               )}
             </div>
           ) : activeTab === 'hse' ? (
@@ -2044,6 +2081,17 @@ export default function ProjectManager() {
             <div>
               {selectedProject && (
                 <ProjectPictures
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'closeOut' ? (
+            <div>
+              {selectedProject && (
+                <ProjectCloseOut
                   projectId={selectedProject.id}
                   projectName={selectedProject.projectName}
                   projectStartDate={selectedProject.startDate}
