@@ -245,6 +245,7 @@ model Tenant {
   labours     Labour[]
   plants      Plant[]
   auditLogs   AuditLog[]
+  suppliers   Supplier[]
 
   @@index([slug])
   @@map("tenants")
@@ -1003,6 +1004,46 @@ model ProjectRiskEntry {
 
   @@index([projectId])
   @@map("project_risk_entries")
+}
+
+model TypeOfWork {
+  id         Int        @id @default(autoincrement())
+  name       String     @unique
+  createdAt  DateTime   @default(now())
+  updatedAt  DateTime   @updatedAt
+  supplierAssignments SupplierTypeOfWork[]
+
+  @@map("type_of_works")
+}
+
+model Supplier {
+  id              Int       @id @default(autoincrement())
+  tenantId        Int       @default(1)
+  name            String
+  type            String
+  contactPerson   String?
+  contactNumber   String?
+  email           String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  typeOfWorks     SupplierTypeOfWork[]
+
+  @@unique([tenantId, name])
+  @@index([tenantId])
+  @@map("suppliers")
+}
+
+model SupplierTypeOfWork {
+  supplierId  Int
+  typeOfWorkId Int
+  assignedAt  DateTime @default(now())
+
+  supplier   Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  typeOfWork TypeOfWork @relation(fields: [typeOfWorkId], references: [id], onDelete: Cascade)
+
+  @@id([supplierId, typeOfWorkId])
+  @@map("supplier_type_of_work")
 }
 
 model ConsultantToConsultantType {

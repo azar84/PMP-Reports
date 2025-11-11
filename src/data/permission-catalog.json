@@ -5,6 +5,7 @@
     { "key": "consultants", "label": "Consultants" },
     { "key": "staff", "label": "Staff" },
     { "key": "labours", "label": "Labours" },
+    { "key": "suppliers", "label": "Vendors" },
     { "key": "contacts", "label": "Contacts" },
     { "key": "media", "label": "Media Library" },
     { "key": "users", "label": "Users" },

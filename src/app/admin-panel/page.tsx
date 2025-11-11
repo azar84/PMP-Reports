@@ -6,9 +6,9 @@ import { useAuth } from '@/hooks/useAuth';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
-import { 
-  LayoutDashboard, 
-  Users, 
+import {
+  LayoutDashboard,
+  Users,
   Settings,
   Menu,
   X,
@@ -47,6 +47,7 @@ import CompanyStaffManager from './components/CompanyStaffManager';
 import LabourManager from './components/LabourManager';
 import PlantManager from './components/PlantManager';
 import ContactManager from './components/ContactManager';
+import SupplierManager from './components/SupplierManager';
 import RolesManager from './components/RolesManager';
 import type { PermissionKey } from '@/lib/permissionsCatalog';
 import { PERMISSIONS } from '@/lib/permissionsCatalog';
@@ -61,6 +62,7 @@ type Section =
   | 'consultants'
   | 'company-staff'
   | 'labours'
+  | 'suppliers'
   | 'plants'
   | 'contacts'
   | 'media-library'
@@ -89,6 +91,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
     { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
     { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning, permission: 'staff.view' },
     { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
+    { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'suppliers.view' },
     { id: 'plants', name: 'Plants', icon: Factory, color: colors.success, permission: 'projects.view' },
     { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info, permission: 'contacts.view' },
     { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary, permission: 'media-library.view' },
@@ -361,6 +364,15 @@ export default function AdminPanel() {
             style={{ backgroundColor: colors.backgroundPrimary }}
           >
             <LabourManager />
+          </div>
+        );
+      case 'suppliers':
+        return (
+          <div
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <SupplierManager />
           </div>
         );
       case 'plants':
