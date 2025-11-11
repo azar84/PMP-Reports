@@ -20,6 +20,7 @@ import ProjectPlants from './ProjectPlants';
 import ProjectHSE from './ProjectHSE';
 import ProjectRisks from './ProjectRisks';
 import ProjectAreaOfConcerns from './ProjectAreaOfConcerns';
+import ProjectClientFeedback from './ProjectClientFeedback';
 import ProjectAssets from './ProjectAssets';
 import ProjectPictures from './ProjectPictures';
 import ProjectCloseOut from './ProjectCloseOut';
@@ -49,7 +50,8 @@ import {
   AlertTriangle,
   Package,
   Camera,
-  ClipboardCheck
+  ClipboardCheck,
+  MessageSquare
 } from 'lucide-react';
 
 interface Project {
@@ -177,6 +179,7 @@ export default function ProjectManager() {
     | 'assets'
     | 'pictures'
     | 'closeOut'
+    | 'clientFeedback'
   >('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
@@ -1552,6 +1555,33 @@ export default function ProjectManager() {
                 <span>Close Out</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('clientFeedback')}
+              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === 'clientFeedback'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'clientFeedback') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'clientFeedback') {
+                  e.currentTarget.style.borderColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'clientFeedback' ? colors.primary : colors.textSecondary,
+                borderBottomColor: activeTab === 'clientFeedback' ? colors.primary : 'transparent'
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="w-4 h-4" />
+                <span>Client Feedback</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -2096,6 +2126,15 @@ export default function ProjectManager() {
                   projectName={selectedProject.projectName}
                   projectStartDate={selectedProject.startDate}
                   projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'clientFeedback' ? (
+            <div>
+              {selectedProject && (
+                <ProjectClientFeedback
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
                 />
               )}
             </div>

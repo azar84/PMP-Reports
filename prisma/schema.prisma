@@ -516,6 +516,7 @@ model Project {
   nocTrackerEntries             ProjectNocTrackerEntry[]
   projectRisks                  ProjectRiskEntry[]
   areaOfConcerns                ProjectAreaOfConcern[]
+  clientFeedback                ProjectClientFeedback?
   projectAssets                 ProjectAsset[]
   projectPictures               ProjectPicture[]
   closeOutEntries               ProjectCloseOutEntry[]
@@ -1026,6 +1027,20 @@ model ProjectAreaOfConcern {
 
   @@index([projectId])
   @@map("project_area_of_concerns")
+}
+
+model ProjectClientFeedback {
+  id             Int       @id @default(autoincrement())
+  projectId      Int       @unique
+  rating         String?   // Excellent, Very Good, Good, Average, Below Expectation, Poor
+  positivePoints Json?     // Array of strings
+  negativePoints Json?     // Array of strings
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_client_feedback")
 }
 
 model ProjectAsset {
