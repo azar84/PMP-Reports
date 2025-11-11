@@ -194,6 +194,7 @@ model MediaLibrary {
   updatedAt    DateTime     @updatedAt
   folder       MediaFolder? @relation(fields: [folderId], references: [id])
   usages       MediaUsage[]
+  projectPictures ProjectPicture[]
 
   @@map("media_library")
 }
@@ -515,6 +516,12 @@ model Project {
   hseChecklistItems             ProjectHseChecklistItem[]
   nocTrackerEntries             ProjectNocTrackerEntry[]
   projectRisks                  ProjectRiskEntry[]
+  projectVendorEvaluations      ProjectVendorEvaluation[]
+  areaOfConcerns                ProjectAreaOfConcern[]
+  clientFeedback                ProjectClientFeedback?
+  projectAssets                 ProjectAsset[]
+  projectPictures               ProjectPicture[]
+  closeOutEntries               ProjectCloseOutEntry[]
   projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
   projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
   costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
@@ -1028,6 +1035,7 @@ model Supplier {
   updatedAt       DateTime  @updatedAt
   tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   typeOfWorks     SupplierTypeOfWork[]
+  projectEvaluations ProjectVendorEvaluation[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1044,6 +1052,106 @@ model SupplierTypeOfWork {
 
   @@id([supplierId, typeOfWorkId])
   @@map("supplier_type_of_work")
+}
+
+model ProjectVendorEvaluation {
+  id        Int      @id @default(autoincrement())
+  projectId Int
+  supplierId Int
+  rating    String   // "VERY_GOOD", "GOOD", "POOR"
+  notes     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, supplierId])
+  @@map("project_vendor_evaluations")
+}
+
+model ProjectAreaOfConcern {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  description    String
+  actionNeeded   String?
+  startedDate    DateTime?
+  resolutionDate DateTime?
+  status         String    @default("Ongoing")
+  remarks        String?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_area_of_concerns")
+}
+
+model ProjectClientFeedback {
+  id             Int       @id @default(autoincrement())
+  projectId      Int       @unique
+  rating         String?   // Excellent, Very Good, Good, Average, Below Expectation, Poor
+  positivePoints Json?     // Array of strings
+  negativePoints Json?     // Array of strings
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_client_feedback")
+}
+
+model ProjectAsset {
+  id          Int       @id @default(autoincrement())
+  projectId   Int
+  type        String
+  description String
+  assetNumber String?
+  status      String    @default("Active")
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@map("project_assets")
+}
+
+model ProjectPicture {
+  id          Int          @id @default(autoincrement())
+  projectId   Int
+  mediaId     Int
+  caption     String?
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media       MediaLibrary @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([mediaId])
+  @@map("project_pictures")
+}
+
+model ProjectCloseOutEntry {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  itemType       String
+  totalRequired  Int?
+  submitted      Int?
+  approved       Int?
+  underReview    Int?
+  rejected       Int?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, itemType])
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_close_out_entries")
 }
 
 model ConsultantToConsultantType {

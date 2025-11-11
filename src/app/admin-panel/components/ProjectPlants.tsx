@@ -549,8 +549,8 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
               updated = updated.map((requirement) =>
                 requirement.id === previousRequirementId
                   ? {
-                      ...requirement,
-                      assignments: requirement.assignments.filter((item) => item.id !== updatedAssignment.id),
+                ...requirement,
+                assignments: requirement.assignments.filter((item) => item.id !== updatedAssignment.id),
                     }
                   : requirement
               );
@@ -1094,11 +1094,11 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                   </tr>
                 </thead>
                 <tbody>
-                  {requirements.map((requirement) => {
-                    const assignedToRequirement = getAssignmentsForRequirement(requirement.id);
-                    const assignedPlantAssignments = assignedToRequirement.filter(
-                      (assignment) => assignment.plantId && assignment.plant
-                    );
+            {requirements.map((requirement) => {
+              const assignedToRequirement = getAssignmentsForRequirement(requirement.id);
+              const assignedPlantAssignments = assignedToRequirement.filter(
+                (assignment) => assignment.plantId && assignment.plant
+              );
                     const slotsForDisplay = getSlotsForRequirement(requirement);
                     const assignmentsBySlot = new Map<number, ProjectPlant>();
                     assignedToRequirement.forEach((assignment) => {
@@ -1124,7 +1124,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                           isSlot: false,
                         }));
 
-                    return (
+              return (
                       <React.Fragment key={requirement.id}>
                         {/* Requirement Header Row */}
                         <tr className="border-b" style={{ borderColor: colors.border, backgroundColor: colors.backgroundSecondary }}>
@@ -1143,16 +1143,16 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                               </div>
                               <div className="flex items-center space-x-4">
                                 <div className="flex items-center space-x-2">
-                                  <span 
+                        <span
                                     className={`text-sm font-medium ${
                                       isComplete ? 'text-green-600' : 'text-orange-600'
                                     }`}
-                                  >
+                        >
                                     {isComplete 
                                       ? `Complete (${assignedPlantAssignments.length}/${requirement.requiredQuantity})` 
                                       : `${requirement.requiredQuantity - assignedPlantAssignments.length} needed`
                                     }
-                                  </span>
+                        </span>
                                   {!isComplete && (
                                     <Button
                                       onClick={() => openAssignmentModal(requirement)}
@@ -1164,17 +1164,17 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                       <Plus className="w-3 h-3" />
                                     </Button>
                                   )}
-                                </div>
+                    </div>
                                 <div className="flex items-center space-x-2">
-                                  <Button
+                      <Button
                                     onClick={() => handleRequirementEdit(requirement)}
                                     variant="ghost"
-                                    size="sm"
+                        size="sm"
                                     className="p-1"
                                     title={`Edit ${requirement.title} requirements`}
-                                  >
+                      >
                                     <Edit className="w-4 h-4" />
-                                  </Button>
+                      </Button>
                                   <Button
                                     onClick={() => handleRequirementDelete(requirement.id)}
                                     variant="ghost"
@@ -1182,9 +1182,9 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                     className="p-1"
                                   >
                                     <Trash2 className="w-4 h-4" />
-                                  </Button>
-                                </div>
-                              </div>
+                      </Button>
+                    </div>
+                  </div>
                             </div>
                           </td>
                         </tr>
@@ -1209,13 +1209,13 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                         <p className="font-medium" style={{ color: colors.textPrimary }}>
                                           {assignment.plant.plantDescription}
                                         </p>
-                                        <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        <p className="text-xs" style={{ color: colors.textSecondary }}>
                                           {assignment.plant.plantCode}
                                           {assignment.plant.plateNumber && ` · ${assignment.plant.plateNumber}`}
-                                        </p>
-                                      </div>
-                                    </div>
-                                  ) : (
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
                                     <div className="flex items-center space-x-2">
                                       <UserX className="w-4 h-4" style={{ color: colors.textMuted }} />
                                       <span style={{ color: colors.textSecondary }}>Unassigned</span>
@@ -1247,12 +1247,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                 <td className="py-3 px-4">
                                   <span style={{ color: colors.textPrimary }}>
                                     {assignment?.startDate ? formatDateForDisplay(assignment.startDate) : '-'}
-                                  </span>
+                                </span>
                                 </td>
                                 <td className="py-3 px-4">
                                   <span style={{ color: colors.textPrimary }}>
                                     {assignment?.endDate ? formatDateForDisplay(assignment.endDate) : '-'}
-                                  </span>
+                                </span>
                                 </td>
                                 <td className="py-3 px-4">
                                   {isAssigned && assignment ? (
@@ -1266,7 +1266,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                       }`}
                                     >
                                       {assignment.status}
-                                    </span>
+                                </span>
                                   ) : (
                                     <span className="px-2 py-1 text-xs rounded-full bg-gray-100 text-gray-800">Unassigned</span>
                                   )}
@@ -1282,7 +1282,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                           className="p-1"
                                         >
                                           <UserX className="w-4 h-4" />
-                                        </Button>
+                              </Button>
                                         <Button
                                           onClick={() => handleAssignmentEdit(assignment)}
                                           variant="ghost"
@@ -1290,7 +1290,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                           className="p-1"
                                         >
                                           <Edit className="w-4 h-4" />
-                                        </Button>
+                              </Button>
                                       </>
                                     ) : (
                                       <Button
@@ -1308,7 +1308,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                         <Plus className="w-4 h-4" />
                                       </Button>
                                     )}
-                                  </div>
+                            </div>
                                 </td>
                               </tr>
                             );
@@ -1327,16 +1327,16 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                 >
                                   <Plus className="w-3 h-3" />
                                 </Button>
-                              </div>
+                          </div>
                             </td>
                           </tr>
-                        )}
+                  )}
                       </React.Fragment>
-                    );
-                  })}
+              );
+            })}
                 </tbody>
               </table>
-            </div>
+          </div>
           </Card>
         )}
       </Card>
