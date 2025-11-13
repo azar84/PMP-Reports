@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { formatCurrency } from '@/lib/currency';
 import { 
@@ -146,7 +146,36 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     });
 
-    // Slide 2: Planning
+    // Slide 3: Checklist (split across multiple pages if needed)
+    if (data.checklist && data.checklist.length > 0) {
+      // Separate main items and sub-items
+      const mainItems = data.checklist.filter((item: any) => !item.isSubItem);
+      const subItems = data.checklist.filter((item: any) => item.isSubItem);
+      
+      // Group items with their sub-items
+      const itemsWithSubs = mainItems.map((item: any) => ({
+        ...item,
+        subItems: subItems.filter((sub: any) => sub.parentItemId === item.id)
+      }));
+      
+      // Split into pages (approximately 8-10 items per page)
+      const itemsPerPage = 8;
+      for (let i = 0; i < itemsWithSubs.length; i += itemsPerPage) {
+        const pageItems = itemsWithSubs.slice(i, i + itemsPerPage);
+        slides.push({
+          type: 'checklist',
+          title: 'Project Checklist',
+          content: {
+            project: data.project,
+            checklist: pageItems.flatMap(item => [item, ...item.subItems]),
+            pageNumber: Math.floor(i / itemsPerPage) + 1,
+            totalPages: Math.ceil(itemsWithSubs.length / itemsPerPage)
+          }
+        });
+      }
+    }
+
+    // Slide 4: Planning
     if (data.planning) {
       slides.push({
         type: 'planning',
@@ -155,7 +184,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 3: Quality
+    // Slide 5: Quality
     if (data.quality) {
       slides.push({
         type: 'quality',
@@ -164,7 +193,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 4: Risks
+    // Slide 6: Risks
     if (data.risks) {
       slides.push({
         type: 'risks',
@@ -173,7 +202,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 5: Area of Concerns
+    // Slide 7: Area of Concerns
     if (data.areaOfConcerns) {
       slides.push({
         type: 'areaOfConcerns',
@@ -182,7 +211,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 6: HSE
+    // Slide 8: HSE
     if (data.hse) {
       slides.push({
         type: 'hse',
@@ -191,16 +220,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 7: Checklist
-    if (data.checklist && data.checklist.length > 0) {
-      slides.push({
-        type: 'checklist',
-        title: 'Project Checklist',
-        content: data.checklist
-      });
-    }
-
-    // Slide 8: Staff
+    // Slide 9: Staff
     if (data.staff && data.staff.length > 0) {
       slides.push({
         type: 'staff',
@@ -209,7 +229,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 9: Labours
+    // Slide 10: Labours
     if (data.labours && data.labours.length > 0) {
       slides.push({
         type: 'labours',
@@ -218,7 +238,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 10: Labour Supply
+    // Slide 11: Labour Supply
     if (data.labourSupply && data.labourSupply.length > 0) {
       slides.push({
         type: 'labourSupply',
@@ -415,14 +435,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 className="w-full h-auto max-h-[42vh] object-contain relative z-10"
               />
             </div>
-          ) : (
-            <div 
-              className="w-full h-48 flex items-center justify-center"
-              style={{ backgroundColor: colors.backgroundSecondary }}
-            >
-              <Camera className="w-16 h-16" style={{ color: colors.textMuted }} />
-            </div>
-          )}
+          ) : null}
         </div>
 
         {/* Manager and Director - Bottom with decorative styling */}
@@ -473,118 +486,244 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const renderOverviewSlide = (content: any) => {
     const { project, contacts } = content;
     
+    // Normalize consultant type from report data to a standard key for grouping
+    // This handles various formats that might be stored in the database
+    const normalizeConsultantType = (type: string): string => {
+      if (!type) return '';
+      const normalized = type.toLowerCase().trim();
+      const typeMap: { [key: string]: string } = {
+        'pmc': 'pmc',
+        'project management': 'pmc',
+        'projectmanagement': 'pmc',
+        'project management consultant': 'pmc',
+        'design': 'design',
+        'design consultant': 'design',
+        'supervision': 'supervision',
+        'supervision consultant': 'supervision',
+        'cost': 'cost',
+        'cost consultant': 'cost',
+      };
+      return typeMap[normalized] || normalized;
+    };
+
+    // Map normalized key to consultant company key in project.consultants object
+    // This reads from the actual report data structure
+    const getConsultantCompanyKey = (normalizedType: string): string => {
+      const keyMap: { [key: string]: string } = {
+        'pmc': 'projectManagement',
+        'design': 'design',
+        'supervision': 'supervision',
+        'cost': 'cost',
+      };
+      return keyMap[normalizedType] || normalizedType;
+    };
+
+    // Get display name for consultant type
+    const getConsultantDisplayName = (normalizedType: string): string => {
+      const displayMap: { [key: string]: string } = {
+        'pmc': 'Project Management Consultant',
+        'design': 'Design Consultant',
+        'supervision': 'Supervision Consultant',
+        'cost': 'Cost Consultant',
+      };
+      return displayMap[normalizedType] || normalizedType.split(' ').map(word => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase()).join(' ') + ' Consultant';
+    };
+    
+    // Organize contacts by type - reading from report data
+    const clientContacts = contacts?.filter((c: any) => c.contact?.entityType === 'client') || [];
+    const consultantContacts: { [key: string]: { company: any; contacts: any[]; displayName: string; contactIds: Set<number> } } = {};
+    
+    // Process contacts from report data
+    if (contacts && Array.isArray(contacts)) {
+      contacts.forEach((contact: any) => {
+        // Only process consultant contacts that have a consultantType
+        if (contact.contact?.entityType === 'consultant' && contact.consultantType) {
+          const normalizedType = normalizeConsultantType(contact.consultantType);
+          
+          // Skip if normalization failed
+          if (!normalizedType) return;
+          
+          // Get contact ID to check for duplicates
+          const contactId = contact.contact?.id || contact.contactId;
+          if (!contactId) return; // Skip if no contact ID
+          
+          // Get consultant company from project.consultants object in report data
+          const consultantKey = getConsultantCompanyKey(normalizedType);
+          const consultantCompany = project?.consultants?.[consultantKey] || null;
+          
+          // Initialize group if it doesn't exist
+          if (!consultantContacts[normalizedType]) {
+            consultantContacts[normalizedType] = {
+              company: consultantCompany,
+              contacts: [],
+              displayName: getConsultantDisplayName(normalizedType),
+              contactIds: new Set<number>()
+            };
+          }
+          
+          // Only add contact if it hasn't been added to this group before
+          if (!consultantContacts[normalizedType].contactIds.has(contactId)) {
+            consultantContacts[normalizedType].contactIds.add(contactId);
+            consultantContacts[normalizedType].contacts.push(contact);
+          }
+        }
+      });
+    }
+    
+    // Clean up - remove contactIds from the final structure (it was only for deduplication)
+    Object.keys(consultantContacts).forEach(key => {
+      delete (consultantContacts[key] as any).contactIds;
+    });
+    
     return (
-      <div className="h-full flex flex-col justify-center items-center p-12 text-center">
-        <div className="mb-8">
-          <FileText className="w-20 h-20 mx-auto mb-4" style={{ color: colors.primary }} />
-          <h1 className="text-5xl font-bold mb-4" style={{ color: colors.textPrimary }}>
+      <div className="h-full flex flex-col p-8">
+        <div className="mb-6 text-center">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: colors.textPrimary }}>
             {project.projectName}
           </h1>
-          <p className="text-2xl" style={{ color: colors.textSecondary }}>
+          <p className="text-lg" style={{ color: colors.textSecondary }}>
             {project.projectCode}
           </p>
         </div>
 
-        <div className="grid grid-cols-2 gap-8 mt-12 w-full max-w-4xl">
-          {project.client && (
-            <div className="text-left">
-              <div className="flex items-center space-x-2 mb-3">
-                <Building2 className="w-6 h-6" style={{ color: colors.primary }} />
-                <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Client</h3>
-              </div>
-              <p className="text-lg" style={{ color: colors.textSecondary }}>{project.client.name}</p>
-            </div>
-          )}
-
-          {project.projectValue && (
-            <div className="text-left">
-              <div className="flex items-center space-x-2 mb-3">
-                <DollarSign className="w-6 h-6" style={{ color: colors.primary }} />
-                <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Project Value</h3>
-              </div>
-              <p className="text-lg" style={{ color: colors.textSecondary }}>
-                {formatCurrency(Number(project.projectValue), '$')}
-              </p>
-            </div>
-          )}
-
-          {project.startDate && (
-            <div className="text-left">
-              <div className="flex items-center space-x-2 mb-3">
-                <Calendar className="w-6 h-6" style={{ color: colors.primary }} />
-                <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>Start Date</h3>
-              </div>
-              <p className="text-lg" style={{ color: colors.textSecondary }}>
-                {new Date(project.startDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-            </div>
-          )}
-
-          {project.endDate && (
-            <div className="text-left">
-              <div className="flex items-center space-x-2 mb-3">
-                <Calendar className="w-6 h-6" style={{ color: colors.primary }} />
-                <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>End Date</h3>
-              </div>
-              <p className="text-lg" style={{ color: colors.textSecondary }}>
-                {new Date(project.endDate).toLocaleDateString('en-US', {
-                  year: 'numeric',
-                  month: 'long',
-                  day: 'numeric'
-                })}
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Consultants */}
-        {project.consultants && (
-          <div className="mt-12 w-full max-w-4xl">
-            <h3 className="text-2xl font-semibold mb-6 text-left" style={{ color: colors.textPrimary }}>Consultants</h3>
-            <div className="grid grid-cols-2 gap-6">
-              {project.consultants.projectManagement && (
-                <div className="flex items-center space-x-3 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <HardHat className="w-5 h-5" style={{ color: colors.primary }} />
-                  <div className="text-left">
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>Project Management</p>
-                    <p className="text-lg" style={{ color: colors.textPrimary }}>{project.consultants.projectManagement.name}</p>
-                  </div>
-                </div>
-              )}
-              {project.consultants.design && (
-                <div className="flex items-center space-x-3 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <DraftingCompass className="w-5 h-5" style={{ color: colors.primary }} />
-                  <div className="text-left">
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>Design</p>
-                    <p className="text-lg" style={{ color: colors.textPrimary }}>{project.consultants.design.name}</p>
-                  </div>
-                </div>
-              )}
-              {project.consultants.supervision && (
-                <div className="flex items-center space-x-3 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <Eye className="w-5 h-5" style={{ color: colors.primary }} />
-                  <div className="text-left">
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>Supervision</p>
-                    <p className="text-lg" style={{ color: colors.textPrimary }}>{project.consultants.supervision.name}</p>
-                  </div>
-                </div>
-              )}
-              {project.consultants.cost && (
-                <div className="flex items-center space-x-3 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <Calculator className="w-5 h-5" style={{ color: colors.primary }} />
-                  <div className="text-left">
-                    <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>Cost</p>
-                    <p className="text-lg" style={{ color: colors.textPrimary }}>{project.consultants.cost.name}</p>
-                  </div>
-                </div>
-              )}
-            </div>
+        {/* Contacts Section - Readable Layout */}
+        <div className="flex-1 w-full max-w-6xl mx-auto">
+          <div className="mb-6 text-center">
+            <h2 className="text-2xl font-bold" style={{ color: colors.primary }}>
+              Stakeholders
+            </h2>
           </div>
-        )}
+          <div className="h-full flex flex-col space-y-6">
+            {/* Client */}
+            {clientContacts.length > 0 && (
+              <div>
+                <div 
+                  className="mb-4 pb-2 border-b"
+                  style={{ borderColor: colors.primary }}
+                >
+                  <p 
+                    className="text-sm font-bold mb-2 flex items-center uppercase tracking-wider"
+                    style={{ color: colors.primary }}
+                  >
+                    <span 
+                      className="inline-block w-1.5 h-4 mr-2"
+                      style={{ backgroundColor: colors.primary }}
+                    />
+                    Client
+                  </p>
+                </div>
+                <div className="pl-6">
+                  {project?.client?.name && (
+                    <p 
+                      className="text-lg font-bold mb-2"
+                      style={{ color: colors.primary }}
+                    >
+                      {project.client.name}
+                    </p>
+                  )}
+                  <div className="grid grid-cols-4 gap-4 mt-2">
+                  {clientContacts.map((contact: any, idx: number) => (
+                    <div key={idx} className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                      <p className="text-sm font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                        {contact.contact?.firstName} {contact.contact?.lastName}
+                      </p>
+                      {contact.contact?.position && (
+                        <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>
+                          {contact.contact.position}
+                        </p>
+                      )}
+                      {contact.contact?.email && (
+                        <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                          {contact.contact.email}
+                        </p>
+                      )}
+                      {contact.contact?.phone && (
+                        <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                          {contact.contact.phone}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Consultants - Grouped by type */}
+            {Object.keys(consultantContacts).length > 0 && (
+              <div className="flex-1 flex flex-col min-h-0">
+                <div 
+                  className="mb-4 pb-2 border-b"
+                  style={{ borderColor: colors.primary }}
+                >
+                  <h3 
+                    className="text-sm font-bold mb-2 flex items-center uppercase tracking-wider"
+                    style={{ color: colors.primary }}
+                  >
+                    <span 
+                      className="inline-block w-1.5 h-4 mr-2"
+                      style={{ backgroundColor: colors.primary }}
+                    />
+                    Consultants
+                  </h3>
+                </div>
+                <div className="flex-1 grid grid-cols-2 gap-x-10 gap-y-6 auto-rows-min pl-6">
+                  {Object.entries(consultantContacts).map(([type, data]) => (
+                    <div key={type} className="flex flex-col">
+                      <div 
+                        className="mb-4 pb-2 border-b"
+                        style={{ borderColor: colors.primary }}
+                      >
+                        <p 
+                          className="text-sm font-semibold mb-2 flex items-center"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          <span 
+                            className="inline-block w-1.5 h-4 mr-2"
+                            style={{ backgroundColor: colors.primary }}
+                          />
+                          {data.displayName}
+                        </p>
+                        {data.company?.name && (
+                          <p 
+                            className="text-lg font-bold"
+                            style={{ color: colors.primary }}
+                          >
+                            {data.company.name}
+                          </p>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 mt-2">
+                        {data.contacts.map((contact: any, idx: number) => (
+                          <div key={idx} className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                            <p className="text-sm font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                              {contact.contact?.firstName} {contact.contact?.lastName}
+                            </p>
+                            {contact.contact?.position && (
+                              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>
+                                {contact.contact.position}
+                              </p>
+                            )}
+                            {contact.contact?.email && (
+                              <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                                {contact.contact.email}
+                              </p>
+                            )}
+                            {contact.contact?.phone && (
+                              <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                                {contact.contact.phone}
+                              </p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     );
   };
@@ -782,30 +921,236 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   };
 
   const renderChecklistSlide = (content: any) => {
+    const { project, checklist, pageNumber, totalPages } = content;
+    
+    const formatDate = (dateString: string | null | undefined) => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    const getStatusColor = (status: string | null | undefined) => {
+      if (!status) return colors.textMuted;
+      switch (status) {
+        case 'Completed':
+          return '#10b981'; // green
+        case 'In Progress':
+          return '#3b82f6'; // blue
+        case 'Pending':
+          return '#f59e0b'; // amber
+        case 'On Hold':
+          return '#ef4444'; // red
+        case 'Cancelled':
+          return '#6b7280'; // gray
+        default:
+          return colors.textMuted;
+      }
+    };
+
+    // Separate main items and sub-items
+    const mainItems = checklist.filter((item: any) => !item.isSubItem);
+    const subItems = checklist.filter((item: any) => item.isSubItem);
+
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Checklist</h2>
-        <div className="space-y-3 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
-          {content.map((item: any, idx: number) => (
-            <div key={idx} className="p-4 rounded-lg flex items-center justify-between" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <div>
-                <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{item.itemNumber} - {item.phase}</p>
-                {item.plannedDate && (
-                  <p className="text-sm" style={{ color: colors.textSecondary }}>
-                    Planned: {new Date(item.plannedDate).toLocaleDateString()}
-                  </p>
-                )}
-              </div>
-              {item.status && (
-                <span className="px-3 py-1 rounded-full text-sm" style={{
-                  backgroundColor: item.status === 'Completed' ? colors.success : colors.warning,
-                  color: colors.backgroundPrimary
-                }}>
-                  {item.status}
-                </span>
-              )}
+      <div className="h-full flex flex-col p-8">
+        <div className="mb-4 text-center">
+          <h1 className="text-3xl font-bold mb-2" style={{ color: colors.textPrimary }}>
+            {project.projectName}
+          </h1>
+          <p className="text-lg" style={{ color: colors.textSecondary }}>
+            {project.projectCode}
+          </p>
+        </div>
+
+        <div className="flex-1 w-full flex flex-col">
+          <div className="mb-4 text-center">
+            <h2 className="text-2xl font-bold" style={{ color: colors.primary }}>
+              Project Checklist
+            </h2>
+            {totalPages > 1 && (
+              <p className="text-sm mt-1" style={{ color: colors.textMuted }}>
+                Page {pageNumber} of {totalPages}
+              </p>
+            )}
+          </div>
+          
+          <div className="flex-1 overflow-hidden">
+            <div className="w-full h-full overflow-auto">
+              <table className="w-full border-collapse" style={{ fontSize: '0.8125rem' }}>
+                <thead className="sticky top-0 z-10">
+                  <tr>
+                    <th 
+                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        borderTop: `1px solid ${colors.primary}40`
+                      }}
+                    >
+                      Item #
+                    </th>
+                    <th 
+                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        borderTop: `1px solid ${colors.primary}40`
+                      }}
+                    >
+                      Phase
+                    </th>
+                    <th 
+                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        borderTop: `1px solid ${colors.primary}40`
+                      }}
+                    >
+                      Planned Date
+                    </th>
+                    <th 
+                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        borderTop: `1px solid ${colors.primary}40`
+                      }}
+                    >
+                      Actual Date
+                    </th>
+                    <th 
+                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        borderTop: `1px solid ${colors.primary}40`
+                      }}
+                    >
+                      Status
+                    </th>
+                    <th 
+                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        borderTop: `1px solid ${colors.primary}40`
+                      }}
+                    >
+                      Remarks
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {mainItems.map((item: any, idx: number) => {
+                    const itemSubItems = subItems.filter((sub: any) => sub.parentItemId === item.id);
+                    return (
+                      <React.Fragment key={item.id || idx}>
+                        <tr 
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-3.5 px-5 font-semibold" style={{ color: colors.textPrimary }}>
+                            {item.itemNumber || '-'}
+                          </td>
+                          <td className="py-3.5 px-5 font-semibold" style={{ color: colors.textPrimary }}>
+                            {item.phase}
+                          </td>
+                          <td className="py-3.5 px-5" style={{ color: colors.textSecondary }}>
+                            {formatDate(item.plannedDate)}
+                          </td>
+                          <td className="py-3.5 px-5" style={{ color: colors.textSecondary }}>
+                            {formatDate(item.actualDate)}
+                          </td>
+                          <td className="py-3.5 px-5">
+                            {item.status ? (
+                              <span 
+                                className="px-2.5 py-1 rounded-md text-xs font-semibold inline-block"
+                                style={{ 
+                                  backgroundColor: `${getStatusColor(item.status)}15`,
+                                  color: getStatusColor(item.status),
+                                  border: `1px solid ${getStatusColor(item.status)}30`
+                                }}
+                              >
+                                {item.status}
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-3.5 px-5" style={{ color: colors.textSecondary, minWidth: '250px', maxWidth: '400px' }}>
+                            <div className="break-words whitespace-normal leading-relaxed">
+                              {item.notes || '-'}
+                            </div>
+                          </td>
+                        </tr>
+                        {itemSubItems.map((subItem: any, subIdx: number) => (
+                          <tr 
+                            key={subItem.id || `sub-${idx}-${subIdx}`}
+                            style={{ 
+                              borderBottom: `1px solid ${colors.primary}08`,
+                              backgroundColor: `${colors.backgroundSecondary}20`
+                            }}
+                          >
+                            <td className="py-2.5 px-5 pl-10" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
+                              <span className="inline-block w-1.5 h-1.5 rounded-full mr-2" style={{ backgroundColor: colors.primary }}></span>
+                              {subItem.itemNumber || ''}
+                            </td>
+                            <td className="py-2.5 px-5" style={{ color: colors.textSecondary, fontSize: '0.75rem' }}>
+                              {subItem.phase}
+                            </td>
+                            <td className="py-2.5 px-5" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
+                              {formatDate(subItem.plannedDate)}
+                            </td>
+                            <td className="py-2.5 px-5" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
+                              {formatDate(subItem.actualDate)}
+                            </td>
+                            <td className="py-2.5 px-5">
+                              {subItem.status ? (
+                                <span 
+                                  className="px-2 py-0.5 rounded-md text-xs font-medium inline-block"
+                                  style={{ 
+                                    backgroundColor: `${getStatusColor(subItem.status)}15`,
+                                    color: getStatusColor(subItem.status),
+                                    border: `1px solid ${getStatusColor(subItem.status)}30`
+                                  }}
+                                >
+                                  {subItem.status}
+                                </span>
+                              ) : (
+                                <span style={{ color: colors.textMuted }}>-</span>
+                              )}
+                            </td>
+                            <td className="py-2.5 px-5" style={{ color: colors.textMuted, fontSize: '0.75rem', minWidth: '250px', maxWidth: '400px' }}>
+                              <div className="break-words whitespace-normal leading-relaxed">
+                                {subItem.notes || '-'}
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
+                      </React.Fragment>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
-          ))}
+          </div>
         </div>
       </div>
     );
