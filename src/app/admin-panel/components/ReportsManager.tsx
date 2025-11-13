@@ -16,9 +16,12 @@ import {
   ChevronRight,
   ChevronDown,
   Search,
-  X
+  X,
+  FileDown,
+  Presentation
 } from 'lucide-react';
 import ReportPresentationViewer from './ReportPresentationViewer';
+import { generatePDF, generatePowerPoint } from '@/lib/reportExport';
 
 interface ProjectReport {
   id: number;
@@ -130,6 +133,34 @@ export default function ReportsManager() {
     } catch (error) {
       console.error('Error deleting report:', error);
       alert('Failed to delete report');
+    }
+  };
+
+  const handleDownloadPDF = async (report: ProjectReport) => {
+    try {
+      await generatePDF({
+        project: report.project,
+        reportData: report.reportData,
+        reportMonth: report.reportMonth,
+        reportYear: report.reportYear
+      });
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.');
+    }
+  };
+
+  const handleDownloadPowerPoint = async (report: ProjectReport) => {
+    try {
+      await generatePowerPoint({
+        project: report.project,
+        reportData: report.reportData,
+        reportMonth: report.reportMonth,
+        reportYear: report.reportYear
+      });
+    } catch (error) {
+      console.error('Error generating PowerPoint:', error);
+      alert('Failed to generate PowerPoint. Please try again.');
     }
   };
 
@@ -254,6 +285,28 @@ export default function ReportsManager() {
                             title="View Report"
                           >
                             <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleDownloadPDF(report)}
+                            className="p-2"
+                            style={{ 
+                              backgroundColor: '#ef4444',
+                              color: colors.backgroundPrimary
+                            }}
+                            title="Download PDF"
+                          >
+                            <FileDown className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleDownloadPowerPoint(report)}
+                            className="p-2"
+                            style={{ 
+                              backgroundColor: '#f59e0b',
+                              color: colors.backgroundPrimary
+                            }}
+                            title="Download PowerPoint"
+                          >
+                            <Presentation className="w-4 h-4" />
                           </Button>
                           <Button
                             onClick={() => handleDeleteReport(report.id)}
