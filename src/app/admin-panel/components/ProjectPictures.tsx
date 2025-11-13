@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { Image, Trash2, Edit, X, Plus, Upload, ChevronLeft, ChevronRight, Clock } from 'lucide-react';
+import { Image, Trash2, Edit, X, Plus, Upload, ChevronLeft, ChevronRight, Clock, Star } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -34,6 +34,7 @@ interface ProjectPicture {
   mediaId: number;
   caption: string | null;
   sortOrder: number;
+  isFeatured: boolean;
   createdAt: string;
   updatedAt: string;
   media: MediaItem;
@@ -246,6 +247,48 @@ export default function ProjectPictures({ projectId, projectName }: ProjectPictu
     }
   }, [editingCaptionId, captionEditValue, projectId, put]);
 
+  const handleSetFeatured = async (pictureId: number) => {
+    setIsSaving(true);
+    setSaveError(null);
+
+    try {
+      const response = await put<{ success: boolean; data: { picture: ProjectPicture }; error?: string }>(
+        `/api/admin/projects/${projectId}/pictures/${pictureId}`,
+        {
+          isFeatured: true,
+        }
+      );
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to set featured picture');
+      }
+
+      // Update local state - set this as featured and unset others
+      setPictures((prevPictures) =>
+        prevPictures.map((pic) =>
+          pic.id === pictureId
+            ? { ...pic, isFeatured: true, updatedAt: new Date().toISOString() }
+            : { ...pic, isFeatured: false }
+        )
+      );
+
+      // Re-sort to show featured first
+      setPictures((prevPictures) => {
+        const sorted = [...prevPictures].sort((a, b) => {
+          if (a.isFeatured && !b.isFeatured) return -1;
+          if (!a.isFeatured && b.isFeatured) return 1;
+          return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+        });
+        return sorted;
+      });
+    } catch (error: any) {
+      console.error('Error setting featured picture:', error);
+      setSaveError(error?.message || 'Failed to set featured picture');
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleCaptionBlur = async (pictureId: number, event: React.FocusEvent<HTMLInputElement>) => {
     // Only save if the new focus target is not another input or button
     const relatedTarget = event.relatedTarget as HTMLElement;
@@ -415,7 +458,29 @@ export default function ProjectPictures({ projectId, projectName }: ProjectPictu
                   alt={picture.caption || picture.media.filename}
                   className="w-full h-full object-cover"
                 />
+                {picture.isFeatured && (
+                  <div className="absolute top-2 left-2 flex items-center gap-1 px-2 py-1 rounded-md" style={{
+                    backgroundColor: `${colors.primary}CC`,
+                    color: '#FFFFFF',
+                  }}>
+                    <Star className="w-3 h-3 fill-current" />
+                    <span className="text-xs font-medium">Featured</span>
+                  </div>
+                )}
                 <div className="absolute top-2 right-2 flex items-center gap-1">
+                  <Button
+                    onClick={() => handleSetFeatured(picture.id)}
+                    variant="ghost"
+                    size="sm"
+                    className="p-1"
+                    style={{
+                      backgroundColor: picture.isFeatured ? `${colors.primary}20` : `${colors.backgroundPrimary}CC`,
+                      color: picture.isFeatured ? colors.primary : colors.textSecondary,
+                    }}
+                    title={picture.isFeatured ? "Featured picture" : "Set as featured"}
+                  >
+                    <Star className={`w-4 h-4 ${picture.isFeatured ? 'fill-current' : ''}`} />
+                  </Button>
                   <Button
                     onClick={() => handleDeletePicture(picture.id)}
                     variant="ghost"

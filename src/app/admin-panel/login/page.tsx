@@ -121,23 +121,41 @@ export default function AdminLogin() {
 
   if (loadingSettings) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-white">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div 
+        className="min-h-screen flex items-center justify-center"
+        style={{ backgroundColor: 'var(--color-bg-primary, #FFFFFF)' }}
+      >
+        <div 
+          className="animate-spin rounded-full h-12 w-12 border-b-2"
+          style={{ borderColor: 'var(--color-primary, #5243E9)' }}
+        ></div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-white relative overflow-hidden">
+    <div 
+      className="min-h-screen flex items-center justify-center relative overflow-hidden"
+      style={{ backgroundColor: 'var(--color-bg-primary, #FFFFFF)' }}
+    >
       {/* Background Pattern */}
       <div className="absolute inset-0 opacity-5">
         <div className="absolute inset-0 bg-[url('data:image/svg+xml,%3Csvg%20width%3D%2260%22%20height%3D%2260%22%20viewBox%3D%220%200%2060%2060%22%20xmlns%3D%22http%3A//www.w3.org/2000/svg%22%3E%3Cg%20fill%3D%22none%22%20fill-rule%3D%22evenodd%22%3E%3Cg%20fill%3D%22%23000000%22%20fill-opacity%3D%220.1%22%3E%3Ccircle%20cx%3D%2230%22%20cy%3D%2230%22%20r%3D%222%22/%3E%3C/g%3E%3C/g%3E%3C/svg%3E')]"></div>
       </div>
 
       {/* Floating Elements */}
-      <div className="absolute top-20 left-20 w-72 h-72 bg-blue-100 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"></div>
-      <div className="absolute top-40 right-20 w-72 h-72 bg-purple-100 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"></div>
-      <div className="absolute -bottom-8 left-40 w-72 h-72 bg-pink-100 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"></div>
+      <div 
+        className="absolute top-20 left-20 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob"
+        style={{ backgroundColor: `color-mix(in srgb, var(--color-primary, #5243E9) 20%, white)` }}
+      ></div>
+      <div 
+        className="absolute top-40 right-20 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-2000"
+        style={{ backgroundColor: `color-mix(in srgb, var(--color-accent, #06B6D4) 20%, white)` }}
+      ></div>
+      <div 
+        className="absolute -bottom-8 left-40 w-72 h-72 rounded-full mix-blend-multiply filter blur-xl opacity-30 animate-blob animation-delay-4000"
+        style={{ backgroundColor: `color-mix(in srgb, var(--color-primary, #5243E9) 15%, white)` }}
+      ></div>
 
       <div className="relative z-10 w-full max-w-md mx-4">
         {/* Logo and Branding */}
@@ -156,21 +174,35 @@ export default function AdminLogin() {
               </div>
             ) : (
               <div className="flex items-center space-x-3">
-                <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-purple-600 rounded-xl flex items-center justify-center">
+                <div 
+                  className="w-12 h-12 rounded-xl flex items-center justify-center"
+                  style={{ 
+                    background: `linear-gradient(135deg, var(--color-primary, #5243E9) 0%, var(--color-accent, #06B6D4) 100%)`
+                  }}
+                >
                   <Shield className="w-6 h-6 text-white" />
                 </div>
-                <span className="text-2xl font-bold text-gray-900">
+                <span 
+                  className="text-2xl font-bold"
+                  style={{ color: 'var(--color-text-primary, #1F2937)' }}
+                >
                   {siteSettings.footerCompanyName || 'Your Company'}
                 </span>
               </div>
             )}
           </div>
           
-          <h1 className="text-3xl font-bold text-gray-900 mb-2">
+          <h1 
+            className="text-3xl font-bold mb-2"
+            style={{ color: 'var(--color-text-primary, #1F2937)' }}
+          >
             {isResetMode ? 'Reset Password' : 'Sign In'}
           </h1>
           
-          <p className="text-gray-600 text-sm max-w-sm mx-auto">
+          <p 
+            className="text-sm max-w-sm mx-auto"
+            style={{ color: 'var(--color-text-secondary, #6B7280)' }}
+          >
             {isResetMode 
               ? 'Enter your email to receive a secure password reset link'
               : 'Secure access to your website administration'
@@ -179,29 +211,62 @@ export default function AdminLogin() {
         </div>
 
         {/* Form Container */}
-        <div className="bg-white rounded-2xl shadow-xl border border-gray-200 p-8">
+        <div 
+          className="rounded-2xl shadow-xl p-8"
+          style={{ 
+            backgroundColor: 'var(--color-bg-primary, #FFFFFF)',
+            borderColor: 'var(--color-border-light, #E5E7EB)',
+            borderWidth: '1px',
+            borderStyle: 'solid'
+          }}
+        >
           {isResetMode ? (
             // Password Reset Form
             <form className="space-y-6" onSubmit={handlePasswordReset}>
               {error && (
-                <div className="p-4 text-sm text-red-800 border border-red-200 rounded-lg bg-red-50">
+                <div 
+                  className="p-4 text-sm rounded-lg"
+                  style={{
+                    color: 'var(--color-error, #EF4444)',
+                    borderColor: `color-mix(in srgb, var(--color-error, #EF4444) 30%, white)`,
+                    backgroundColor: `color-mix(in srgb, var(--color-error, #EF4444) 10%, white)`,
+                    borderWidth: '1px',
+                    borderStyle: 'solid'
+                  }}
+                >
                   {error}
                 </div>
               )}
               
               {success && (
-                <div className="p-4 text-sm text-green-800 border border-green-200 rounded-lg bg-green-50">
+                <div 
+                  className="p-4 text-sm rounded-lg"
+                  style={{
+                    color: 'var(--color-success, #10B981)',
+                    borderColor: `color-mix(in srgb, var(--color-success, #10B981) 30%, white)`,
+                    backgroundColor: `color-mix(in srgb, var(--color-success, #10B981) 10%, white)`,
+                    borderWidth: '1px',
+                    borderStyle: 'solid'
+                  }}
+                >
                   {success}
                 </div>
               )}
               
               <div>
-                <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+                <label 
+                  htmlFor="email" 
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: 'var(--color-text-primary, #1F2937)' }}
+                >
                   Email Address
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Mail className="h-5 w-5 text-gray-400" />
+                  <div 
+                    className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                    style={{ color: 'var(--color-text-muted, #9CA3AF)' }}
+                  >
+                    <Mail className="h-5 w-5" />
                   </div>
                   <input
                     id="email"
@@ -210,7 +275,14 @@ export default function AdminLogin() {
                     required
                     value={resetEmail}
                     onChange={(e) => setResetEmail(e.target.value)}
-                    className="block w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="block w-full pl-12 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary, #F9FAFB)',
+                      borderColor: 'var(--color-border-light, #E5E7EB)',
+                      color: 'var(--color-text-primary, #1F2937)',
+                      borderWidth: '1px',
+                      borderStyle: 'solid'
+                    }}
                     placeholder="Enter your email address"
                   />
                 </div>
@@ -220,7 +292,21 @@ export default function AdminLogin() {
                 <button
                   type="button"
                   onClick={toggleMode}
-                  className="flex-1 flex items-center justify-center px-4 py-3 border border-gray-300 rounded-lg text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+                  className="flex-1 flex items-center justify-center px-4 py-3 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 transition-all duration-200"
+                  style={{
+                    borderColor: 'var(--color-border-light, #E5E7EB)',
+                    color: 'var(--color-text-primary, #1F2937)',
+                    backgroundColor: 'var(--color-bg-primary, #FFFFFF)',
+                    borderWidth: '1px',
+                    borderStyle: 'solid',
+                    '--tw-ring-color': 'var(--color-primary, #5243E9)'
+                  } as React.CSSProperties}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary, #F9FAFB)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-primary, #FFFFFF)';
+                  }}
                 >
                   <ArrowLeft className="w-4 h-4 mr-2" />
                   Back to Login
@@ -228,7 +314,10 @@ export default function AdminLogin() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
+                  className="flex-1 flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg login-cta-button"
+                  style={{
+                    '--tw-ring-color': 'var(--color-primary, #5243E9)'
+                  } as React.CSSProperties}
                 >
                   {isLoading ? (
                     <div className="flex items-center">
@@ -245,18 +334,34 @@ export default function AdminLogin() {
             // Login Form
             <form className="space-y-6" onSubmit={handleLogin}>
               {error && (
-                <div className="p-4 text-sm text-red-800 border border-red-200 rounded-lg bg-red-50">
+                <div 
+                  className="p-4 text-sm rounded-lg"
+                  style={{
+                    color: 'var(--color-error, #EF4444)',
+                    borderColor: `color-mix(in srgb, var(--color-error, #EF4444) 30%, white)`,
+                    backgroundColor: `color-mix(in srgb, var(--color-error, #EF4444) 10%, white)`,
+                    borderWidth: '1px',
+                    borderStyle: 'solid'
+                  }}
+                >
                   {error}
                 </div>
               )}
               
               <div>
-                <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                <label 
+                  htmlFor="username" 
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: 'var(--color-text-primary, #1F2937)' }}
+                >
                   Username
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <User className="h-5 w-5 text-gray-400" />
+                  <div 
+                    className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                    style={{ color: 'var(--color-text-muted, #9CA3AF)' }}
+                  >
+                    <User className="h-5 w-5" />
                   </div>
                   <input
                     id="username"
@@ -265,19 +370,34 @@ export default function AdminLogin() {
                     required
                     value={credentials.username}
                     onChange={(e) => setCredentials(prev => ({ ...prev, username: e.target.value }))}
-                    className="block w-full pl-12 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="block w-full pl-12 pr-4 py-3 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary, #F9FAFB)',
+                      borderColor: 'var(--color-border-light, #E5E7EB)',
+                      color: 'var(--color-text-primary, #1F2937)',
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                      '--tw-ring-color': 'var(--color-primary, #5243E9)'
+                    } as React.CSSProperties}
                     placeholder="Enter your username"
                   />
                 </div>
               </div>
 
               <div>
-                <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                <label 
+                  htmlFor="password" 
+                  className="block text-sm font-medium mb-2"
+                  style={{ color: 'var(--color-text-primary, #1F2937)' }}
+                >
                   Password
                 </label>
                 <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                    <Lock className="h-5 w-5 text-gray-400" />
+                  <div 
+                    className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none"
+                    style={{ color: 'var(--color-text-muted, #9CA3AF)' }}
+                  >
+                    <Lock className="h-5 w-5" />
                   </div>
                   <input
                     id="password"
@@ -286,13 +406,24 @@ export default function AdminLogin() {
                     required
                     value={credentials.password}
                     onChange={(e) => setCredentials(prev => ({ ...prev, password: e.target.value }))}
-                    className="block w-full pl-12 pr-12 py-3 bg-gray-50 border border-gray-300 rounded-lg text-gray-900 placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200"
+                    className="block w-full pl-12 pr-12 py-3 rounded-lg focus:outline-none focus:ring-2 focus:border-transparent transition-all duration-200"
+                    style={{
+                      backgroundColor: 'var(--color-bg-secondary, #F9FAFB)',
+                      borderColor: 'var(--color-border-light, #E5E7EB)',
+                      color: 'var(--color-text-primary, #1F2937)',
+                      borderWidth: '1px',
+                      borderStyle: 'solid',
+                      '--tw-ring-color': 'var(--color-primary, #5243E9)'
+                    } as React.CSSProperties}
                     placeholder="Enter your password"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 pr-4 flex items-center text-gray-400 hover:text-gray-600 transition-colors"
+                    className="absolute inset-y-0 right-0 pr-4 flex items-center transition-colors"
+                    style={{ color: 'var(--color-text-muted, #9CA3AF)' }}
+                    onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-text-secondary, #6B7280)'}
+                    onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-text-muted, #9CA3AF)'}
                   >
                     {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
                   </button>
@@ -303,7 +434,12 @@ export default function AdminLogin() {
                 <button
                   type="button"
                   onClick={toggleMode}
-                  className="text-sm text-blue-600 hover:text-blue-500 transition-colors"
+                  className="text-sm transition-colors"
+                  style={{ 
+                    color: 'var(--color-primary, #5243E9)'
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.color = 'var(--color-primary-dark, #4338CA)'}
+                  onMouseLeave={(e) => e.currentTarget.style.color = 'var(--color-primary, #5243E9)'}
                 >
                   Forgot your password?
                 </button>
@@ -313,7 +449,10 @@ export default function AdminLogin() {
                 <button
                   type="submit"
                   disabled={isLoading}
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-700 hover:to-purple-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg"
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg text-sm font-medium text-white focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-200 shadow-lg login-cta-button"
+                  style={{
+                    '--tw-ring-color': 'var(--color-primary, #5243E9)'
+                  } as React.CSSProperties}
                 >
                   {isLoading ? (
                     <div className="flex items-center">
@@ -331,11 +470,17 @@ export default function AdminLogin() {
 
         {/* Footer */}
         <div className="text-center mt-8">
-          <p className="text-gray-500 text-xs">
+          <p 
+            className="text-xs"
+            style={{ color: 'var(--color-text-secondary, #6B7280)' }}
+          >
             {siteSettings.footerCompanyName || 'Your Company'}. {(siteSettings.footerCopyrightMessage || 'All rights reserved.').replace('{year}', new Date().getFullYear().toString())}
           </p>
           {siteSettings.footerCompanyDescription && (
-            <p className="text-gray-400 text-xs mt-1 max-w-sm mx-auto">
+            <p 
+              className="text-xs mt-1 max-w-sm mx-auto"
+              style={{ color: 'var(--color-text-muted, #9CA3AF)' }}
+            >
               {siteSettings.footerCompanyDescription}
             </p>
           )}
@@ -366,6 +511,15 @@ export default function AdminLogin() {
           }
           .animation-delay-4000 {
             animation-delay: 4s;
+          }
+          .login-cta-button {
+            background: var(--color-primary, #5243E9);
+          }
+          .login-cta-button:not(:disabled):hover {
+            background: color-mix(in srgb, var(--color-primary, #5243E9) 85%, black);
+          }
+          .login-cta-button:disabled {
+            background: var(--color-primary, #5243E9);
           }
         `
       }} />

@@ -268,6 +268,7 @@ model AdminUser {
   tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   userRoles           UserRole[]
   projectMemberships  ProjectMembership[]
+  projectReports      ProjectReport[]
 
   @@unique([tenantId, username])
   @@unique([tenantId, email])
@@ -534,6 +535,7 @@ model Project {
   qualityE1Logs                 ProjectQualityE1Log[]
   qualityE2Logs                 ProjectQualityE2Log[]
   qualityChecklistEntries       ProjectQualityChecklistEntry[]
+  projectReports                ProjectReport[]
 
   @@unique([tenantId, projectCode])
   @@index([tenantId])
@@ -1124,6 +1126,7 @@ model ProjectPicture {
   mediaId     Int
   caption     String?
   sortOrder   Int          @default(0)
+  isFeatured  Boolean      @default(false)
   createdAt   DateTime     @default(now())
   updatedAt   DateTime     @updatedAt
   project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1131,6 +1134,7 @@ model ProjectPicture {
 
   @@index([projectId])
   @@index([mediaId])
+  @@index([projectId, isFeatured])
   @@map("project_pictures")
 }
 
@@ -1163,4 +1167,23 @@ model ConsultantToConsultantType {
   @@unique([A, B], map: "_ConsultantToConsultantType_AB_unique")
   @@index([B], map: "_ConsultantToConsultantType_B_index")
   @@map("_ConsultantToConsultantType")
+}
+
+model ProjectReport {
+  id          Int       @id @default(autoincrement())
+  projectId   Int
+  userId      Int
+  reportMonth Int       // 1-12
+  reportYear  Int       // e.g., 2025
+  reportData  Json      // JSON data from all project tabs
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user        AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, reportMonth, reportYear])
+  @@index([projectId])
+  @@index([userId])
+  @@index([reportYear, reportMonth])
+  @@map("project_reports")
 }

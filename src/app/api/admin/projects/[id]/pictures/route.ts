@@ -76,7 +76,8 @@ export async function GET(
         media: true,
       },
       orderBy: [
-        { createdAt: 'desc' }, // Newest first
+        { isFeatured: 'desc' }, // Featured first
+        { createdAt: 'desc' }, // Then newest first
         { id: 'desc' },
       ],
     });

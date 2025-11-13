@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
         trade: {
           select: {
             trade: true,
-            requiredUtilization: true,
+            requiredQuantity: true,
           },
         },
         project: {

@@ -33,7 +33,8 @@ import {
   Briefcase,
   HardHat,
   Shield,
-  Factory
+  Factory,
+  FileBarChart
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
@@ -42,6 +43,7 @@ import MediaLibraryManager from './components/MediaLibraryManager';
 import UserManagement from './components/UserManagement';
 import SchedulerManager from './components/SchedulerManager';
 import ProjectManager from './components/ProjectManager';
+import ReportsManager from './components/ReportsManager';
 import ClientManager from './components/ClientManager';
 import ConsultantManager from './components/ConsultantManager';
 import CompanyStaffManager from './components/CompanyStaffManager';
@@ -59,6 +61,7 @@ export const dynamic = 'force-dynamic';
 type Section =
   | 'dashboard'
   | 'projects'
+  | 'reports'
   | 'clients'
   | 'consultants'
   | 'company-staff'
@@ -87,6 +90,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
   
   return [
     { id: 'dashboard', name: 'Home', icon: Home, color: colors.primary, permission: null },
+    { id: 'reports', name: 'Reports', icon: FileBarChart, color: colors.primary, permission: 'projects.view' },
     { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary, permission: 'projects.view' },
     { id: 'clients', name: 'Clients', icon: Building2, color: colors.info, permission: 'clients.view' },
     { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
@@ -240,6 +244,9 @@ export default function AdminPanel() {
         const settingsResponse = await get<{ success: boolean; data: SiteSettings }>('/api/admin/site-settings');
         console.log('🔍 Admin Panel: Site settings response:', settingsResponse);
         if (settingsResponse.success) {
+          console.log('🔍 Admin Panel: Logo URL:', settingsResponse.data.logoUrl);
+          console.log('🔍 Admin Panel: Logo Light URL:', settingsResponse.data.logoLightUrl);
+          console.log('🔍 Admin Panel: Logo Dark URL:', settingsResponse.data.logoDarkUrl);
           setSiteSettings(settingsResponse.data);
         }
 
@@ -289,7 +296,30 @@ export default function AdminPanel() {
     };
 
     const interval = setInterval(checkForUpdates, 30000); // Check every 30 seconds
-    return () => clearInterval(interval);
+    
+    // Listen for site settings updates from localStorage
+    const handleStorageChange = (e: StorageEvent) => {
+      if (e.key === 'siteSettingsUpdated') {
+        checkForUpdates();
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    // Also check for updates from same-window updates
+    const checkLocalStorage = setInterval(() => {
+      const updated = localStorage.getItem('siteSettingsUpdated');
+      if (updated) {
+        checkForUpdates();
+        localStorage.removeItem('siteSettingsUpdated');
+      }
+    }, 1000);
+    
+    return () => {
+      clearInterval(interval);
+      clearInterval(checkLocalStorage);
+      window.removeEventListener('storage', handleStorageChange);
+    };
   }, [user, router, get, isLoading]);
 
   const handleLogout = () => {
@@ -329,6 +359,15 @@ export default function AdminPanel() {
             style={{ backgroundColor: colors.backgroundPrimary }}
           >
             <ProjectManager />
+          </div>
+        );
+      case 'reports':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <ReportsManager />
           </div>
         );
       case 'clients':
@@ -587,32 +626,49 @@ export default function AdminPanel() {
             }}
           >
             {sidebarOpen ? (
-              <div className="flex items-center space-x-3 flex-1 min-w-0">
-                {siteSettings?.logoUrl ? (
-                  <img 
-                    src={siteSettings.logoUrl} 
-                    alt="Logo" 
-                    className="h-8 w-auto flex-shrink-0"
-                  />
-                ) : (
-                  <div 
-                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: colors.secondary }}
-                  >
-                    <span 
-                      className="font-bold text-sm"
-                      style={{ color: colors.textPrimary }}
-                    >
-                      A
-                    </span>
-                  </div>
-                )}
-                <span 
-                  className="font-bold text-sm break-words"
-                  style={{ color: 'var(--color-sidebar-header-color)' }}
-                >
-                  {siteSettings?.footerCompanyName || 'Company Name'}
-                </span>
+              <div className="flex flex-col items-center w-full flex-1 min-w-0">
+                {(() => {
+                  // Try to get logo from any available logo field
+                  const logoUrl = siteSettings?.logoUrl || siteSettings?.logoLightUrl || siteSettings?.logoDarkUrl;
+                  console.log('🔍 Sidebar Header - Logo URL:', logoUrl);
+                  console.log('🔍 Sidebar Header - Site Settings:', siteSettings);
+                  
+                  if (logoUrl) {
+                    return (
+                      <img 
+                        src={logoUrl} 
+                        alt="Company Logo" 
+                        className="w-full h-auto object-contain max-h-12"
+                        onError={(e) => {
+                          console.error('❌ Failed to load logo image:', logoUrl);
+                          const target = e.target as HTMLImageElement;
+                          target.style.display = 'none';
+                        }}
+                />
+                    );
+                  }
+                  
+                  // If no logo, show icon and company name
+                  return (
+                    <div className="flex items-center space-x-3 w-full">
+                        <div 
+                        className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                          style={{ backgroundColor: colors.secondary }}
+                        >
+                        <Building2 
+                          className="w-5 h-5"
+                            style={{ color: colors.textPrimary }}
+                        />
+                        </div>
+              <span 
+                        className="font-bold text-sm break-words"
+                style={{ color: 'var(--color-sidebar-header-color)' }}
+              >
+                {siteSettings?.footerCompanyName || 'Company Name'}
+              </span>
+            </div>
+                  );
+                })()}
               </div>
             ) : null}
             <button
@@ -646,16 +702,16 @@ export default function AdminPanel() {
                   setActiveSection(item.id as Section);
                   // Only close on mobile (check if window is available)
                   if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                    setSidebarOpen(false);
+                  setSidebarOpen(false);
                   }
                 }}
                 className={`w-full flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'} px-4 py-3 rounded-lg text-left transition-colors relative group`}
-                style={{ 
-                  backgroundColor: activeSection === item.id 
-                    ? colors.borderStrong
-                    : 'transparent',
-                  color: 'var(--color-sidebar-text-color)'
-                }}
+                        style={{ 
+                          backgroundColor: activeSection === item.id 
+                            ? colors.borderStrong
+                            : 'transparent',
+                          color: 'var(--color-sidebar-text-color)'
+                        }}
                 title={!sidebarOpen ? item.name : undefined}
               >
                 {activeSection === item.id && (
@@ -675,11 +731,11 @@ export default function AdminPanel() {
                   }}
                 />
                 {sidebarOpen && (
-                  <span 
+                <span 
                     className={`${activeSection === item.id ? 'font-medium' : ''} whitespace-nowrap`}
-                  >
-                    {item.name}
-                  </span>
+                >
+                  {item.name}
+                </span>
                 )}
                 {/* Tooltip for collapsed state */}
                 {!sidebarOpen && (
@@ -706,38 +762,38 @@ export default function AdminPanel() {
             }}
           >
             {sidebarOpen ? (
-              <div className="flex items-center justify-between">
-                <div className="flex items-center space-x-3">
-                  <div 
+            <div className="flex items-center justify-between">
+              <div className="flex items-center space-x-3">
+                <div 
                     className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
-                    style={{ backgroundColor: colors.secondary }}
+                  style={{ backgroundColor: colors.secondary }}
+                >
+                  <span 
+                    className="font-medium text-sm"
+                    style={{ color: colors.textPrimary }}
                   >
-                    <span 
-                      className="font-medium text-sm"
-                      style={{ color: colors.textPrimary }}
-                    >
-                      {user.email?.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div className="min-w-0">
-                    <p 
-                      className="text-sm font-medium truncate"
-                      style={{ color: colors.textPrimary }}
-                    >
-                      {user.email}
-                    </p>
-                    <p 
-                      className="text-xs"
-                      style={{ color: colors.textSecondary }}
-                    >
-                      Administrator
-                    </p>
-                  </div>
+                    {user.email?.charAt(0).toUpperCase()}
+                  </span>
                 </div>
-                <button
-                  onClick={handleLogout}
+                  <div className="min-w-0">
+                  <p 
+                      className="text-sm font-medium truncate"
+                    style={{ color: colors.textPrimary }}
+                  >
+                    {user.email}
+                  </p>
+                  <p 
+                    className="text-xs"
+                    style={{ color: colors.textSecondary }}
+                  >
+                    Administrator
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleLogout}
                   className="p-2 rounded-lg transition-colors flex-shrink-0"
-                  style={{ color: colors.textSecondary }}
+                style={{ color: colors.textSecondary }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
                   }}
@@ -745,10 +801,10 @@ export default function AdminPanel() {
                     e.currentTarget.style.backgroundColor = 'transparent';
                   }}
                   title="Logout"
-                >
-                  <LogOut className="w-4 h-4" />
-                </button>
-              </div>
+              >
+                <LogOut className="w-4 h-4" />
+              </button>
+            </div>
             ) : (
               <div className="flex flex-col items-center space-y-2">
                 <div 
@@ -761,7 +817,7 @@ export default function AdminPanel() {
                   >
                     {user.email?.charAt(0).toUpperCase()}
                   </span>
-                </div>
+          </div>
                 <button
                   onClick={handleLogout}
                   className="p-2 rounded-lg transition-colors"

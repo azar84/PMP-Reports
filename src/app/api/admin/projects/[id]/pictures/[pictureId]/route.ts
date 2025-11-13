@@ -34,6 +34,7 @@ async function resolveAuthorizedUser(request: NextRequest, projectId: number) {
 const updatePictureSchema = z.object({
   caption: z.string().nullable().optional(),
   sortOrder: z.number().int().min(0).optional(),
+  isFeatured: z.boolean().optional(),
 });
 
 export async function PUT(
@@ -78,11 +79,26 @@ export async function PUT(
     const body = await request.json();
     const validated = updatePictureSchema.parse(body);
 
+    // If setting as featured, unset all other featured pictures for this project
+    if (validated.isFeatured === true) {
+      await prisma.projectPicture.updateMany({
+        where: {
+          projectId,
+          isFeatured: true,
+          id: { not: pictureIdNum },
+        },
+        data: {
+          isFeatured: false,
+        },
+      });
+    }
+
     const picture = await prisma.projectPicture.update({
       where: { id: pictureIdNum },
       data: {
         ...(validated.caption !== undefined && { caption: validated.caption }),
         ...(validated.sortOrder !== undefined && { sortOrder: validated.sortOrder }),
+        ...(validated.isFeatured !== undefined && { isFeatured: validated.isFeatured }),
       },
       include: {
         media: true,

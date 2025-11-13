@@ -51,7 +51,8 @@ import {
   Package,
   Camera,
   ClipboardCheck,
-  MessageSquare
+  MessageSquare,
+  Download
 } from 'lucide-react';
 
 interface Project {
@@ -216,6 +217,10 @@ export default function ProjectManager() {
     consultantName: string;
     consultantId: number;
   } | null>(null);
+  const [showGenerateReportModal, setShowGenerateReportModal] = useState(false);
+  const [reportMonth, setReportMonth] = useState<number>(new Date().getMonth() + 1);
+  const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
+  const [isGeneratingReport, setIsGeneratingReport] = useState(false);
   const [showConsultantModal, setShowConsultantModal] = useState(false);
   const [clientContactFormData, setClientContactFormData] = useState<Partial<Contact>>({
     firstName: '',
@@ -607,6 +612,155 @@ export default function ProjectManager() {
     setShowDetailView(false);
     setSelectedProject(null);
     setProjectContacts([]);
+  };
+
+  // Collect all project data from all tabs
+  const collectProjectData = async (): Promise<any> => {
+    if (!selectedProject) return null;
+
+    const reportData: any = {
+      project: {
+        id: selectedProject.id,
+        projectCode: selectedProject.projectCode,
+        projectName: selectedProject.projectName,
+        projectDescription: selectedProject.projectDescription,
+        client: selectedProject.client,
+        consultants: {
+          projectManagement: selectedProject.projectManagementConsultant,
+          design: selectedProject.designConsultant,
+          supervision: selectedProject.supervisionConsultant,
+          cost: selectedProject.costConsultant,
+        },
+        projectDirector: selectedProject.projectDirectorId,
+        projectManager: selectedProject.projectManagerId,
+        startDate: selectedProject.startDate,
+        endDate: selectedProject.endDate,
+        duration: selectedProject.duration,
+        eot: selectedProject.eot,
+        projectValue: selectedProject.projectValue,
+      },
+      contacts: projectContacts,
+      generatedAt: new Date().toISOString(),
+    };
+
+    // Fetch data from all tabs
+    try {
+      // Planning
+      const planningRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/planning`);
+      if (planningRes.success) {
+        reportData.planning = planningRes.data;
+      }
+
+      // Quality
+      const qualityRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/quality`);
+      if (qualityRes.success) {
+        reportData.quality = qualityRes.data;
+      }
+
+      // Risks
+      const risksRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/risks`);
+      if (risksRes.success) {
+        reportData.risks = risksRes.data;
+      }
+
+      // Area of Concerns
+      const areaOfConcernsRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/area-of-concerns`);
+      if (areaOfConcernsRes.success) {
+        reportData.areaOfConcerns = areaOfConcernsRes.data;
+      }
+
+      // HSE
+      const hseRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/hse`);
+      if (hseRes.success) {
+        reportData.hse = hseRes.data;
+      }
+
+      // Checklist
+      const checklistRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/checklist`);
+      if (checklistRes.success) {
+        reportData.checklist = checklistRes.data;
+      }
+
+      // Staff
+      const staffRes = await get<{ success: boolean; data: any }>(`/api/admin/project-staff?projectId=${selectedProject.id}`);
+      if (staffRes.success) {
+        reportData.staff = staffRes.data;
+      }
+
+      // Labours
+      const laboursRes = await get<{ success: boolean; data: any }>(`/api/admin/project-labours?projectId=${selectedProject.id}`);
+      if (laboursRes.success) {
+        reportData.labours = laboursRes.data;
+      }
+
+      // Labour Supply
+      const labourSupplyRes = await get<{ success: boolean; data: any }>(`/api/admin/project-labour-supplies?projectId=${selectedProject.id}`);
+      if (labourSupplyRes.success) {
+        reportData.labourSupply = labourSupplyRes.data;
+      }
+
+      // Plants
+      const plantsRes = await get<{ success: boolean; data: any }>(`/api/admin/project-plants?projectId=${selectedProject.id}`);
+      if (plantsRes.success) {
+        reportData.plants = plantsRes.data;
+      }
+
+      // Assets
+      const assetsRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/assets`);
+      if (assetsRes.success) {
+        reportData.assets = assetsRes.data;
+      }
+
+      // Pictures
+      const picturesRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/pictures`);
+      if (picturesRes.success) {
+        reportData.pictures = picturesRes.data;
+      }
+
+      // Close Out
+      const closeOutRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/close-out`);
+      if (closeOutRes.success) {
+        reportData.closeOut = closeOutRes.data;
+      }
+
+      // Client Feedback
+      const clientFeedbackRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/client-feedback`);
+      if (clientFeedbackRes.success) {
+        reportData.clientFeedback = clientFeedbackRes.data;
+      }
+    } catch (error) {
+      console.error('Error collecting project data:', error);
+    }
+
+    return reportData;
+  };
+
+  const handleGenerateReport = async () => {
+    if (!selectedProject) return;
+
+    setIsGeneratingReport(true);
+    try {
+      const reportData = await collectProjectData();
+      
+      const response = await post<{ success: boolean; data: any; error?: string }>('/api/admin/reports', {
+        projectId: selectedProject.id,
+        reportMonth,
+        reportYear,
+        reportData,
+      });
+
+      if (response.success) {
+        alert(`Report generated successfully for ${new Date(reportYear, reportMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`);
+        setShowGenerateReportModal(false);
+      } else {
+        alert(response.error || 'Failed to generate report');
+      }
+    } catch (error: any) {
+      console.error('Error generating report:', error);
+      alert(error.message || 'Failed to generate report');
+    } finally {
+      setIsGeneratingReport(false);
+    }
   };
 
   // Helper function to check if a contact is primary for a specific consultant type
@@ -1189,6 +1343,15 @@ export default function ProjectManager() {
                 </p>
               </div>
             </div>
+            <div className="flex items-center space-x-2">
+              <Button
+                onClick={() => setShowGenerateReportModal(true)}
+                className="flex items-center space-x-2"
+                style={{ backgroundColor: colors.success, color: colors.backgroundPrimary }}
+              >
+                <Download className="w-4 h-4" />
+                <span>Generate Report</span>
+              </Button>
             <Button
               onClick={() => {
                 setShowDetailView(false);
@@ -1200,6 +1363,7 @@ export default function ProjectManager() {
               <Edit className="w-4 h-4" />
               <span>Edit Project</span>
             </Button>
+            </div>
           </div>
 
           {/* Tab Navigation */}
@@ -5952,6 +6116,134 @@ export default function ProjectManager() {
         </div>
       )}
         </>
+      )}
+
+      {/* Generate Report Modal */}
+      {showGenerateReportModal && selectedProject && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          onClick={() => setShowGenerateReportModal(false)}
+        >
+          <Card 
+            className="w-full max-w-md p-6"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                Generate Report
+              </h2>
+              <button
+                onClick={() => setShowGenerateReportModal(false)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Project
+                </label>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                  <p className="font-medium" style={{ color: colors.textPrimary }}>
+                    {selectedProject.projectName}
+                  </p>
+                  <p className="text-sm" style={{ color: colors.textSecondary }}>
+                    {selectedProject.projectCode}
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Month
+                  </label>
+                  <select
+                    value={reportMonth}
+                    onChange={(e) => setReportMonth(parseInt(e.target.value))}
+                    className="w-full p-3 rounded-lg border"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
+                    }}
+                  >
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map((month) => (
+                      <option key={month} value={month}>
+                        {new Date(2000, month - 1).toLocaleString('default', { month: 'long' })}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Year
+                  </label>
+                  <input
+                    type="number"
+                    value={reportYear}
+                    onChange={(e) => setReportYear(parseInt(e.target.value) || new Date().getFullYear())}
+                    min="2000"
+                    max="2100"
+                    className="w-full p-3 rounded-lg border"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center justify-end space-x-3 pt-4">
+                <Button
+                  onClick={() => setShowGenerateReportModal(false)}
+                  className="px-4 py-2"
+                  style={{ 
+                    backgroundColor: colors.backgroundPrimary,
+                    color: colors.textSecondary,
+                    border: `1px solid ${colors.border}`
+                  }}
+                  disabled={isGeneratingReport}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleGenerateReport}
+                  className="px-4 py-2 flex items-center space-x-2"
+                  style={{ 
+                    backgroundColor: colors.success,
+                    color: colors.backgroundPrimary
+                  }}
+                  disabled={isGeneratingReport}
+                >
+                  {isGeneratingReport ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <span>Generating...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Download className="w-4 h-4" />
+                      <span>Generate Report</span>
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </Card>
+        </div>
       )}
     </div>
   );
