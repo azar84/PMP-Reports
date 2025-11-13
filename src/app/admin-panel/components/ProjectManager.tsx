@@ -1203,10 +1203,10 @@ export default function ProjectManager() {
           </div>
 
           {/* Tab Navigation */}
-          <div className="flex space-x-1 mb-6" style={{ borderBottom: `1px solid ${colors.border}` }}>
+          <div className="flex flex-wrap gap-1 mb-6" style={{ borderBottom: `1px solid ${colors.border}` }}>
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'overview' 
                   ? 'border-current' 
                   : 'border-transparent'
@@ -1214,16 +1214,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'overview') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'overview') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'overview' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'overview' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'overview' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'overview' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'overview' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1233,7 +1237,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('checklist')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'checklist' 
                   ? 'border-current' 
                   : 'border-transparent'
@@ -1241,16 +1245,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'checklist') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'checklist') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'checklist' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'checklist' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'checklist' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'checklist' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'checklist' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1260,7 +1268,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('staff')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'staff' 
                   ? 'border-current' 
                   : 'border-transparent'
@@ -1268,16 +1276,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'staff') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'staff') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'staff' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'staff' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'staff' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'staff' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'staff' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1287,7 +1299,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('labours')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'labours' 
                   ? 'border-current' 
                   : 'border-transparent'
@@ -1295,16 +1307,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'labours') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'labours') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'labours' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'labours' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'labours' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'labours' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'labours' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1314,7 +1330,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('labourSupply')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'labourSupply' 
                   ? 'border-current' 
                   : 'border-transparent'
@@ -1322,16 +1338,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'labourSupply') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'labourSupply') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'labourSupply' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'labourSupply' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'labourSupply' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'labourSupply' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'labourSupply' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1341,7 +1361,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('plants')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'plants'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1349,16 +1369,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'plants') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'plants') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'plants' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'plants' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'plants' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'plants' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'plants' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1368,7 +1392,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('assets')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'assets'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1376,16 +1400,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'assets') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'assets') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'assets' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'assets' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'assets' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'assets' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'assets' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1395,7 +1423,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('planning')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'planning'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1403,16 +1431,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'planning') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'planning') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'planning' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'planning' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'planning' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'planning' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'planning' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1422,7 +1454,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('quality')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'quality'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1430,16 +1462,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'quality') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'quality') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'quality' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'quality' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'quality' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'quality' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'quality' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1449,7 +1485,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('risks')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'risks'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1457,16 +1493,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'risks') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'risks') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'risks' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'risks' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'risks' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'risks' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'risks' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1476,7 +1516,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('hse')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'hse'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1484,16 +1524,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'hse') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'hse') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'hse' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'hse' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'hse' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'hse' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'hse' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1503,7 +1547,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('pictures')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'pictures'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1511,16 +1555,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'pictures') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'pictures') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'pictures' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'pictures' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'pictures' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'pictures' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'pictures' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1530,7 +1578,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('closeOut')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'closeOut'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1538,16 +1586,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'closeOut') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'closeOut') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'closeOut' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'closeOut' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'closeOut' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'closeOut' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'closeOut' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">
@@ -1557,7 +1609,7 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('clientFeedback')}
-              className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
                 activeTab === 'clientFeedback'
                   ? 'border-current'
                   : 'border-transparent'
@@ -1565,16 +1617,20 @@ export default function ProjectManager() {
               onMouseEnter={(e) => {
                 if (activeTab !== 'clientFeedback') {
                   e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'clientFeedback') {
-                  e.currentTarget.style.borderColor = 'transparent';
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'clientFeedback' ? colors.primary : colors.textSecondary,
-                borderBottomColor: activeTab === 'clientFeedback' ? colors.primary : 'transparent'
+                borderColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'clientFeedback' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'clientFeedback' ? colors.primary : colors.border
               }}
             >
               <div className="flex items-center space-x-2">

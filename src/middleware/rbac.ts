@@ -79,16 +79,19 @@ export function withRBAC<T = any>(
     try {
       const token = extractToken(request);
       if (!token) {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        console.error('RBAC: No token found in request');
+        return NextResponse.json({ success: false, error: 'Unauthorized: No token provided' }, { status: 401 });
       }
 
       const decoded = verifyToken(token);
       if (!decoded?.userId) {
-        return NextResponse.json({ success: false, error: 'Unauthorized' }, { status: 401 });
+        console.error('RBAC: Token verification failed', { hasDecoded: !!decoded, userId: decoded?.userId });
+        return NextResponse.json({ success: false, error: 'Unauthorized: Invalid token' }, { status: 401 });
       }
 
       const { tenantId, permissions } = await buildRBACContext(decoded.userId);
       if (!tenantId) {
+        console.error('RBAC: User has no tenantId', { userId: decoded.userId });
         return NextResponse.json({ success: false, error: 'Tenant not found' }, { status: 403 });
       }
 

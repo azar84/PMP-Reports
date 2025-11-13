@@ -12,6 +12,7 @@ import {
   Settings,
   Menu,
   X,
+  ChevronLeft,
   FolderOpen,
   Palette,
   Layers,
@@ -131,7 +132,7 @@ export default function AdminPanel() {
   const { permissions: grantedPermissions, isLoading: userPermissionsLoading } = useUserPermissions();
   
   const [activeSection, setActiveSection] = useState<Section>('dashboard');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(true); // Default to open on desktop
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -567,9 +568,9 @@ export default function AdminPanel() {
     >
       {/* Sidebar */}
       <div 
-        className={`fixed inset-y-0 left-0 z-50 w-64 transform transition-transform duration-300 ease-in-out ${
-          sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:relative lg:translate-x-0 lg:static lg:inset-0`}
+        className={`fixed inset-y-0 left-0 z-50 transform transition-all duration-300 ease-in-out ${
+          sidebarOpen ? 'translate-x-0 w-64' : '-translate-x-full lg:translate-x-0 lg:w-16'
+        } lg:relative lg:static lg:inset-0`}
         style={{ 
           backgroundColor: 'var(--color-sidebar-bg)',
           borderRight: '0.5px solid var(--color-border-strong)'
@@ -585,41 +586,54 @@ export default function AdminPanel() {
               backgroundColor: 'var(--color-sidebar-header-bg)'
             }}
           >
-            <div className="flex items-center space-x-3">
-              {siteSettings?.logoUrl ? (
-                <img 
-                  src={siteSettings.logoUrl} 
-                  alt="Logo" 
-                  className="h-8 w-auto"
-                />
-              ) : (
-                        <div 
-                          className="w-8 h-8 rounded-lg flex items-center justify-center"
-                          style={{ backgroundColor: colors.secondary }}
-                        >
-                          <span 
-                            className="font-bold text-sm"
-                            style={{ color: colors.textPrimary }}
-                          >
-                            A
-                          </span>
-                        </div>
-              )}
-              <span 
-                className="font-bold text-lg"
-                style={{ color: 'var(--color-sidebar-header-color)' }}
-              >
-                {siteSettings?.footerCompanyName || 'Company Name'}
-              </span>
-            </div>
+            {sidebarOpen ? (
+              <div className="flex items-center space-x-3 flex-1 min-w-0">
+                {siteSettings?.logoUrl ? (
+                  <img 
+                    src={siteSettings.logoUrl} 
+                    alt="Logo" 
+                    className="h-8 w-auto flex-shrink-0"
+                  />
+                ) : (
+                  <div 
+                    className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: colors.secondary }}
+                  >
+                    <span 
+                      className="font-bold text-sm"
+                      style={{ color: colors.textPrimary }}
+                    >
+                      A
+                    </span>
+                  </div>
+                )}
+                <span 
+                  className="font-bold text-sm break-words"
+                  style={{ color: 'var(--color-sidebar-header-color)' }}
+                >
+                  {siteSettings?.footerCompanyName || 'Company Name'}
+                </span>
+              </div>
+            ) : null}
             <button
-              onClick={() => setSidebarOpen(false)}
-              className="lg:hidden p-2 rounded-lg"
+              onClick={() => setSidebarOpen(!sidebarOpen)}
+              className="p-2 rounded-lg transition-colors"
               style={{ 
                 color: 'var(--color-sidebar-header-color)'
               }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+              title={sidebarOpen ? 'Collapse sidebar' : 'Expand sidebar'}
             >
-              <X className="w-5 h-5" />
+              {sidebarOpen ? (
+                <ChevronLeft className="w-5 h-5" />
+              ) : (
+                <Menu className="w-5 h-5" />
+              )}
             </button>
           </div>
 
@@ -630,15 +644,19 @@ export default function AdminPanel() {
                 key={item.id}
                 onClick={() => {
                   setActiveSection(item.id as Section);
-                  setSidebarOpen(false);
+                  // Only close on mobile (check if window is available)
+                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                    setSidebarOpen(false);
+                  }
                 }}
-                        className="w-full flex items-center space-x-3 px-4 py-3 rounded-lg text-left transition-colors relative"
-                        style={{ 
-                          backgroundColor: activeSection === item.id 
-                            ? colors.borderStrong
-                            : 'transparent',
-                          color: 'var(--color-sidebar-text-color)'
-                        }}
+                className={`w-full flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'} px-4 py-3 rounded-lg text-left transition-colors relative group`}
+                style={{ 
+                  backgroundColor: activeSection === item.id 
+                    ? colors.borderStrong
+                    : 'transparent',
+                  color: 'var(--color-sidebar-text-color)'
+                }}
+                title={!sidebarOpen ? item.name : undefined}
               >
                 {activeSection === item.id && (
                   <div 
@@ -649,18 +667,33 @@ export default function AdminPanel() {
                   />
                 )}
                 <item.icon 
-                  className="w-5 h-5" 
+                  className="w-5 h-5 flex-shrink-0" 
                   style={{ 
                     color: activeSection === item.id 
                       ? colors.primary
                       : 'var(--color-sidebar-text-color)'
                   }}
                 />
-                <span 
-                  className={activeSection === item.id ? 'font-medium' : ''}
-                >
-                  {item.name}
-                </span>
+                {sidebarOpen && (
+                  <span 
+                    className={`${activeSection === item.id ? 'font-medium' : ''} whitespace-nowrap`}
+                  >
+                    {item.name}
+                  </span>
+                )}
+                {/* Tooltip for collapsed state */}
+                {!sidebarOpen && (
+                  <div 
+                    className="absolute left-full ml-2 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50"
+                    style={{
+                      backgroundColor: colors.backgroundDark,
+                      color: colors.textPrimary,
+                      border: `1px solid ${colors.border}`
+                    }}
+                  >
+                    {item.name}
+                  </div>
+                )}
               </button>
             ))}
           </nav>
@@ -672,8 +705,52 @@ export default function AdminPanel() {
               borderTop: `0.5px solid ${colors.borderStrong}`
             }}
           >
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+            {sidebarOpen ? (
+              <div className="flex items-center justify-between">
+                <div className="flex items-center space-x-3">
+                  <div 
+                    className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: colors.secondary }}
+                  >
+                    <span 
+                      className="font-medium text-sm"
+                      style={{ color: colors.textPrimary }}
+                    >
+                      {user.email?.charAt(0).toUpperCase()}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p 
+                      className="text-sm font-medium truncate"
+                      style={{ color: colors.textPrimary }}
+                    >
+                      {user.email}
+                    </p>
+                    <p 
+                      className="text-xs"
+                      style={{ color: colors.textSecondary }}
+                    >
+                      Administrator
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-lg transition-colors flex-shrink-0"
+                  style={{ color: colors.textSecondary }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <div className="flex flex-col items-center space-y-2">
                 <div 
                   className="w-8 h-8 rounded-full flex items-center justify-center"
                   style={{ backgroundColor: colors.secondary }}
@@ -685,29 +762,22 @@ export default function AdminPanel() {
                     {user.email?.charAt(0).toUpperCase()}
                   </span>
                 </div>
-                <div>
-                  <p 
-                    className="text-sm font-medium"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    {user.email}
-                  </p>
-                  <p 
-                    className="text-xs"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    Administrator
-                  </p>
-                </div>
+                <button
+                  onClick={handleLogout}
+                  className="p-2 rounded-lg transition-colors"
+                  style={{ color: colors.textSecondary }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                  }}
+                  title="Logout"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
               </div>
-              <button
-                onClick={handleLogout}
-                className="p-2 rounded-lg"
-                style={{ color: colors.textSecondary }}
-              >
-                <LogOut className="w-4 h-4" />
-              </button>
-            </div>
+            )}
           </div>
         </div>
       </div>
