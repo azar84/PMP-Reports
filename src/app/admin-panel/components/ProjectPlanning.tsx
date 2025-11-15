@@ -128,8 +128,8 @@ export default function ProjectPlanning({
     (planning: PlanningRecord | null | undefined, controlMilestones: MilestoneRecord[] = []) => {
       if (planning) {
         setPlanningState({
-          targetProgramStart: formatDateForInput(planning.targetProgramStart),
-          targetProgramEnd: formatDateForInput(planning.targetProgramEnd),
+          targetProgramStart: formatDateForInput(planning.targetProgramStart) || formatDateForInput(projectStartDate),
+          targetProgramEnd: formatDateForInput(planning.targetProgramEnd) || formatDateForInput(projectEndDate),
           plannedProgress: normalizeDecimalToString(planning.plannedProgress),
           actualProgress: normalizeDecimalToString(planning.actualProgress),
           eotDays:
@@ -138,7 +138,13 @@ export default function ProjectPlanning({
               : '',
         });
       } else {
-        setPlanningState(emptyPlanningState);
+        setPlanningState({
+          targetProgramStart: formatDateForInput(projectStartDate),
+          targetProgramEnd: formatDateForInput(projectEndDate),
+          plannedProgress: '',
+          actualProgress: '',
+          eotDays: '',
+        });
       }
 
       const sortedControlMilestones = [...controlMilestones].sort((a, b) => a.sortOrder - b.sortOrder);
@@ -157,7 +163,7 @@ export default function ProjectPlanning({
         }))
       );
     },
-    [normalizeDecimalToString]
+    [normalizeDecimalToString, projectStartDate, projectEndDate]
   );
 
   useEffect(() => {

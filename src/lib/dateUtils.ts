@@ -18,18 +18,35 @@ export function formatDateForInput(date: string | Date | null | undefined): stri
       return datePart;
     }
     
-    // For Date objects or other string formats, parse and format using local timezone
-    const d = typeof date === 'string' ? new Date(date) : date;
+    // For Date objects, use local date methods to avoid timezone conversion
+    if (date instanceof Date) {
+      if (isNaN(date.getTime())) return '';
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, '0');
+      const day = String(date.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
     
-    // Check if date is valid
-    if (isNaN(d.getTime())) return '';
+    // For string dates (like ISO format), extract date part first to avoid timezone issues
+    if (typeof date === 'string') {
+      // Try to extract YYYY-MM-DD from ISO format or other formats
+      const dateMatch = date.match(/^(\d{4}-\d{2}-\d{2})/);
+      if (dateMatch) {
+        return dateMatch[1];
+      }
+      
+      // Fallback: parse as Date but use UTC methods to avoid timezone shift
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '';
+      
+      // Use UTC methods to get the date as stored, then format
+      const year = d.getUTCFullYear();
+      const month = String(d.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(d.getUTCDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
     
-    // Use local date methods to avoid timezone conversion
-    const year = d.getFullYear();
-    const month = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    
-    return `${year}-${month}-${day}`;
+    return '';
   } catch (error) {
     console.error('Error formatting date:', error);
     return '';
@@ -61,16 +78,30 @@ export function parseDateFromInput(dateString: string | null | undefined): Date 
 
 /**
  * Formats a date for display (e.g., "Jan 15, 2024")
- * Uses local date methods
+ * Uses local date methods, but extracts date part from ISO strings to avoid timezone shifts
  */
 export function formatDateForDisplay(date: string | Date | null | undefined): string {
   if (!date) return '-';
   
   try {
-    const d = typeof date === 'string' ? new Date(date) : date;
+    // If it's a string with YYYY-MM-DD format, extract and parse it properly
+    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+      const datePart = date.split('T')[0].split(' ')[0];
+      const [year, month, day] = datePart.split('-').map(Number);
+      const d = new Date(year, month - 1, day);
+      if (isNaN(d.getTime())) return '-';
+      return d.toLocaleDateString();
+    }
     
+    // For Date objects, use as-is
+    if (date instanceof Date) {
+      if (isNaN(date.getTime())) return '-';
+      return date.toLocaleDateString();
+    }
+    
+    // For other string formats, try to parse
+    const d = new Date(date);
     if (isNaN(d.getTime())) return '-';
-    
     return d.toLocaleDateString();
   } catch (error) {
     console.error('Error formatting date for display:', error);

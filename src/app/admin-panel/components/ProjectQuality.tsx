@@ -1568,16 +1568,6 @@ useEffect(() => {
           </div>
         )}
       </Card>
-
-      <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
-        <h3 className="mb-2 text-lg font-semibold" style={{ color: colors.textPrimary }}>
-          Additional Quality Logs
-        </h3>
-        <p className="text-sm" style={{ color: colors.textSecondary }}>
-          A second tracking table can be configured here once the requirements are confirmed. Share the structure anytime and
-          we will plug it into this tab.
-        </p>
-      </Card>
     </div>
   );
 }

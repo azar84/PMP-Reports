@@ -79,7 +79,7 @@ This wipes the local SQLite database and rebuilds it from the current schema. **
 | Install deps                      | `npm install` |
 | Regenerate schema & tables        | `npx prisma db push --force-reset` |
 | Seed data                         | `npm run db:seed` |
-| Load demo data                    | `npm run demo:data` |
+| Load demo data                    | `npm run dev` |
 | Create new migration              | `npx prisma migrate dev --name <name>` |
 | Apply migrations in CI/prod       | `npx prisma migrate deploy` |
 | Hard reset local DB (dangerous)   | `npx prisma migrate reset` |

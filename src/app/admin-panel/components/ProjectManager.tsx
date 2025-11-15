@@ -16,6 +16,7 @@ import ProjectLabours from './ProjectLabours';
 import ProjectLabourSupply from './ProjectLabourSupply';
 import ProjectPlanning from './ProjectPlanning';
 import ProjectQuality from './ProjectQuality';
+import ProjectIPC from './ProjectIPC';
 import ProjectPlants from './ProjectPlants';
 import ProjectHSE from './ProjectHSE';
 import ProjectRisks from './ProjectRisks';
@@ -24,6 +25,7 @@ import ProjectClientFeedback from './ProjectClientFeedback';
 import ProjectAssets from './ProjectAssets';
 import ProjectPictures from './ProjectPictures';
 import ProjectCloseOut from './ProjectCloseOut';
+import ProjectCommercial from './ProjectCommercial';
 import { 
   Plus, 
   Edit, 
@@ -45,6 +47,7 @@ import {
   UserCheck,
   Wrench,
   ShieldCheck,
+  Receipt,
   Bus,
   LifeBuoy,
   AlertTriangle,
@@ -181,6 +184,7 @@ export default function ProjectManager() {
     | 'pictures'
     | 'closeOut'
     | 'clientFeedback'
+    | 'commercial'
   >('overview');
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
@@ -1802,6 +1806,68 @@ export default function ProjectManager() {
                 <span>Client Feedback</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('commercial')}
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+                activeTab === 'commercial'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'commercial') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'commercial') {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'commercial' ? colors.primary : colors.textSecondary,
+                borderColor: activeTab === 'commercial' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'commercial' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'commercial' ? colors.primary : colors.border
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Calculator className="w-4 h-4" />
+                <span>Commercial</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('ipc')}
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+                activeTab === 'ipc'
+                  ? 'border-current'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'ipc') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'ipc') {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'ipc' ? colors.primary : colors.textSecondary,
+                borderColor: activeTab === 'ipc' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'ipc' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'ipc' ? colors.primary : colors.border
+              }}
+            >
+              <div className="flex items-center space-x-2">
+                <Receipt className="w-4 h-4" />
+                <span>IPC</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -2353,6 +2419,26 @@ export default function ProjectManager() {
             <div>
               {selectedProject && (
                 <ProjectClientFeedback
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                />
+              )}
+            </div>
+          ) : activeTab === 'commercial' ? (
+            <div>
+              {selectedProject && (
+                <ProjectCommercial
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'ipc' ? (
+            <div>
+              {selectedProject && (
+                <ProjectIPC
                   projectId={selectedProject.id}
                   projectName={selectedProject.projectName}
                 />

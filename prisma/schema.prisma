@@ -500,6 +500,10 @@ model Project {
   duration                      String?
   eot                           String?
   projectValue                  Decimal
+  // IPC Settings
+  advancePaymentPercentage      Decimal?               // e.g., 10.0 for 10%
+  retentionPercentage           Decimal?               // e.g., 5.0 for 5%
+  paymentTermsDays              Int?                   // Payment terms in days
   lastUpdate                    DateTime               @default(now()) @updatedAt
   createdAt                     DateTime               @default(now())
   updatedAt                     DateTime               @updatedAt
@@ -531,10 +535,13 @@ model Project {
   projectManagementConsultant   Consultant?            @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
   client                        Client?                @relation(fields: [clientId], references: [id])
   projectPlanning               ProjectPlanning?
+  projectCommercial             ProjectCommercial?
+  projectCommercialChecklistItems ProjectCommercialChecklistItem[]
   controlMilestones             ProjectControlMilestone[]
   qualityE1Logs                 ProjectQualityE1Log[]
   qualityE2Logs                 ProjectQualityE2Log[]
   qualityChecklistEntries       ProjectQualityChecklistEntry[]
+  ipcEntries                    ProjectIPC[]
   projectReports                ProjectReport[]
 
   @@unique([tenantId, projectCode])
@@ -559,6 +566,60 @@ model ProjectPlanning {
   controlMilestones     ProjectControlMilestone[]
 
   @@map("project_planning")
+}
+
+model ProjectCommercial {
+  id                        Int      @id @default(autoincrement())
+  projectId                 Int      @unique
+  // Section 12: Total Contract Value
+  contractValue             Decimal?
+  provisionalSum            Decimal?
+  instructedProvisionalSum  Decimal?
+  variations                Decimal?
+  omission                  Decimal?
+  dayworks                  Decimal?
+  // Section 13: Budget
+  preliminaries             Decimal?
+  subContractors            Decimal?
+  suppliersMaterial         Decimal?
+  machinery                 Decimal?
+  labors                    Decimal?
+  // Additional fields
+  vat                       Decimal?
+  prolongationCostExpectedValue Decimal?
+  // Actual Up to date Results
+  budgetUpToDate            Decimal?
+  totalActualCostToDate     Decimal?
+  // Cost at Completion
+  forecastedBudgetAtCompletion Decimal?
+  forecastedCostAtCompletion   Decimal?
+  // Overall Status
+  overallStatus             String?   // "On Budget", "Over Budget", "Under Budget"
+  // Project Performance Indicators
+  projectProgressPercentage Decimal?
+  projectRevenuePercentage  Decimal?
+  projectCostPercentage     Decimal?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  project                   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@map("project_commercial")
+}
+
+model ProjectCommercialChecklistItem {
+  id             Int       @id @default(autoincrement())
+  projectId      Int
+  checkListItem  String
+  yesNo          String?   // 'Yes' or 'No' or null
+  status         String?
+  sortOrder      Int       @default(0)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_commercial_checklist_items")
 }
 
 model ProjectControlMilestone {
@@ -639,6 +700,39 @@ model ProjectQualityChecklistEntry {
   @@index([projectId])
   @@index([sortOrder])
   @@map("project_quality_checklist_entries")
+}
+
+model ProjectIPC {
+  id                    Int       @id @default(autoincrement())
+  projectId             Int
+  invoiceNumber         String
+  month                 String?
+  grossValueSubmitted   Decimal?
+  dateSubmitted         DateTime?
+  grossValueCertified   Decimal?
+  certifiedDate         DateTime?
+  paymentDueDate        DateTime?
+  advancePaymentRecovery Decimal?
+  retention             Decimal?
+  contraCharges         Decimal?
+  netCertifiedPayable   Decimal?
+  vat5Percent           Decimal?
+  netPayable            Decimal?
+  receivedPayment       Decimal?
+  paymentReceivedDate   DateTime?
+  inProcess             Decimal?
+  dueDays               Int?
+  overDueAmount         Decimal?
+  remarks               String?
+  sortOrder             Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  project               Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@unique([projectId, invoiceNumber])
+  @@index([projectId])
+  @@index([sortOrder])
+  @@map("project_ipc")
 }
 
 model ProjectChecklistItem {
