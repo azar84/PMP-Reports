@@ -65,6 +65,7 @@ function normalizeString(value: unknown, fallback: string = ''): string {
 }
 
 type SanitizedIPCEntry = {
+  paymentType: string | null;
   invoiceNumber: string;
   month: string | null;
   grossValueSubmitted: number | null;
@@ -78,6 +79,7 @@ type SanitizedIPCEntry = {
   netCertifiedPayable: number | null;
   vat5Percent: number | null;
   netPayable: number | null;
+  paymentStatus: string | null;
   receivedPayment: number | null;
   paymentReceivedDate: Date | null;
   inProcess: number | null;
@@ -93,7 +95,12 @@ function sanitizeIPCEntries(rawEntries: any[]): SanitizedIPCEntry[] {
       const invoiceNumber = normalizeString(entry?.invoiceNumber);
       if (!invoiceNumber) return null; // Skip rows with empty invoice numbers
 
+      const paymentType = entry?.paymentType ? normalizeString(entry.paymentType) : null;
+      const validPaymentTypes = ['Adv', 'Progress', 'Retention Release'];
+      const normalizedPaymentType = paymentType && validPaymentTypes.includes(paymentType) ? paymentType : null;
+
       return {
+        paymentType: normalizedPaymentType,
         invoiceNumber,
         month: entry?.month ? normalizeString(entry.month) : null,
         grossValueSubmitted: parseOptionalDecimal(entry?.grossValueSubmitted),
@@ -107,6 +114,7 @@ function sanitizeIPCEntries(rawEntries: any[]): SanitizedIPCEntry[] {
         netCertifiedPayable: parseOptionalDecimal(entry?.netCertifiedPayable),
         vat5Percent: parseOptionalDecimal(entry?.vat5Percent),
         netPayable: parseOptionalDecimal(entry?.netPayable),
+        paymentStatus: entry?.paymentStatus ? normalizeString(entry.paymentStatus) : null,
         receivedPayment: parseOptionalDecimal(entry?.receivedPayment),
         paymentReceivedDate: parseOptionalDate(entry?.paymentReceivedDate),
         inProcess: parseOptionalDecimal(entry?.inProcess),
@@ -197,6 +205,7 @@ export async function PUT(
         await tx.projectIPC.createMany({
           data: sanitizedEntries.map((entry) => ({
             projectId,
+            paymentType: entry.paymentType,
             invoiceNumber: entry.invoiceNumber,
             month: entry.month,
             grossValueSubmitted: entry.grossValueSubmitted,
@@ -210,6 +219,7 @@ export async function PUT(
             netCertifiedPayable: entry.netCertifiedPayable,
             vat5Percent: entry.vat5Percent,
             netPayable: entry.netPayable,
+            paymentStatus: entry.paymentStatus,
             receivedPayment: entry.receivedPayment,
             paymentReceivedDate: entry.paymentReceivedDate,
             inProcess: entry.inProcess,

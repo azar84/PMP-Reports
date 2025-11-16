@@ -705,6 +705,7 @@ model ProjectQualityChecklistEntry {
 model ProjectIPC {
   id                    Int       @id @default(autoincrement())
   projectId             Int
+  paymentType           String?   // "Adv", "Progress", "Retention Release"
   invoiceNumber         String
   month                 String?
   grossValueSubmitted   Decimal?
@@ -718,6 +719,7 @@ model ProjectIPC {
   netCertifiedPayable   Decimal?
   vat5Percent           Decimal?
   netPayable            Decimal?
+  paymentStatus         String?   // "Received", "In Process", "Under-Certification"
   receivedPayment       Decimal?
   paymentReceivedDate   DateTime?
   inProcess             Decimal?

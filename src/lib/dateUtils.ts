@@ -37,13 +37,13 @@ export function formatDateForInput(date: string | Date | null | undefined): stri
       
       // Fallback: parse as Date but use UTC methods to avoid timezone shift
       const d = new Date(date);
-      if (isNaN(d.getTime())) return '';
-      
+    if (isNaN(d.getTime())) return '';
+    
       // Use UTC methods to get the date as stored, then format
       const year = d.getUTCFullYear();
       const month = String(d.getUTCMonth() + 1).padStart(2, '0');
       const day = String(d.getUTCDate()).padStart(2, '0');
-      return `${year}-${month}-${day}`;
+    return `${year}-${month}-${day}`;
     }
     
     return '';
