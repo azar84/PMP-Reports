@@ -65,6 +65,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const [slides, setSlides] = useState<any[]>([]);
   const [assignedStaffPage, setAssignedStaffPage] = useState(0);
   const [balanceStaffPage, setBalanceStaffPage] = useState(0);
+  const [checklistPage, setChecklistPage] = useState(0);
 
   useEffect(() => {
     if (report.reportData) {
@@ -77,6 +78,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   useEffect(() => {
     setAssignedStaffPage(0);
     setBalanceStaffPage(0);
+    setChecklistPage(0);
   }, [currentSlide]);
 
   // Keyboard navigation
@@ -165,7 +167,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     });
 
-    // Slide 3: Checklist (split across multiple pages if needed)
+    // Slide 3: Checklist (ONE slide with internal pagination)
     if (data.checklist && data.checklist.length > 0) {
       // Separate main items and sub-items
       const mainItems = data.checklist.filter((item: any) => !item.isSubItem);
@@ -177,22 +179,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         subItems: subItems.filter((sub: any) => sub.parentItemId === item.id)
       }));
       
-      // Split into pages (approximately 8-10 items per page)
-      const itemsPerPage = 8;
-      for (let i = 0; i < itemsWithSubs.length; i += itemsPerPage) {
-        const pageItems = itemsWithSubs.slice(i, i + itemsPerPage);
+      // Create ONE checklist slide with all items (internal pagination handles 10 per page)
         slides.push({
           type: 'checklist',
           title: 'Project Checklist',
           content: {
             project: data.project,
-            checklist: pageItems.flatMap(item => [item, ...item.subItems]),
-            pageNumber: Math.floor(i / itemsPerPage) + 1,
-            totalPages: Math.ceil(itemsWithSubs.length / itemsPerPage)
+          checklist: itemsWithSubs, // All items in one slide
+          pageNumber: 1,
+          totalPages: 1,
           }
         });
       }
-    }
 
     // Slide 4: Staff (after checklist)
     if (data.staff && data.staff.length > 0) {
@@ -232,6 +230,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         type: 'staff',
         title: 'Project Staff',
         content: {
+          project: data.project, // Include project for header
           assignedStaff: allAssignedStaff, // All assigned staff in one slide
           balanceStaff: balanceStaffList, // All balance staff
           positionSummary: positionSummary, // Keep for summary calculations
@@ -369,42 +368,48 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return new Date(2000, month - 1).toLocaleString('default', { month: 'long' });
   };
 
-  const renderSlide = (slide: any) => {
+  const getReportTitle = () => {
+    return `${getMonthName(report.reportMonth)} ${report.reportYear} Report`;
+  };
+
+  const renderSlide = (slide: any, slideIndex?: number) => {
     if (!slide) return null;
+    const pageNumber = slideIndex !== undefined ? slideIndex + 1 : currentSlide + 1;
+    const totalPages = slides.length;
 
     switch (slide.type) {
       case 'cover':
         return renderCoverSlide(slide.content);
       case 'overview':
-        return renderOverviewSlide(slide.content);
+        return renderOverviewSlide(slide.content, pageNumber, totalPages);
       case 'planning':
-        return renderPlanningSlide(slide.content);
+        return renderPlanningSlide(slide.content, pageNumber, totalPages);
       case 'quality':
-        return renderQualitySlide(slide.content);
+        return renderQualitySlide(slide.content, pageNumber, totalPages);
       case 'risks':
-        return renderRisksSlide(slide.content);
+        return renderRisksSlide(slide.content, pageNumber, totalPages);
       case 'areaOfConcerns':
-        return renderAreaOfConcernsSlide(slide.content);
+        return renderAreaOfConcernsSlide(slide.content, pageNumber, totalPages);
       case 'hse':
-        return renderHSESlide(slide.content);
+        return renderHSESlide(slide.content, pageNumber, totalPages);
       case 'checklist':
-        return renderChecklistSlide(slide.content);
+        return renderChecklistSlide(slide.content, pageNumber, totalPages);
       case 'staff':
-        return renderStaffSlide(slide.content);
+        return renderStaffSlide(slide.content, pageNumber, totalPages);
       case 'labours':
-        return renderLaboursSlide(slide.content);
+        return renderLaboursSlide(slide.content, pageNumber, totalPages);
       case 'labourSupply':
-        return renderLabourSupplySlide(slide.content);
+        return renderLabourSupplySlide(slide.content, pageNumber, totalPages);
       case 'plants':
-        return renderPlantsSlide(slide.content);
+        return renderPlantsSlide(slide.content, pageNumber, totalPages);
       case 'assets':
-        return renderAssetsSlide(slide.content);
+        return renderAssetsSlide(slide.content, pageNumber, totalPages);
       case 'pictures':
-        return renderPicturesSlide(slide.content);
+        return renderPicturesSlide(slide.content, pageNumber, totalPages);
       case 'closeOut':
-        return renderCloseOutSlide(slide.content);
+        return renderCloseOutSlide(slide.content, pageNumber, totalPages);
       case 'clientFeedback':
-        return renderClientFeedbackSlide(slide.content);
+        return renderClientFeedbackSlide(slide.content, pageNumber, totalPages);
       default:
         return <div>Unknown slide type</div>;
     }
@@ -541,7 +546,91 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
-  const renderOverviewSlide = (content: any) => {
+  // Reusable Header Component
+  const ReportHeader = ({ project, pageTitle }: { project: any; pageTitle?: string }) => (
+    <div className="mb-4 flex-shrink-0 w-full py-3 -mx-6 -mt-6 flex items-center justify-between px-6" style={{ backgroundColor: colors.primary, width: 'calc(100% + 3rem)' }}>
+      {/* Left spacer for centering */}
+      <div className="flex-1"></div>
+      
+      {/* Centered Page Title */}
+      <div className="flex-1 flex items-center justify-center">
+        <h1 className="text-2xl font-bold text-center" style={{ color: colors.backgroundPrimary }}>
+          {pageTitle || 'Project Report'}
+        </h1>
+      </div>
+      
+      {/* Right side - Project Title and Code */}
+      <div className="flex-1 flex flex-col items-end">
+        <h2 className="text-lg font-bold text-right" style={{ color: colors.backgroundPrimary }}>
+          {project?.projectName || 'Project'}
+        </h2>
+        <p className="text-sm text-right" style={{ color: colors.backgroundPrimary }}>
+          {project?.projectCode || ''}
+        </p>
+      </div>
+    </div>
+  );
+
+  // Reusable Footer Component
+  const ReportFooter = ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => {
+    // Convert hex to rgba for opacity
+    const hexToRgba = (hex: string, alpha: number) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+    const primaryRgba = hexToRgba(colors.primary, 0.15);
+    const primaryRgbaStrong = hexToRgba(colors.primary, 0.3);
+    
+    return (
+      <div className="mt-auto flex-shrink-0 w-full -mx-6 -mb-6" style={{ 
+        width: 'calc(100% + 3rem)'
+      }}>
+        {/* Decorative divider with gradient */}
+        <div className="relative" style={{ paddingTop: '12px', paddingBottom: '8px' }}>
+          {/* Main gradient line */}
+          <div 
+            className="absolute top-0 left-0 right-0"
+            style={{
+              height: '1px',
+              background: `linear-gradient(to right, transparent 0%, ${primaryRgbaStrong} 20%, ${colors.primary} 50%, ${primaryRgbaStrong} 80%, transparent 100%)`
+            }}
+          />
+          {/* Accent dot */}
+          <div 
+            className="absolute left-1/2 top-0"
+            style={{
+              transform: 'translate(-50%, -3px)',
+              width: '6px',
+              height: '6px',
+              borderRadius: '50%',
+              backgroundColor: colors.primary,
+              boxShadow: `0 0 8px ${primaryRgbaStrong}`
+            }}
+          />
+        </div>
+        
+        {/* Page number */}
+        <div className="flex justify-end items-center px-6 pb-2">
+          <div className="flex items-center gap-2">
+            <div 
+              className="h-px flex-1"
+              style={{
+                maxWidth: '40px',
+                background: `linear-gradient(to right, transparent, ${primaryRgba})`
+              }}
+            />
+            <p className="text-xs font-semibold tracking-wide" style={{ color: colors.textSecondary }}>
+              {pageNumber} / {totalPages}
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const renderOverviewSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const { project, contacts } = content;
     
     // Normalize consultant type from report data to a standard key for grouping
@@ -652,23 +741,11 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     });
     
     return (
-      <div className="h-full flex flex-col p-8">
-        <div className="mb-6 text-center">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: colors.textPrimary }}>
-            {project.projectName}
-          </h1>
-          <p className="text-lg" style={{ color: colors.textSecondary }}>
-            {project.projectCode}
-          </p>
-        </div>
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Stakeholders" />
 
         {/* Contacts Section - Readable Layout */}
         <div className="flex-1 w-full max-w-6xl mx-auto">
-          <div className="mb-6 text-center">
-            <h2 className="text-2xl font-bold" style={{ color: colors.primary }}>
-              Stakeholders
-            </h2>
-          </div>
           <div className="h-full flex flex-col space-y-6">
             {/* Client */}
             {clientContacts.length > 0 && (
@@ -808,15 +885,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             )}
           </div>
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderPlanningSlide = (content: any) => {
+  const renderPlanningSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Planning & Milestones</h2>
-        <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Planning & Milestones" />
+        <div className="flex-1 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
           {content.planning && (
             <div className="grid grid-cols-2 gap-6">
               {content.planning.targetProgramStart && (
@@ -874,11 +953,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
-  const renderQualitySlide = (content: any) => {
+  const renderQualitySlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Quality Management</h2>
-        <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Quality Management" />
+        <div className="flex-1 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
           {content.e1Entries && content.e1Entries.length > 0 && (
             <div>
               <h3 className="text-2xl font-semibold mb-4" style={{ color: colors.textPrimary }}>E1 Log Entries</h3>
@@ -914,11 +994,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
-  const renderRisksSlide = (content: any) => {
+  const renderRisksSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Risks</h2>
-        <div className="space-y-4 max-w-4xl mx-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Risks" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.risks && content.risks.length > 0 ? (
             content.risks.map((risk: any, idx: number) => (
               <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
@@ -942,15 +1023,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             <p className="text-center text-lg" style={{ color: colors.textMuted }}>No risks recorded</p>
           )}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderAreaOfConcernsSlide = (content: any) => {
+  const renderAreaOfConcernsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Areas of Concern</h2>
-        <div className="space-y-4 max-w-4xl mx-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Areas of Concern" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.areaOfConcerns && content.areaOfConcerns.length > 0 ? (
             content.areaOfConcerns.map((concern: any, idx: number) => (
               <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
@@ -976,11 +1059,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
-  const renderHSESlide = (content: any) => {
+  const renderHSESlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Health, Safety & Environment</h2>
-        <div className="space-y-6 max-w-4xl mx-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Health, Safety & Environment" />
+        <div className="flex-1 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
           {content.hseItems && content.hseItems.length > 0 && (
             <div>
               <h3 className="text-2xl font-semibold mb-4" style={{ color: colors.textPrimary }}>HSE Checklist</h3>
@@ -1000,12 +1084,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           )}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderChecklistSlide = (content: any) => {
-    const { project, checklist, pageNumber, totalPages } = content;
+  const renderChecklistSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const { project, checklist } = content;
     
     const formatDate = (dateString: string | null | undefined) => {
       if (!dateString) return '-';
@@ -1038,100 +1123,144 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     };
 
-    // Separate main items and sub-items
-    const mainItems = checklist.filter((item: any) => !item.isSubItem);
-    const subItems = checklist.filter((item: any) => item.isSubItem);
+    // Flatten checklist items (main items + sub-items) for pagination
+    const allChecklistItems: any[] = [];
+    checklist.forEach((item: any) => {
+      allChecklistItems.push(item);
+      if (item.subItems && Array.isArray(item.subItems)) {
+        item.subItems.forEach((subItem: any) => {
+          allChecklistItems.push({ ...subItem, isSubItem: true, parentItem: item });
+        });
+      }
+    });
 
     return (
-      <div className="h-full flex flex-col p-8">
-        <div className="mb-4 text-center">
-          <h1 className="text-3xl font-bold mb-2" style={{ color: colors.textPrimary }}>
-            {project.projectName}
-          </h1>
-          <p className="text-lg" style={{ color: colors.textSecondary }}>
-            {project.projectCode}
-          </p>
-        </div>
-
-        <div className="flex-1 w-full flex flex-col">
-          <div className="mb-4 text-center">
-            <h2 className="text-2xl font-bold" style={{ color: colors.primary }}>
-              Project Checklist
-            </h2>
-            {totalPages > 1 && (
-              <p className="text-sm mt-1" style={{ color: colors.textMuted }}>
-                Page {pageNumber} of {totalPages}
-              </p>
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Checklist" />
+          
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
+          <div className="flex items-center justify-between mb-1">
+            <h3 
+              className="text-sm font-semibold"
+              style={{ color: colors.textPrimary }}
+            >
+              Checklist Items
+            </h3>
+            {allChecklistItems.length > 25 && (
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setChecklistPage(Math.max(0, checklistPage - 1))}
+                  disabled={checklistPage === 0}
+                  className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                  style={{ 
+                    color: checklistPage === 0 ? colors.textMuted : colors.primary,
+                    backgroundColor: checklistPage === 0 ? 'transparent' : colors.backgroundSecondary
+                  }}
+                >
+                  <ArrowLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs" style={{ color: colors.textSecondary }}>
+                  {checklistPage + 1} / {Math.ceil(allChecklistItems.length / 25)}
+                </span>
+                <button
+                  onClick={() => setChecklistPage(Math.min(Math.ceil(allChecklistItems.length / 25) - 1, checklistPage + 1))}
+                  disabled={checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1}
+                  className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                  style={{ 
+                    color: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? colors.textMuted : colors.primary,
+                    backgroundColor: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? 'transparent' : colors.backgroundSecondary
+                  }}
+                >
+                  <ArrowRight className="w-4 h-4" />
+                </button>
+              </div>
             )}
           </div>
-          
-          <div className="flex-1 overflow-hidden">
-            <div className="w-full h-full overflow-auto">
-              <table className="w-full border-collapse" style={{ fontSize: '0.8125rem' }}>
-                <thead className="sticky top-0 z-10">
+          <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            {allChecklistItems.length > 0 ? (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${checklistPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: Math.ceil(allChecklistItems.length / 25) }).map((_, pageIdx) => {
+                    const pageItems = allChecklistItems.slice(pageIdx * 25, (pageIdx + 1) * 25);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.85rem' }}>
+                <thead>
                   <tr>
                     <th 
-                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        borderTop: `1px solid ${colors.primary}40`
+                        fontSize: '0.8rem',
+                        height: 'auto'
                       }}
                     >
                       Item #
                     </th>
                     <th 
-                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        borderTop: `1px solid ${colors.primary}40`
+                        fontSize: '0.8rem',
+                        height: 'auto'
                       }}
                     >
                       Phase
                     </th>
                     <th 
-                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        borderTop: `1px solid ${colors.primary}40`
+                        fontSize: '0.8rem',
+                        height: 'auto'
                       }}
                     >
                       Planned Date
                     </th>
                     <th 
-                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        borderTop: `1px solid ${colors.primary}40`
+                        fontSize: '0.8rem',
+                        height: 'auto'
                       }}
                     >
                       Actual Date
                     </th>
                     <th 
-                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        borderTop: `1px solid ${colors.primary}40`
+                        fontSize: '0.8rem',
+                        height: 'auto'
                       }}
                     >
                       Status
                     </th>
                     <th 
-                      className="text-left py-3 px-5 font-bold uppercase tracking-wider text-xs"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        borderTop: `1px solid ${colors.primary}40`
+                        fontSize: '0.8rem',
+                        height: 'auto'
                       }}
                     >
                       Remarks
@@ -1139,108 +1268,75 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   </tr>
                 </thead>
                 <tbody>
-                  {mainItems.map((item: any, idx: number) => {
-                    const itemSubItems = subItems.filter((sub: any) => sub.parentItemId === item.id);
-                    return (
-                      <React.Fragment key={item.id || idx}>
+                  {pageItems.map((item: any, idx: number) => (
                         <tr 
+                      key={item.id || idx}
                           className="hover:opacity-90 transition-opacity"
                           style={{ 
                             borderBottom: `1px solid ${colors.primary}15`,
                             backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
                           }}
                         >
-                          <td className="py-3.5 px-5 font-semibold" style={{ color: colors.textPrimary }}>
+                      <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-6' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.8rem', height: 'auto' }}>
+                        {item.isSubItem && (
+                          <span className="inline-block w-1.5 h-1.5 rounded-full mr-2" style={{ backgroundColor: colors.primary }}></span>
+                        )}
                             {item.itemNumber || '-'}
                           </td>
-                          <td className="py-3.5 px-5 font-semibold" style={{ color: colors.textPrimary }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.8rem', height: 'auto' }}>
                             {item.phase}
                           </td>
-                          <td className="py-3.5 px-5" style={{ color: colors.textSecondary }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.75rem', height: 'auto' }}>
                             {formatDate(item.plannedDate)}
                           </td>
-                          <td className="py-3.5 px-5" style={{ color: colors.textSecondary }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.75rem', height: 'auto' }}>
                             {formatDate(item.actualDate)}
                           </td>
-                          <td className="py-3.5 px-5">
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
                             {item.status ? (
                               <span 
-                                className="px-2.5 py-1 rounded-md text-xs font-semibold inline-block"
+                            className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
                                 style={{ 
                                   backgroundColor: `${getStatusColor(item.status)}15`,
                                   color: getStatusColor(item.status),
-                                  border: `1px solid ${getStatusColor(item.status)}30`
+                              border: `1px solid ${getStatusColor(item.status)}30`,
+                              fontSize: '0.75rem'
                                 }}
                               >
                                 {item.status}
                               </span>
                             ) : (
-                              <span style={{ color: colors.textMuted }}>-</span>
+                          <span style={{ color: colors.textMuted, fontSize: '0.75rem' }}>-</span>
                             )}
                           </td>
-                          <td className="py-3.5 px-5" style={{ color: colors.textSecondary, minWidth: '250px', maxWidth: '400px' }}>
-                            <div className="break-words whitespace-normal leading-relaxed">
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.75rem', height: 'auto' }}>
                               {item.notes || '-'}
-                            </div>
                           </td>
                         </tr>
-                        {itemSubItems.map((subItem: any, subIdx: number) => (
-                          <tr 
-                            key={subItem.id || `sub-${idx}-${subIdx}`}
-                            style={{ 
-                              borderBottom: `1px solid ${colors.primary}08`,
-                              backgroundColor: `${colors.backgroundSecondary}20`
-                            }}
-                          >
-                            <td className="py-2.5 px-5 pl-10" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
-                              <span className="inline-block w-1.5 h-1.5 rounded-full mr-2" style={{ backgroundColor: colors.primary }}></span>
-                              {subItem.itemNumber || ''}
-                            </td>
-                            <td className="py-2.5 px-5" style={{ color: colors.textSecondary, fontSize: '0.75rem' }}>
-                              {subItem.phase}
-                            </td>
-                            <td className="py-2.5 px-5" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
-                              {formatDate(subItem.plannedDate)}
-                            </td>
-                            <td className="py-2.5 px-5" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
-                              {formatDate(subItem.actualDate)}
-                            </td>
-                            <td className="py-2.5 px-5">
-                              {subItem.status ? (
-                                <span 
-                                  className="px-2 py-0.5 rounded-md text-xs font-medium inline-block"
-                                  style={{ 
-                                    backgroundColor: `${getStatusColor(subItem.status)}15`,
-                                    color: getStatusColor(subItem.status),
-                                    border: `1px solid ${getStatusColor(subItem.status)}30`
-                                  }}
-                                >
-                                  {subItem.status}
-                                </span>
-                              ) : (
-                                <span style={{ color: colors.textMuted }}>-</span>
-                              )}
-                            </td>
-                            <td className="py-2.5 px-5" style={{ color: colors.textMuted, fontSize: '0.75rem', minWidth: '250px', maxWidth: '400px' }}>
-                              <div className="break-words whitespace-normal leading-relaxed">
-                                {subItem.notes || '-'}
-                              </div>
-                            </td>
-                          </tr>
-                        ))}
-                      </React.Fragment>
+                  ))}
+                </tbody>
+                        </table>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <ClipboardList className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                  No checklist items
+                </p>
+              </div>
+            )}
           </div>
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderStaffSlide = (content: any) => {
+  const renderStaffSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     // Check if content is in new format (with assignedStaff array) or old format (positions array)
     const isNewFormat = content.assignedStaff !== undefined;
     
@@ -1394,24 +1490,16 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     }
 
     const balance = totalNeeded - totalAssigned;
-    const pageNumber = content.pageNumber || 1;
-    const totalPages = content.totalPages || 1;
     const isLastPage = content.isLastPage !== undefined ? content.isLastPage : true;
+    
+    // Get project from content
+    const project = content.project;
 
     // No height ratio constraints - tables will size naturally
 
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
-        <div className="mb-2 text-center flex-shrink-0">
-          <h1 className="text-xl font-bold mb-1" style={{ color: colors.textPrimary }}>
-            Project Staff
-          </h1>
-          {totalPages > 1 && (
-            <p className="text-xs" style={{ color: colors.textSecondary }}>
-              Page {pageNumber} of {totalPages}
-            </p>
-          )}
-        </div>
+        <ReportHeader project={project} pageTitle="Project Staff" />
 
         {/* Summary Section */}
         <div className="mb-2 grid grid-cols-3 gap-2 max-w-4xl mx-auto flex-shrink-0">
@@ -1613,23 +1701,23 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <tr 
                       key={idx}
                       className="hover:opacity-90 transition-opacity"
-                      style={{ 
+                            style={{ 
                         borderBottom: `1px solid ${colors.primary}15`,
                         backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
-                      }}
-                    >
+                            }}
+                          >
                       <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
                         {staff.staffName}
-                      </td>
+                            </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
                         {staff.designation}
-                      </td>
+                            </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
                         {staff.utilization}%
-                      </td>
+                            </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
                         {formatDate(staff.startDate)}
-                      </td>
+                            </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
                         {formatDate(staff.endDate)}
                       </td>
@@ -1637,9 +1725,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         {staff.duration || '-'}
                       </td>
                       <td className="py-0.5 px-2" style={{ height: 'auto' }}>
-                        <span 
+                                <span 
                           className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
-                          style={{ 
+                                  style={{ 
                             backgroundColor: staff.status === 'Active' ? `${colors.success}15` : `${colors.warning}15`,
                             color: staff.status === 'Active' ? colors.success : colors.warning,
                             border: `1px solid ${staff.status === 'Active' ? colors.success : colors.warning}30`,
@@ -1647,7 +1735,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           }}
                         >
                           {staff.status}
-                        </span>
+                                </span>
                       </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textMuted, fontSize: '0.65rem', height: 'auto' }}>
                         {staff.email && (
@@ -1658,27 +1746,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         )}
                         {!staff.email && !staff.phone && (
                           <span>-</span>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
+                              )}
+                            </td>
+                          </tr>
+                        ))}
                 </tbody>
-                        </table>
-                      </div>
+              </table>
+            </div>
                     );
                   })}
-                </div>
-              </div>
+          </div>
+        </div>
             ) : (
               <div className="text-center py-4">
                 <User className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
                 <p className="text-xs" style={{ color: colors.textSecondary }}>
                   No staff assigned to this project
-                </p>
-              </div>
+                        </p>
+                      </div>
               )}
-            </div>
-          </div>
+                    </div>
+                  </div>
 
           {/* Balance Staff Table - Positions that need to be filled (only on last page) with Slider - Takes remaining space */}
           {isLastPage && balanceStaffList.length > 0 && (
@@ -1829,15 +1917,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           </div>
           )}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderLaboursSlide = (content: any) => {
+  const renderLaboursSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Labours</h2>
-        <div className="space-y-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Labours" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.map((labour: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <div className="flex items-center justify-between">
@@ -1859,15 +1949,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ))}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderLabourSupplySlide = (content: any) => {
+  const renderLabourSupplySlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Labour Supply</h2>
-        <div className="space-y-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Labour Supply" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.map((supply: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{supply.trade || 'N/A'}</p>
@@ -1877,15 +1969,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ))}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderPlantsSlide = (content: any) => {
+  const renderPlantsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Plant & Equipment</h2>
-        <div className="space-y-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Plant & Equipment" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.map((plant: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{plant.plant?.name || 'N/A'}</p>
@@ -1895,15 +1989,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ))}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderAssetsSlide = (content: any) => {
+  const renderAssetsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Assets</h2>
-        <div className="space-y-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Assets" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.map((asset: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{asset.type}</p>
@@ -1914,15 +2010,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ))}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderPicturesSlide = (content: any) => {
+  const renderPicturesSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Pictures</h2>
-        <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Pictures" />
+        <div className="flex-1 overflow-y-auto">
+          <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto">
           {content.map((picture: any, idx: number) => (
             <div key={idx} className="aspect-square rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary }}>
               {picture.media?.url ? (
@@ -1935,15 +2034,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ))}
         </div>
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderCloseOutSlide = (content: any) => {
+  const renderCloseOutSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Close Out</h2>
-        <div className="space-y-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Close Out" />
+        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
           {content.map((entry: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-3" style={{ color: colors.textPrimary }}>{entry.itemType}</p>
@@ -1972,15 +2074,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ))}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
-  const renderClientFeedbackSlide = (content: any) => {
+  const renderClientFeedbackSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Client Feedback</h2>
-        <div className="max-w-4xl mx-auto">
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Client Feedback" />
+        <div className="flex-1 overflow-y-auto max-w-4xl mx-auto w-full">
           {content.rating && (
             <div className="text-center mb-8">
               <p className="text-2xl font-semibold mb-2" style={{ color: colors.textPrimary }}>Rating</p>
@@ -2101,7 +2205,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             backgroundColor: colors.backgroundPrimary
           }}
         >
-          {renderSlide(slides[currentSlide])}
+          {renderSlide(slides[currentSlide], currentSlide)}
         </div>
       </div>
 
