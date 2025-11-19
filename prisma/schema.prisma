@@ -169,31 +169,31 @@ model DesignSystem {
 }
 
 model MediaLibrary {
-  id           Int          @id @default(autoincrement())
-  filename     String
-  title        String?
-  description  String?
-  alt          String?
-  fileType     String
-  mimeType     String
-  fileSize     Int
-  width        Int?
-  height       Int?
-  duration     Float?
-  originalUrl  String
-  localPath    String?
-  publicUrl    String
-  thumbnailUrl String?
-  folderId     Int?
-  tags         String?
-  uploadSource String       @default("upload")
-  uploadedBy   String?
-  isActive     Boolean      @default(true)
-  isPublic     Boolean      @default(true)
-  createdAt    DateTime     @default(now())
-  updatedAt    DateTime     @updatedAt
-  folder       MediaFolder? @relation(fields: [folderId], references: [id])
-  usages       MediaUsage[]
+  id              Int              @id @default(autoincrement())
+  filename        String
+  title           String?
+  description     String?
+  alt             String?
+  fileType        String
+  mimeType        String
+  fileSize        Int
+  width           Int?
+  height          Int?
+  duration        Float?
+  originalUrl     String
+  localPath       String?
+  publicUrl       String
+  thumbnailUrl    String?
+  folderId        Int?
+  tags            String?
+  uploadSource    String           @default("upload")
+  uploadedBy      String?
+  isActive        Boolean          @default(true)
+  isPublic        Boolean          @default(true)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  folder          MediaFolder?     @relation(fields: [folderId], references: [id])
+  usages          MediaUsage[]
   projectPictures ProjectPicture[]
 
   @@map("media_library")
@@ -230,12 +230,12 @@ model MediaUsage {
 }
 
 model Tenant {
-  id          Int       @id @default(autoincrement())
+  id          Int            @id @default(autoincrement())
   name        String
-  slug        String    @unique
-  isActive    Boolean   @default(true)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
+  slug        String         @unique
+  isActive    Boolean        @default(true)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
   users       AdminUser[]
   roles       Role[]
   permissions Permission[]
@@ -253,22 +253,22 @@ model Tenant {
 }
 
 model AdminUser {
-  id                  Int       @id @default(autoincrement())
-  tenantId            Int       @default(1) // Default tenant for migration
-  username            String
-  email               String
-  passwordHash        String
-  name                String?
-  role                String    @default("admin") // Legacy field, keep for backward compatibility
-  isActive            Boolean   @default(true)
-  hasAllProjectsAccess Boolean  @default(false) // If true, user can access all projects regardless of memberships
-  lastLoginAt         DateTime?
-  createdAt           DateTime  @default(now())
-  updatedAt           DateTime  @updatedAt
-  tenant              Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  userRoles           UserRole[]
-  projectMemberships  ProjectMembership[]
-  projectReports      ProjectReport[]
+  id                   Int                 @id @default(autoincrement())
+  tenantId             Int                 @default(1) // Default tenant for migration
+  username             String
+  email                String
+  passwordHash         String
+  name                 String?
+  role                 String              @default("admin") // Legacy field, keep for backward compatibility
+  isActive             Boolean             @default(true)
+  hasAllProjectsAccess Boolean             @default(false) // If true, user can access all projects regardless of memberships
+  lastLoginAt          DateTime?
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  tenant               Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  userRoles            UserRole[]
+  projectMemberships   ProjectMembership[]
+  projectReports       ProjectReport[]
 
   @@unique([tenantId, username])
   @@unique([tenantId, email])
@@ -277,15 +277,15 @@ model AdminUser {
 }
 
 model Permission {
-  id          Int      @id @default(autoincrement())
-  tenantId    Int      @default(1) // Permissions are tenant-scoped but can share keys
-  key         String   // e.g., "project.view_basic", "staff.assign_to_project"
-  resource    String   // e.g., "project", "staff", "labour", "admin"
-  description String?
-  isSystem    Boolean  @default(false) // System permissions cannot be deleted
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id              Int              @id @default(autoincrement())
+  tenantId        Int              @default(1) // Permissions are tenant-scoped but can share keys
+  key             String // e.g., "project.view_basic", "staff.assign_to_project"
+  resource        String // e.g., "project", "staff", "labour", "admin"
+  description     String?
+  isSystem        Boolean          @default(false) // System permissions cannot be deleted
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rolePermissions RolePermission[]
 
   @@unique([tenantId, key])
@@ -295,16 +295,16 @@ model Permission {
 }
 
 model Role {
-  id          Int      @id @default(autoincrement())
-  tenantId    Int
-  name        String
-  description String?
-  isSystem    Boolean  @default(false) // System roles cannot be deleted
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id              Int              @id @default(autoincrement())
+  tenantId        Int
+  name            String
+  description     String?
+  isSystem        Boolean          @default(false) // System roles cannot be deleted
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   rolePermissions RolePermission[]
-  userRoles   UserRole[]
+  userRoles       UserRole[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -327,12 +327,12 @@ model RolePermission {
 }
 
 model UserRole {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
   roleId    Int
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  role      Role      @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@unique([userId, roleId])
   @@index([userId])
@@ -341,12 +341,12 @@ model UserRole {
 }
 
 model ProjectMembership {
-  id        Int      @id @default(autoincrement())
+  id        Int       @id @default(autoincrement())
   userId    Int
   projectId Int
-  createdAt DateTime @default(now())
+  createdAt DateTime  @default(now())
   user      AdminUser @relation(fields: [userId], references: [id], onDelete: Cascade)
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([userId, projectId])
   @@index([userId])
@@ -355,17 +355,17 @@ model ProjectMembership {
 }
 
 model AuditLog {
-  id          Int      @id @default(autoincrement())
-  tenantId    Int
-  userId      Int?
-  action      String   // e.g., "staff.move", "project.create", "permission.denied"
-  resource    String   // e.g., "staff", "project"
-  resourceId  Int?
-  details     Json?    // Additional context
-  ipAddress   String?
-  userAgent   String?
-  createdAt   DateTime @default(now())
-  tenant      Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id         Int      @id @default(autoincrement())
+  tenantId   Int
+  userId     Int?
+  action     String // e.g., "staff.move", "project.create", "permission.denied"
+  resource   String // e.g., "staff", "project"
+  resourceId Int?
+  details    Json? // Additional context
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime @default(now())
+  tenant     Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([userId])
@@ -402,7 +402,7 @@ model Consultant {
   isActive                   Boolean                      @default(true)
   createdAt                  DateTime                     @default(now())
   updatedAt                  DateTime                     @updatedAt
-  tenant                     Tenant                        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  tenant                     Tenant                       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   ConsultantToConsultantType ConsultantToConsultantType[]
   projectsAsCost             Project[]                    @relation("CostConsultant")
   projectsAsSupervision      Project[]                    @relation("SupervisionConsultant")
@@ -483,66 +483,69 @@ model ProjectContact {
 }
 
 model Project {
-  id                            Int                    @id @default(autoincrement())
-  tenantId                      Int                    @default(1)
-  projectCode                   String
-  projectName                   String
-  projectDescription            String?
-  clientId                      Int?
-  projectManagementConsultantId Int?
-  designConsultantId            Int?
-  supervisionConsultantId       Int?
-  costConsultantId              Int?
-  projectDirectorId             Int?
-  projectManagerId              Int?
-  startDate                     DateTime
-  endDate                       DateTime
-  duration                      String?
-  eot                           String?
-  projectValue                  Decimal
+  id                              Int                              @id @default(autoincrement())
+  tenantId                        Int                              @default(1)
+  projectCode                     String
+  projectName                     String
+  projectDescription              String?
+  clientId                        Int?
+  projectManagementConsultantId   Int?
+  designConsultantId              Int?
+  supervisionConsultantId         Int?
+  costConsultantId                Int?
+  projectDirectorId               Int?
+  projectManagerId                Int?
+  startDate                       DateTime
+  endDate                         DateTime
+  duration                        String?
+  eot                             String?
+  projectValue                    Decimal
   // IPC Settings
-  advancePaymentPercentage      Decimal?               // e.g., 10.0 for 10%
-  retentionPercentage           Decimal?               // e.g., 5.0 for 5%
-  paymentTermsDays              Int?                   // Payment terms in days
-  lastUpdate                    DateTime               @default(now()) @updatedAt
-  createdAt                     DateTime               @default(now())
-  updatedAt                     DateTime               @updatedAt
-  tenant                        Tenant                 @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  projectChecklistItems         ProjectChecklistItem[]
-  projectContacts               ProjectContact[]
-  projectPositions              ProjectPosition[]
-  projectStaff                  ProjectStaff[]
-  projectTrades                 ProjectTrade[]
-  projectLabours                ProjectLabour[]
-  projectLabourSupplies         ProjectLabourSupply[]
-  plantRequirements             ProjectPlantRequirement[]
-  projectPlants                  ProjectPlant[]
-  projectMemberships            ProjectMembership[]
-  hseChecklistItems             ProjectHseChecklistItem[]
-  nocTrackerEntries             ProjectNocTrackerEntry[]
-  projectRisks                  ProjectRiskEntry[]
-  projectVendorEvaluations      ProjectVendorEvaluation[]
-  areaOfConcerns                ProjectAreaOfConcern[]
-  clientFeedback                ProjectClientFeedback?
-  projectAssets                 ProjectAsset[]
-  projectPictures               ProjectPicture[]
-  closeOutEntries               ProjectCloseOutEntry[]
-  projectManager                CompanyStaff?          @relation("ProjectManager", fields: [projectManagerId], references: [id])
-  projectDirector               CompanyStaff?          @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
-  costConsultant                Consultant?            @relation("CostConsultant", fields: [costConsultantId], references: [id])
-  supervisionConsultant         Consultant?            @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
-  designConsultant              Consultant?            @relation("DesignConsultant", fields: [designConsultantId], references: [id])
-  projectManagementConsultant   Consultant?            @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
-  client                        Client?                @relation(fields: [clientId], references: [id])
-  projectPlanning               ProjectPlanning?
-  projectCommercial             ProjectCommercial?
+  advancePaymentPercentage        Decimal? // e.g., 10.0 for 10%
+  retentionPercentage             Decimal? // e.g., 5.0 for 5%
+  paymentTermsDays                Int? // Payment terms in days
+  lastUpdate                      DateTime                         @default(now()) @updatedAt
+  createdAt                       DateTime                         @default(now())
+  updatedAt                       DateTime                         @updatedAt
+  tenant                          Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projectChecklistItems           ProjectChecklistItem[]
+  projectContacts                 ProjectContact[]
+  projectPositions                ProjectPosition[]
+  projectStaff                    ProjectStaff[]
+  projectTrades                   ProjectTrade[]
+  projectLabours                  ProjectLabour[]
+  projectLabourSupplies           ProjectLabourSupply[]
+  plantRequirements               ProjectPlantRequirement[]
+  projectPlants                   ProjectPlant[]
+  projectMemberships              ProjectMembership[]
+  hseChecklistItems               ProjectHseChecklistItem[]
+  nocTrackerEntries               ProjectNocTrackerEntry[]
+  projectRisks                    ProjectRiskEntry[]
+  projectVendorEvaluations        ProjectVendorEvaluation[]
+  projectSuppliers                ProjectSupplier[]
+  purchaseOrders                  ProjectPurchaseOrder[]
+  grns                            ProjectGRN[]
+  areaOfConcerns                  ProjectAreaOfConcern[]
+  clientFeedback                  ProjectClientFeedback?
+  projectAssets                   ProjectAsset[]
+  projectPictures                 ProjectPicture[]
+  closeOutEntries                 ProjectCloseOutEntry[]
+  projectManager                  CompanyStaff?                    @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  projectDirector                 CompanyStaff?                    @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
+  costConsultant                  Consultant?                      @relation("CostConsultant", fields: [costConsultantId], references: [id])
+  supervisionConsultant           Consultant?                      @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
+  designConsultant                Consultant?                      @relation("DesignConsultant", fields: [designConsultantId], references: [id])
+  projectManagementConsultant     Consultant?                      @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
+  client                          Client?                          @relation(fields: [clientId], references: [id])
+  projectPlanning                 ProjectPlanning?
+  projectCommercial               ProjectCommercial?
   projectCommercialChecklistItems ProjectCommercialChecklistItem[]
-  controlMilestones             ProjectControlMilestone[]
-  qualityE1Logs                 ProjectQualityE1Log[]
-  qualityE2Logs                 ProjectQualityE2Log[]
-  qualityChecklistEntries       ProjectQualityChecklistEntry[]
-  ipcEntries                    ProjectIPC[]
-  projectReports                ProjectReport[]
+  controlMilestones               ProjectControlMilestone[]
+  qualityE1Logs                   ProjectQualityE1Log[]
+  qualityE2Logs                   ProjectQualityE2Log[]
+  qualityChecklistEntries         ProjectQualityChecklistEntry[]
+  ipcEntries                      ProjectIPC[]
+  projectReports                  ProjectReport[]
 
   @@unique([tenantId, projectCode])
   @@index([tenantId])
@@ -550,72 +553,72 @@ model Project {
 }
 
 model ProjectPlanning {
-  id                    Int                         @id @default(autoincrement())
-  projectId             Int                         @unique
-  targetProgramStart    DateTime?
-  targetProgramEnd      DateTime?
-  plannedProgress       Decimal?
-  actualProgress        Decimal?
-  variance              Decimal?
-  eotStart              DateTime?
-  eotEnd                DateTime?
-  eotDays               Int?
-  createdAt             DateTime                    @default(now())
-  updatedAt             DateTime                    @updatedAt
-  project               Project                     @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  controlMilestones     ProjectControlMilestone[]
+  id                 Int                       @id @default(autoincrement())
+  projectId          Int                       @unique
+  targetProgramStart DateTime?
+  targetProgramEnd   DateTime?
+  plannedProgress    Decimal?
+  actualProgress     Decimal?
+  variance           Decimal?
+  eotStart           DateTime?
+  eotEnd             DateTime?
+  eotDays            Int?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  project            Project                   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  controlMilestones  ProjectControlMilestone[]
 
   @@map("project_planning")
 }
 
 model ProjectCommercial {
-  id                        Int      @id @default(autoincrement())
-  projectId                 Int      @unique
+  id                            Int      @id @default(autoincrement())
+  projectId                     Int      @unique
   // Section 12: Total Contract Value
-  contractValue             Decimal?
-  provisionalSum            Decimal?
-  instructedProvisionalSum  Decimal?
-  variations                Decimal?
-  omission                  Decimal?
-  dayworks                  Decimal?
+  contractValue                 Decimal?
+  provisionalSum                Decimal?
+  instructedProvisionalSum      Decimal?
+  variations                    Decimal?
+  omission                      Decimal?
+  dayworks                      Decimal?
   // Section 13: Budget
-  preliminaries             Decimal?
-  subContractors            Decimal?
-  suppliersMaterial         Decimal?
-  machinery                 Decimal?
-  labors                    Decimal?
+  preliminaries                 Decimal?
+  subContractors                Decimal?
+  suppliersMaterial             Decimal?
+  machinery                     Decimal?
+  labors                        Decimal?
   // Additional fields
-  vat                       Decimal?
+  vat                           Decimal?
   prolongationCostExpectedValue Decimal?
   // Actual Up to date Results
-  budgetUpToDate            Decimal?
-  totalActualCostToDate     Decimal?
+  budgetUpToDate                Decimal?
+  totalActualCostToDate         Decimal?
   // Cost at Completion
-  forecastedBudgetAtCompletion Decimal?
-  forecastedCostAtCompletion   Decimal?
+  forecastedBudgetAtCompletion  Decimal?
+  forecastedCostAtCompletion    Decimal?
   // Overall Status
-  overallStatus             String?   // "On Budget", "Over Budget", "Under Budget"
+  overallStatus                 String? // "On Budget", "Over Budget", "Under Budget"
   // Project Performance Indicators
-  projectProgressPercentage Decimal?
-  projectRevenuePercentage  Decimal?
-  projectCostPercentage     Decimal?
-  createdAt                 DateTime @default(now())
-  updatedAt                 DateTime @updatedAt
-  project                   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectProgressPercentage     Decimal?
+  projectRevenuePercentage      Decimal?
+  projectCostPercentage         Decimal?
+  createdAt                     DateTime @default(now())
+  updatedAt                     DateTime @updatedAt
+  project                       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@map("project_commercial")
 }
 
 model ProjectCommercialChecklistItem {
-  id             Int       @id @default(autoincrement())
-  projectId      Int
-  checkListItem  String
-  yesNo          String?   // 'Yes' or 'No' or null
-  status         String?
-  sortOrder      Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  projectId     Int
+  checkListItem String
+  yesNo         String? // 'Yes' or 'No' or null
+  status        String?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@index([sortOrder])
@@ -623,20 +626,20 @@ model ProjectCommercialChecklistItem {
 }
 
 model ProjectControlMilestone {
-  id          Int       @id @default(autoincrement())
-  projectId   Int
-  planningId  Int?
-  name        String
-  startDate   DateTime?
-  endDate     DateTime?
+  id              Int              @id @default(autoincrement())
+  projectId       Int
+  planningId      Int?
+  name            String
+  startDate       DateTime?
+  endDate         DateTime?
   actualStartDate DateTime?
   actualEndDate   DateTime?
-  status      String   @default("Pending")
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  planning    ProjectPlanning? @relation(fields: [planningId], references: [id], onDelete: SetNull)
+  status          String           @default("Pending")
+  sortOrder       Int              @default(0)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  planning        ProjectPlanning? @relation(fields: [planningId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([planningId])
@@ -644,18 +647,18 @@ model ProjectControlMilestone {
 }
 
 model ProjectQualityE1Log {
-  id                 Int       @id @default(autoincrement())
-  projectId          Int
-  submissionType     String
-  totalNumber        Int?
-  submitted          Int?
-  underReview        Int?
-  approved           Int?
-  reviseAndResubmit  Int?
-  sortOrder          Int       @default(0)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  submissionType    String
+  totalNumber       Int?
+  submitted         Int?
+  underReview       Int?
+  approved          Int?
+  reviseAndResubmit Int?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, submissionType])
   @@index([projectId])
@@ -664,18 +667,18 @@ model ProjectQualityE1Log {
 }
 
 model ProjectQualityE2Log {
-  id                 Int       @id @default(autoincrement())
-  projectId          Int
-  submissionType     String
-  totalNumber        Int?
-  submitted          Int?
-  underReview        Int?
-  approved           Int?
-  reviseAndResubmit  Int?
-  sortOrder          Int       @default(0)
-  createdAt          DateTime  @default(now())
-  updatedAt          DateTime  @updatedAt
-  project            Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  submissionType    String
+  totalNumber       Int?
+  submitted         Int?
+  underReview       Int?
+  approved          Int?
+  reviseAndResubmit Int?
+  sortOrder         Int      @default(0)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  project           Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, submissionType])
   @@index([projectId])
@@ -684,17 +687,17 @@ model ProjectQualityE2Log {
 }
 
 model ProjectQualityChecklistEntry {
-  id             Int       @id @default(autoincrement())
+  id             Int      @id @default(autoincrement())
   projectId      Int
   submissionType String
   submitted      Int?
   approved       Int?
   underReview    Int?
   rejected       Int?
-  sortOrder      Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sortOrder      Int      @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, submissionType])
   @@index([projectId])
@@ -703,33 +706,33 @@ model ProjectQualityChecklistEntry {
 }
 
 model ProjectIPC {
-  id                    Int       @id @default(autoincrement())
-  projectId             Int
-  paymentType           String?   // "Adv", "Progress", "Retention Release"
-  invoiceNumber         String
-  month                 String?
-  grossValueSubmitted   Decimal?
-  dateSubmitted         DateTime?
-  grossValueCertified   Decimal?
-  certifiedDate         DateTime?
-  paymentDueDate        DateTime?
+  id                     Int       @id @default(autoincrement())
+  projectId              Int
+  paymentType            String? // "Adv", "Progress", "Retention Release"
+  invoiceNumber          String
+  month                  String?
+  grossValueSubmitted    Decimal?
+  dateSubmitted          DateTime?
+  grossValueCertified    Decimal?
+  certifiedDate          DateTime?
+  paymentDueDate         DateTime?
   advancePaymentRecovery Decimal?
-  retention             Decimal?
-  contraCharges         Decimal?
-  netCertifiedPayable   Decimal?
-  vat5Percent           Decimal?
-  netPayable            Decimal?
-  paymentStatus         String?   // "Received", "In Process", "Under-Certification"
-  receivedPayment       Decimal?
-  paymentReceivedDate   DateTime?
-  inProcess             Decimal?
-  dueDays               Int?
-  overDueAmount         Decimal?
-  remarks               String?
-  sortOrder             Int       @default(0)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
-  project               Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  retention              Decimal?
+  contraCharges          Decimal?
+  netCertifiedPayable    Decimal?
+  vat5Percent            Decimal?
+  netPayable             Decimal?
+  paymentStatus          String? // "Received", "In Process", "Under-Certification"
+  receivedPayment        Decimal?
+  paymentReceivedDate    DateTime?
+  inProcess              Decimal?
+  dueDays                Int?
+  overDueAmount          Decimal?
+  remarks                String?
+  sortOrder              Int       @default(0)
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+  project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, invoiceNumber])
   @@index([projectId])
@@ -914,19 +917,19 @@ model ProjectLabour {
 }
 
 model Plant {
-  id               Int      @id @default(autoincrement())
-  tenantId         Int      @default(1)
+  id               Int            @id @default(autoincrement())
+  tenantId         Int            @default(1)
   plantDescription String
   plantCode        String
   plateNumber      String?
-  plantType        String   @default("direct")
-  isOwned          Boolean  @default(false)
+  plantType        String         @default("direct")
+  isOwned          Boolean        @default(false)
   monthlyCost      Float
-  isActive         Boolean  @default(true)
-  createdAt        DateTime @default(now())
-  updatedAt        DateTime @updatedAt
-  tenant           Tenant   @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  projectPlants     ProjectPlant[]
+  isActive         Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  tenant           Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projectPlants    ProjectPlant[]
 
   @@unique([tenantId, plantCode])
   @@index([tenantId])
@@ -934,19 +937,19 @@ model Plant {
 }
 
 model ProjectPlantRequirement {
-  id               Int             @id @default(autoincrement())
+  id               Int                           @id @default(autoincrement())
   projectId        Int
   title            String
   description      String?
-  requiredQuantity Int             @default(1)
+  requiredQuantity Int                           @default(1)
   notes            String?
   plannedStartDate DateTime?
   plannedEndDate   DateTime?
   monthlyBudget    Float?
-  useSlotDates            Boolean  @default(false)
-  createdAt        DateTime        @default(now())
-  updatedAt        DateTime        @updatedAt
-  project          Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  useSlotDates     Boolean                       @default(false)
+  createdAt        DateTime                      @default(now())
+  updatedAt        DateTime                      @updatedAt
+  project          Project                       @relation(fields: [projectId], references: [id], onDelete: Cascade)
   assignments      ProjectPlant[]
   slots            ProjectPlantRequirementSlot[]
 
@@ -955,21 +958,21 @@ model ProjectPlantRequirement {
 }
 
 model ProjectPlant {
-  id             Int       @id @default(autoincrement())
-  projectId      Int
-  plantId        Int?
-  requirementId  Int?
-  slotIndex      Int?
-  startDate      DateTime?
-  endDate        DateTime?
-  status         String    @default("Active")
-  notes          String?
-  monthlyCost    Float?
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  plant          Plant?    @relation(fields: [plantId], references: [id], onDelete: SetNull)
-  requirement    ProjectPlantRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
+  id            Int                      @id @default(autoincrement())
+  projectId     Int
+  plantId       Int?
+  requirementId Int?
+  slotIndex     Int?
+  startDate     DateTime?
+  endDate       DateTime?
+  status        String                   @default("Active")
+  notes         String?
+  monthlyCost   Float?
+  createdAt     DateTime                 @default(now())
+  updatedAt     DateTime                 @updatedAt
+  project       Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  plant         Plant?                   @relation(fields: [plantId], references: [id], onDelete: SetNull)
+  requirement   ProjectPlantRequirement? @relation(fields: [requirementId], references: [id], onDelete: SetNull)
 
   @@index([projectId])
   @@index([plantId])
@@ -978,19 +981,19 @@ model ProjectPlant {
 }
 
 model ProjectPlantRequirementSlot {
-  id            Int                      @id @default(autoincrement())
-  requirementId Int
-  slotIndex     Int
-  startDate     DateTime?
-  endDate       DateTime?
+  id               Int                     @id @default(autoincrement())
+  requirementId    Int
+  slotIndex        Int
+  startDate        DateTime?
+  endDate          DateTime?
   plannedStartDate DateTime?
   plannedEndDate   DateTime?
-  createdAt     DateTime                 @default(now())
-  updatedAt     DateTime                 @updatedAt
-  requirement   ProjectPlantRequirement  @relation(fields: [requirementId], references: [id], onDelete: Cascade)
+  createdAt        DateTime                @default(now())
+  updatedAt        DateTime                @updatedAt
+  requirement      ProjectPlantRequirement @relation(fields: [requirementId], references: [id], onDelete: Cascade)
 
-  @@index([requirementId])
   @@unique([requirementId, slotIndex])
+  @@index([requirementId])
   @@map("project_plant_requirement_slots")
 }
 
@@ -1044,16 +1047,16 @@ model LeaveHistory {
 }
 
 model ProjectLabourSupply {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   projectId      Int
   trade          String
   numberOfLabour Int
   pricePerHour   Decimal
   startDate      DateTime?
   endDate        DateTime?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, trade])
   @@index([projectId])
@@ -1061,79 +1064,81 @@ model ProjectLabourSupply {
 }
 
 model ProjectHseChecklistItem {
-  id           Int       @id @default(autoincrement())
-  projectId    Int
-  item         String
-  plannedDate  DateTime?
-  actualDate   DateTime?
-  status       String?
-  notes        String?
-  sortOrder    Int       @default(0)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
-  project      Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id          Int       @id @default(autoincrement())
+  projectId   Int
+  item        String
+  plannedDate DateTime?
+  actualDate  DateTime?
+  status      String?
+  notes       String?
+  sortOrder   Int       @default(0)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_hse_checklist_items")
 }
 
 model ProjectNocTrackerEntry {
-  id                     Int       @id @default(autoincrement())
-  projectId              Int
-  nocNumber              String?
-  permitType             String?
-  plannedSubmissionDate  DateTime?
-  actualSubmissionDate   DateTime?
-  status                 String?
-  expiryDate             DateTime?
-  remarks                String?
-  sortOrder              Int       @default(0)
-  createdAt              DateTime  @default(now())
-  updatedAt              DateTime  @updatedAt
-  project                Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id                    Int       @id @default(autoincrement())
+  projectId             Int
+  nocNumber             String?
+  permitType            String?
+  plannedSubmissionDate DateTime?
+  actualSubmissionDate  DateTime?
+  status                String?
+  expiryDate            DateTime?
+  remarks               String?
+  sortOrder             Int       @default(0)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  project               Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_noc_tracker_entries")
 }
 
 model ProjectRiskEntry {
-  id        Int       @id @default(autoincrement())
+  id        Int      @id @default(autoincrement())
   projectId Int
   riskItem  String
   impact    String?
   remarks   String?
-  sortOrder Int       @default(0)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
-  project   Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_risk_entries")
 }
 
 model TypeOfWork {
-  id         Int        @id @default(autoincrement())
-  name       String     @unique
-  createdAt  DateTime   @default(now())
-  updatedAt  DateTime   @updatedAt
+  id                  Int                  @id @default(autoincrement())
+  name                String               @unique
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
   supplierAssignments SupplierTypeOfWork[]
 
   @@map("type_of_works")
 }
 
 model Supplier {
-  id              Int       @id @default(autoincrement())
-  tenantId        Int       @default(1)
-  name            String
-  type            String
-  contactPerson   String?
-  contactNumber   String?
-  email           String?
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
-  tenant          Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  typeOfWorks     SupplierTypeOfWork[]
+  id                 Int                       @id @default(autoincrement())
+  tenantId           Int                       @default(1)
+  name               String
+  vendorCode         String?
+  type               String
+  contactPerson      String?
+  contactNumber      String?
+  email              String?
+  createdAt          DateTime                  @default(now())
+  updatedAt          DateTime                  @updatedAt
+  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  typeOfWorks        SupplierTypeOfWork[]
   projectEvaluations ProjectVendorEvaluation[]
+  projectSuppliers   ProjectSupplier[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1141,9 +1146,9 @@ model Supplier {
 }
 
 model SupplierTypeOfWork {
-  supplierId  Int
+  supplierId   Int
   typeOfWorkId Int
-  assignedAt  DateTime @default(now())
+  assignedAt   DateTime @default(now())
 
   supplier   Supplier   @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   typeOfWork TypeOfWork @relation(fields: [typeOfWorkId], references: [id], onDelete: Cascade)
@@ -1153,19 +1158,83 @@ model SupplierTypeOfWork {
 }
 
 model ProjectVendorEvaluation {
-  id        Int      @id @default(autoincrement())
-  projectId Int
+  id         Int      @id @default(autoincrement())
+  projectId  Int
   supplierId Int
-  rating    String   // "VERY_GOOD", "GOOD", "POOR"
-  notes     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  rating     String // "VERY_GOOD", "GOOD", "POOR"
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
 
-  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier  Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  project  Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier Supplier @relation(fields: [supplierId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, supplierId])
   @@map("project_vendor_evaluations")
+}
+
+model ProjectSupplier {
+  id         Int      @id @default(autoincrement())
+  projectId  Int
+  supplierId Int
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier       Supplier               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  purchaseOrders ProjectPurchaseOrder[]
+  grns          ProjectGRN[]
+
+  @@unique([projectId, supplierId])
+  @@map("project_suppliers")
+}
+
+model ProjectPurchaseOrder {
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  projectSupplierId Int
+  lpoNumber         String
+  lpoDate           DateTime
+  lpoValue          Decimal // LPO Value (A)
+  vatPercent        Decimal  @default(5.0) // VAT 5% (B)
+  lpoValueWithVat   Decimal // LPO Value with VAT (C) = A * (1 + B/100)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projectSupplier ProjectSupplier @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  grns            ProjectGRN[]
+
+  @@unique([projectId, projectSupplierId, lpoNumber])
+  @@index([projectId])
+  @@index([projectSupplierId])
+  @@map("project_purchase_orders")
+}
+
+model ProjectGRN {
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  projectSupplierId Int
+  purchaseOrderId   Int
+  invoiceNumber     String
+  invoiceDate       DateTime
+  grnRefNo          String
+  grnDate           DateTime
+  advancePayment    Decimal? @default(0) // Advance Payment (D)
+  deliveredAmount   Decimal  // Delivered Amount (GRN) (E)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  purchaseOrder   ProjectPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  projectSupplier ProjectSupplier     @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([projectId])
+  @@index([projectSupplierId])
+  @@index([purchaseOrderId])
+  @@map("project_grns")
 }
 
 model ProjectAreaOfConcern {
@@ -1187,46 +1256,46 @@ model ProjectAreaOfConcern {
 }
 
 model ProjectClientFeedback {
-  id             Int       @id @default(autoincrement())
-  projectId      Int       @unique
-  rating         String?   // Excellent, Very Good, Good, Average, Below Expectation, Poor
-  positivePoints Json?     // Array of strings
-  negativePoints Json?     // Array of strings
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id             Int      @id @default(autoincrement())
+  projectId      Int      @unique
+  rating         String? // Excellent, Very Good, Good, Average, Below Expectation, Poor
+  positivePoints Json? // Array of strings
+  negativePoints Json? // Array of strings
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  project        Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_client_feedback")
 }
 
 model ProjectAsset {
-  id          Int       @id @default(autoincrement())
+  id          Int      @id @default(autoincrement())
   projectId   Int
   type        String
   description String
   assetNumber String?
-  status      String    @default("Active")
-  sortOrder   Int       @default(0)
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt
-  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  status      String   @default("Active")
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@map("project_assets")
 }
 
 model ProjectPicture {
-  id          Int          @id @default(autoincrement())
-  projectId   Int
-  mediaId     Int
-  caption     String?
-  sortOrder   Int          @default(0)
-  isFeatured  Boolean      @default(false)
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-  project     Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  media       MediaLibrary @relation(fields: [mediaId], references: [id], onDelete: Cascade)
+  id         Int          @id @default(autoincrement())
+  projectId  Int
+  mediaId    Int
+  caption    String?
+  sortOrder  Int          @default(0)
+  isFeatured Boolean      @default(false)
+  createdAt  DateTime     @default(now())
+  updatedAt  DateTime     @updatedAt
+  project    Project      @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  media      MediaLibrary @relation(fields: [mediaId], references: [id], onDelete: Cascade)
 
   @@index([projectId])
   @@index([mediaId])
@@ -1235,18 +1304,18 @@ model ProjectPicture {
 }
 
 model ProjectCloseOutEntry {
-  id             Int       @id @default(autoincrement())
-  projectId      Int
-  itemType       String
-  totalRequired  Int?
-  submitted      Int?
-  approved       Int?
-  underReview    Int?
-  rejected       Int?
-  sortOrder      Int       @default(0)
-  createdAt      DateTime  @default(now())
-  updatedAt      DateTime  @updatedAt
-  project        Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  id            Int      @id @default(autoincrement())
+  projectId     Int
+  itemType      String
+  totalRequired Int?
+  submitted     Int?
+  approved      Int?
+  underReview   Int?
+  rejected      Int?
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  project       Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@unique([projectId, itemType])
   @@index([projectId])
@@ -1269,9 +1338,9 @@ model ProjectReport {
   id          Int       @id @default(autoincrement())
   projectId   Int
   userId      Int
-  reportMonth Int       // 1-12
-  reportYear  Int       // e.g., 2025
-  reportData  Json      // JSON data from all project tabs
+  reportMonth Int // 1-12
+  reportYear  Int // e.g., 2025
+  reportData  Json // JSON data from all project tabs
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)

@@ -102,6 +102,7 @@ export async function PUT(
       where: { id: supplierId },
       data: {
         name,
+        vendorCode: sanitizeString(body?.vendorCode),
         type,
         contactPerson: sanitizeString(body?.contactPerson),
         contactNumber: sanitizeString(body?.contactNumber),

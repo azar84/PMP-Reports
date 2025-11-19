@@ -24,6 +24,7 @@ import { useAdminApi } from '@/hooks/useApi';
 interface SupplierResponse {
   id: number;
   name: string;
+  vendorCode: string | null;
   type: string;
   contactPerson: string | null;
   contactNumber: string | null;
@@ -53,6 +54,7 @@ interface SuppliersApiResponse {
 
 type SupplierFormState = {
   name: string;
+  vendorCode: string;
   type: 'Supplier' | 'Subcontractor';
   contactPerson: string;
   contactNumber: string;
@@ -61,6 +63,7 @@ type SupplierFormState = {
 
 const DEFAULT_FORM: SupplierFormState = {
   name: '',
+  vendorCode: '',
   type: 'Supplier',
   contactPerson: '',
   contactNumber: '',
@@ -96,6 +99,7 @@ export default function SupplierManager() {
       if (!term) return true;
       const fields = [
         supplier.name,
+        supplier.vendorCode ?? '',
         supplier.type,
         supplier.contactPerson ?? '',
         supplier.contactNumber ?? '',
@@ -181,6 +185,7 @@ export default function SupplierManager() {
     setEditingSupplierId(supplier.id);
     setFormState({
       name: supplier.name,
+      vendorCode: supplier.vendorCode ?? '',
       type: supplier.type === 'Subcontractor' ? 'Subcontractor' : 'Supplier',
       contactPerson: supplier.contactPerson ?? '',
       contactNumber: supplier.contactNumber ?? '',
@@ -519,6 +524,13 @@ export default function SupplierManager() {
               onChange={(event) => handleInputChange('name', event.target.value)}
             />
 
+            <Input
+              label="Vendor Code"
+              value={formState.vendorCode}
+              onChange={(event) => handleInputChange('vendorCode', event.target.value)}
+              placeholder="e.g., VND-001"
+            />
+
             <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
               Vendor Type
               <select
@@ -680,90 +692,153 @@ export default function SupplierManager() {
             {filteredSuppliers.map((supplier) => (
               <Card
                 key={supplier.id}
-                className="p-4"
+                className="p-5 transition-all hover:shadow-md"
                 style={{
                   backgroundColor: colors.backgroundPrimary,
                   borderColor: colors.borderLight,
                   color: colors.textPrimary,
                 }}
               >
-                <div className="flex flex-wrap items-start justify-between gap-4">
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div className="flex-1 space-y-4">
+                    {/* Header Section */}
+                    <div className="flex flex-wrap items-center gap-3">
                       <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
                         {supplier.name}
                       </h3>
+                      {supplier.vendorCode && (
+                        <span
+                          className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
+                          style={{
+                            backgroundColor: `${colors.info}15`,
+                            color: colors.info,
+                            border: `1px solid ${colors.info}30`,
+                          }}
+                        >
+                          <Tag className="h-3 w-3" style={{ color: colors.info }} />
+                          {supplier.vendorCode}
+                        </span>
+                      )}
                       <span
-                        className="rounded-full px-3 py-1 text-xs font-medium"
+                        className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
                         style={{
                           backgroundColor: `${colors.primary}15`,
                           color: colors.primary,
                           border: `1px solid ${colors.primary}30`,
                         }}
                       >
+                        <Building2 className="h-3 w-3" style={{ color: colors.primary }} />
                         {supplier.type}
                       </span>
                     </div>
-                    <div
-                      className="flex flex-wrap gap-4 text-sm"
-                      style={{ color: colors.textSecondary }}
-                    >
-                      <span className="flex items-center gap-2">
-                        <UserIcon className="h-4 w-4" /> {supplier.contactPerson || '—'}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <Phone className="h-4 w-4" /> {supplier.contactNumber || '—'}
-                      </span>
-                      <span className="flex items-center gap-2">
-                        <Mail className="h-4 w-4" /> {supplier.email || '—'}
-                      </span>
-                    </div>
-                    <div>
-                      <p
-                        className="text-xs font-medium uppercase tracking-wide"
-                        style={{ color: colors.textSecondary }}
-                      >
-                        Type of Works
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-2">
-                        {supplier.typeOfWorks.length > 0 ? (
-                          supplier.typeOfWorks.map((link) => (
+
+                    {/* Contact Information Section */}
+                    {(supplier.contactPerson || supplier.contactNumber || supplier.email) && (
+                      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                        {supplier.contactPerson && (
+                          <div className="flex items-center gap-2.5 text-sm">
+                            <div
+                              className="flex h-8 w-8 items-center justify-center rounded-lg"
+                              style={{
+                                backgroundColor: `${colors.primary}10`,
+                                color: colors.primary,
+                              }}
+                            >
+                              <UserIcon className="h-4 w-4" style={{ color: colors.primary }} />
+                            </div>
+                            <span style={{ color: colors.textSecondary }}>
+                              {supplier.contactPerson}
+                            </span>
+                          </div>
+                        )}
+                        {supplier.contactNumber && (
+                          <div className="flex items-center gap-2.5 text-sm">
+                            <div
+                              className="flex h-8 w-8 items-center justify-center rounded-lg"
+                              style={{
+                                backgroundColor: `${colors.success}10`,
+                                color: colors.success,
+                              }}
+                            >
+                              <Phone className="h-4 w-4" style={{ color: colors.success }} />
+                            </div>
+                            <span style={{ color: colors.textSecondary }}>
+                              {supplier.contactNumber}
+                            </span>
+                          </div>
+                        )}
+                        {supplier.email && (
+                          <div className="flex items-center gap-2.5 text-sm">
+                            <div
+                              className="flex h-8 w-8 items-center justify-center rounded-lg"
+                              style={{
+                                backgroundColor: `${colors.info}10`,
+                                color: colors.info,
+                              }}
+                            >
+                              <Mail className="h-4 w-4" style={{ color: colors.info }} />
+                            </div>
+                            <span style={{ color: colors.textSecondary }}>{supplier.email}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Type of Works Section */}
+                    {supplier.typeOfWorks.length > 0 && (
+                      <div>
+                        <p
+                          className="mb-2 text-xs font-medium uppercase tracking-wide"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          Type of Works
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {supplier.typeOfWorks.map((link) => (
                             <span
                               key={`${supplier.id}-${link.typeOfWork.id}`}
-                              className="inline-flex items-center gap-1 rounded-full px-3 py-1 text-xs font-medium"
+                              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
                               style={{
                                 backgroundColor: colors.backgroundSecondary,
                                 border: `1px solid ${colors.borderLight}`,
-                                color: colors.textSecondary,
+                                color: colors.textPrimary,
                               }}
                             >
-                              <Tag className="h-3 w-3" /> {link.typeOfWork.name}
+                              <Tag className="h-3 w-3" style={{ color: colors.textSecondary }} />
+                              {link.typeOfWork.name}
                             </span>
-                          ))
-                        ) : (
-                          <span className="text-sm" style={{ color: colors.textSecondary }}>
-                            —
-                          </span>
-                        )}
+                          ))}
+                        </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                  <div className="flex flex-col items-end gap-2">
+
+                  {/* Action Buttons */}
+                  <div className="flex flex-row items-center gap-2 md:flex-col md:items-end">
                     <Button
                       variant="outline"
                       size="icon"
                       onClick={() => handleEditSupplier(supplier)}
                       aria-label="Edit vendor"
+                      className="h-9 w-9"
+                      style={{
+                        borderColor: colors.borderLight,
+                        color: colors.textPrimary,
+                      }}
                     >
-                      <Edit className="h-4 w-4" />
+                      <Edit className="h-4 w-4" style={{ color: colors.textPrimary }} />
                     </Button>
                     <Button
                       variant="ghost"
                       size="icon"
                       onClick={() => handleDeleteSupplier(supplier.id)}
                       aria-label="Delete vendor"
+                      className="h-9 w-9"
+                      style={{
+                        color: colors.error,
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
+                      <Trash2 className="h-4 w-4" style={{ color: colors.error }} />
                     </Button>
                   </div>
                 </div>

@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
     const supplier = await prisma.supplier.create({
       data: {
         name,
+        vendorCode: sanitizeString(body?.vendorCode),
         type,
         contactPerson: sanitizeString(body?.contactPerson),
         contactNumber: sanitizeString(body?.contactNumber),

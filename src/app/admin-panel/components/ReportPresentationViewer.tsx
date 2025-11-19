@@ -25,7 +25,9 @@ import {
   Camera,
   ClipboardCheck,
   MessageSquare,
-  LifeBuoy
+  LifeBuoy,
+  ArrowLeft,
+  ArrowRight
 } from 'lucide-react';
 
 interface ProjectReport {
@@ -61,6 +63,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<any[]>([]);
+  const [assignedStaffPage, setAssignedStaffPage] = useState(0);
+  const [balanceStaffPage, setBalanceStaffPage] = useState(0);
 
   useEffect(() => {
     if (report.reportData) {
@@ -68,6 +72,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       setSlides(generatedSlides);
     }
   }, [report]);
+
+  // Reset slider pages when slide changes
+  useEffect(() => {
+    setAssignedStaffPage(0);
+    setBalanceStaffPage(0);
+  }, [currentSlide]);
 
   // Keyboard navigation
   useEffect(() => {
@@ -102,18 +112,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     }
 
-    // Get project manager and director names from staff data
+    // Get project manager and director names from stored project data (JSON)
+    // First try to get from project.projectManager and project.projectDirector (stored in JSON)
     let projectManagerName = 'N/A';
     let projectDirectorName = 'N/A';
     
-    if (data.staff && Array.isArray(data.staff)) {
+    if (data.project?.projectManager) {
+      projectManagerName = data.project.projectManager.staffName || 'N/A';
+    } else if (data.staff && Array.isArray(data.staff)) {
+      // Fallback to staff data if project manager not in project data
       const managerPosition = data.staff.find((pos: any) => 
         pos.designation === 'Project Manager' && pos.staffAssignments && pos.staffAssignments.length > 0
       );
       if (managerPosition && managerPosition.staffAssignments[0]?.staff) {
         projectManagerName = managerPosition.staffAssignments[0].staff.staffName;
       }
+      }
 
+    if (data.project?.projectDirector) {
+      projectDirectorName = data.project.projectDirector.staffName || 'N/A';
+    } else if (data.staff && Array.isArray(data.staff)) {
+      // Fallback to staff data if project director not in project data
       const directorPosition = data.staff.find((pos: any) => 
         pos.designation === 'Project Director' && pos.staffAssignments && pos.staffAssignments.length > 0
       );
@@ -175,7 +194,55 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     }
 
-    // Slide 4: Planning
+    // Slide 4: Staff (after checklist)
+    if (data.staff && data.staff.length > 0) {
+      // Process all positions to get assigned staff list and position summary
+      const allAssignedStaff: any[] = [];
+      const positionSummary: any[] = [];
+      
+      data.staff.forEach((position: any) => {
+        let assignedCount = 0;
+        
+        if (position.staffAssignments && Array.isArray(position.staffAssignments)) {
+          position.staffAssignments.forEach((assignment: any) => {
+            if (assignment.staff && assignment.staff.staffName) {
+              allAssignedStaff.push({
+                ...assignment,
+                designation: position.designation,
+              });
+              assignedCount += 1;
+            }
+          });
+        }
+        
+        const balance = 1 - assignedCount;
+        positionSummary.push({
+          designation: position.designation,
+          required: 1,
+          assigned: assignedCount,
+          balance: balance,
+        });
+      });
+      
+      // Get balance staff (positions that need to be filled)
+      const balanceStaffList = positionSummary.filter(pos => pos.balance > 0);
+      
+      // Create ONE staff slide with all assigned staff (internal pagination handles 10 per page)
+      slides.push({
+        type: 'staff',
+        title: 'Project Staff',
+        content: {
+          assignedStaff: allAssignedStaff, // All assigned staff in one slide
+          balanceStaff: balanceStaffList, // All balance staff
+          positionSummary: positionSummary, // Keep for summary calculations
+          pageNumber: 1,
+          totalPages: 1,
+          isLastPage: true,
+        }
+      });
+    }
+
+    // Slide 5: Planning
     if (data.planning) {
       slides.push({
         type: 'planning',
@@ -184,7 +251,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 5: Quality
+    // Slide 6: Quality
     if (data.quality) {
       slides.push({
         type: 'quality',
@@ -193,7 +260,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 6: Risks
+    // Slide 7: Risks
     if (data.risks) {
       slides.push({
         type: 'risks',
@@ -202,7 +269,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 7: Area of Concerns
+    // Slide 8: Area of Concerns
     if (data.areaOfConcerns) {
       slides.push({
         type: 'areaOfConcerns',
@@ -211,21 +278,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 8: HSE
+    // Slide 9: HSE
     if (data.hse) {
       slides.push({
         type: 'hse',
         title: 'Health, Safety & Environment',
         content: data.hse
-      });
-    }
-
-    // Slide 9: Staff
-    if (data.staff && data.staff.length > 0) {
-      slides.push({
-        type: 'staff',
-        title: 'Project Staff',
-        content: data.staff
       });
     }
 
@@ -533,7 +591,25 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const clientContacts = contacts?.filter((c: any) => c.contact?.entityType === 'client') || [];
     const consultantContacts: { [key: string]: { company: any; contacts: any[]; displayName: string; contactIds: Set<number> } } = {};
     
-    // Process contacts from report data
+    // First, initialize all consultants from project.consultants regardless of contacts
+    // This ensures all consultants are shown even if they have no contacts
+    const consultantTypeKeys = ['pmc', 'design', 'supervision', 'cost'];
+    consultantTypeKeys.forEach((normalizedType) => {
+      const consultantKey = getConsultantCompanyKey(normalizedType);
+      const consultantCompany = project?.consultants?.[consultantKey] || null;
+      
+      // Only create entry if consultant exists
+      if (consultantCompany) {
+        consultantContacts[normalizedType] = {
+          company: consultantCompany,
+          contacts: [],
+          displayName: getConsultantDisplayName(normalizedType),
+          contactIds: new Set<number>()
+        };
+      }
+    });
+    
+    // Then, process contacts from report data and add them to the appropriate consultant groups
     if (contacts && Array.isArray(contacts)) {
       contacts.forEach((contact: any) => {
         // Only process consultant contacts that have a consultantType
@@ -551,7 +627,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           const consultantKey = getConsultantCompanyKey(normalizedType);
           const consultantCompany = project?.consultants?.[consultantKey] || null;
           
-          // Initialize group if it doesn't exist
+          // Initialize group if it doesn't exist (in case consultant type doesn't match standard types)
           if (!consultantContacts[normalizedType]) {
             consultantContacts[normalizedType] = {
               company: consultantCompany,
@@ -694,7 +770,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         )}
                       </div>
                       <div className="grid grid-cols-2 gap-3 mt-2">
-                        {data.contacts.map((contact: any, idx: number) => (
+                        {data.contacts.length > 0 ? (
+                          data.contacts.map((contact: any, idx: number) => (
                           <div key={idx} className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
                             <p className="text-sm font-semibold mb-1" style={{ color: colors.textPrimary }}>
                               {contact.contact?.firstName} {contact.contact?.lastName}
@@ -715,7 +792,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                               </p>
                             )}
                           </div>
-                        ))}
+                          ))
+                        ) : (
+                          <div className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                            <p className="text-xs italic" style={{ color: colors.textMuted }}>
+                              No contacts assigned
+                            </p>
+                          </div>
+                        )}
                       </div>
                     </div>
                   ))}
@@ -1157,34 +1241,593 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   };
 
   const renderStaffSlide = (content: any) => {
+    // Check if content is in new format (with assignedStaff array) or old format (positions array)
+    const isNewFormat = content.assignedStaff !== undefined;
+    
+    // Calculate summary statistics
+    let totalNeeded = 0;
+    let totalAssigned = 0;
+    const assignedStaffList: Array<{
+      staffName: string;
+      designation: string;
+      utilization: number;
+      status: string;
+      startDate?: string | null;
+      endDate?: string | null;
+      duration?: string;
+      email?: string;
+      phone?: string;
+    }> = [];
+    
+    // Track positions and their required/assigned counts
+    let positionSummary: Array<{
+      designation: string;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+    
+    // Track balance staff (positions that need to be filled)
+    let balanceStaffList: Array<{
+      designation: string;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+
+    // Helper function to calculate duration
+    const calculateDuration = (startDate: string | null | undefined, endDate: string | null | undefined): string => {
+      if (!startDate || !endDate) return '-';
+      try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return `${diffDays} days`;
+      } catch {
+        return '-';
+      }
+    };
+
+    // Helper function to format date
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    if (isNewFormat) {
+      // New format: content has assignedStaff array and balanceStaff array
+      if (content.assignedStaff && Array.isArray(content.assignedStaff)) {
+        content.assignedStaff.forEach((assignment: any) => {
+          if (assignment.staff && assignment.staff.staffName) {
+            totalAssigned += 1;
+            const startDate = assignment.startDate;
+            const endDate = assignment.endDate;
+            assignedStaffList.push({
+              staffName: assignment.staff.staffName,
+              designation: assignment.designation,
+              utilization: assignment.utilization || 0,
+              status: assignment.status || 'Active',
+              startDate: startDate,
+              endDate: endDate,
+              duration: calculateDuration(startDate, endDate),
+              email: assignment.staff.email,
+              phone: assignment.staff.phone,
+            });
+          }
+        });
+      }
+      
+      // Get balance staff from content
+      if (content.balanceStaff && Array.isArray(content.balanceStaff)) {
+        balanceStaffList = content.balanceStaff;
+      }
+      
+      // Get position summary for calculations
+      if (content.positionSummary && Array.isArray(content.positionSummary)) {
+        positionSummary = content.positionSummary;
+        totalNeeded = positionSummary.length;
+        // Recalculate totalAssigned from positionSummary if needed
+        if (totalAssigned === 0) {
+          totalAssigned = positionSummary.reduce((sum, pos) => sum + pos.assigned, 0);
+        }
+      }
+    } else {
+      // Old format: content is array of positions
+      if (content && Array.isArray(content)) {
+        content.forEach((position: any) => {
+          // Count positions as needed (each position designation is 1 required)
+          totalNeeded += 1;
+          
+          // Count assigned staff for this position
+          let assignedCount = 0;
+          
+          // Process staff assignments
+          if (position.staffAssignments && Array.isArray(position.staffAssignments)) {
+            position.staffAssignments.forEach((assignment: any) => {
+              if (assignment.staff && assignment.staff.staffName) {
+                totalAssigned += 1;
+                assignedCount += 1;
+                const startDate = assignment.startDate;
+                const endDate = assignment.endDate;
+                assignedStaffList.push({
+                  staffName: assignment.staff.staffName,
+                  designation: position.designation,
+                  utilization: assignment.utilization || 0,
+                  status: assignment.status || 'Active',
+                  startDate: startDate,
+                  endDate: endDate,
+                  duration: calculateDuration(startDate, endDate),
+                  email: assignment.staff.email,
+                  phone: assignment.staff.phone,
+                });
+              }
+            });
+          }
+          
+          // Track position summary
+          const balance = 1 - assignedCount;
+          const positionData = {
+            designation: position.designation,
+            required: 1,
+            assigned: assignedCount,
+            balance: balance,
+          };
+          
+          positionSummary.push(positionData);
+          
+          // Add to balance staff list if position needs to be filled
+          if (balance > 0) {
+            balanceStaffList.push(positionData);
+          }
+        });
+      }
+    }
+
+    const balance = totalNeeded - totalAssigned;
+    const pageNumber = content.pageNumber || 1;
+    const totalPages = content.totalPages || 1;
+    const isLastPage = content.isLastPage !== undefined ? content.isLastPage : true;
+
+    // No height ratio constraints - tables will size naturally
+
     return (
-      <div className="h-full flex flex-col justify-center p-12">
-        <h2 className="text-4xl font-bold mb-8 text-center" style={{ color: colors.textPrimary }}>Project Staff</h2>
-        <div className="space-y-4 max-w-4xl mx-auto max-h-[60vh] overflow-y-auto">
-          {content.map((position: any, idx: number) => (
-            <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <h3 className="text-xl font-semibold mb-4" style={{ color: colors.textPrimary }}>{position.designation}</h3>
-              {position.staffAssignments && position.staffAssignments.length > 0 ? (
-                position.staffAssignments.map((assignment: any, aIdx: number) => (
-                  <div key={aIdx} className="flex items-center justify-between mt-3">
-                    <div className="flex items-center space-x-3">
-                      <User className="w-5 h-5" style={{ color: colors.textMuted }} />
-                      <div>
-                        <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>
-                          {assignment.staff?.staffName || 'Unassigned'}
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <div className="mb-2 text-center flex-shrink-0">
+          <h1 className="text-xl font-bold mb-1" style={{ color: colors.textPrimary }}>
+            Project Staff
+          </h1>
+          {totalPages > 1 && (
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+              Page {pageNumber} of {totalPages}
+            </p>
+          )}
+        </div>
+
+        {/* Summary Section */}
+        <div className="mb-2 grid grid-cols-3 gap-2 max-w-4xl mx-auto flex-shrink-0">
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Needed
                         </p>
-                        <p className="text-sm" style={{ color: colors.textSecondary }}>
-                          Utilization: {assignment.utilization}% • Status: {assignment.status}
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {totalNeeded}
                         </p>
                       </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Assigned
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.success }}>
+              {totalAssigned}
+            </p>
                     </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Balance
+            </p>
+            <p className="text-xl font-bold" style={{ color: balance > 0 ? colors.warning : colors.success }}>
+              {balance}
+            </p>
                   </div>
-                ))
-              ) : (
-                <p style={{ color: colors.textMuted }}>No staff assigned</p>
+        </div>
+
+        {/* Tables Container - Uses explicit heights to prevent overflow */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Assigned Staff Table - Shown First with Slider */}
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ 
+            marginBottom: isLastPage && balanceStaffList.length > 0 ? '16px' : '0'
+          }}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 
+                className="text-sm font-semibold"
+                style={{ color: colors.textPrimary }}
+              >
+                Assigned Staff
+              </h3>
+              {assignedStaffList.length > 10 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAssignedStaffPage(Math.max(0, assignedStaffPage - 1))}
+                    disabled={assignedStaffPage === 0}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: assignedStaffPage === 0 ? colors.textMuted : colors.primary,
+                      backgroundColor: assignedStaffPage === 0 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    {assignedStaffPage + 1} / {Math.ceil(assignedStaffList.length / 10)}
+                  </span>
+                  <button
+                  onClick={() => setAssignedStaffPage(Math.min(Math.ceil(assignedStaffList.length / 10) - 1, assignedStaffPage + 1))}
+                  disabled={assignedStaffPage >= Math.ceil(assignedStaffList.length / 10) - 1}
+                  className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                  style={{ 
+                    color: assignedStaffPage >= Math.ceil(assignedStaffList.length / 10) - 1 ? colors.textMuted : colors.primary,
+                    backgroundColor: assignedStaffPage >= Math.ceil(assignedStaffList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                  }}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               )}
             </div>
-          ))}
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            {assignedStaffList.length > 0 ? (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${assignedStaffPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: Math.ceil(assignedStaffList.length / 10) }).map((_, pageIdx) => {
+                    const pageStaff = assignedStaffList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <thead>
+                  <tr>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Staff Name
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Position
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Utilization
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Start Date
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      End Date
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Duration
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Status
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Contact
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageStaff.map((staff: any, idx: number) => (
+                    <tr 
+                      key={idx}
+                      className="hover:opacity-90 transition-opacity"
+                      style={{ 
+                        borderBottom: `1px solid ${colors.primary}15`,
+                        backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                      }}
+                    >
+                      <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {staff.staffName}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {staff.designation}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {staff.utilization}%
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                        {formatDate(staff.startDate)}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                        {formatDate(staff.endDate)}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                        {staff.duration || '-'}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                        <span 
+                          className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                          style={{ 
+                            backgroundColor: staff.status === 'Active' ? `${colors.success}15` : `${colors.warning}15`,
+                            color: staff.status === 'Active' ? colors.success : colors.warning,
+                            border: `1px solid ${staff.status === 'Active' ? colors.success : colors.warning}30`,
+                            fontSize: '0.65rem'
+                          }}
+                        >
+                          {staff.status}
+                        </span>
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textMuted, fontSize: '0.65rem', height: 'auto' }}>
+                        {staff.email && (
+                          <div className="truncate max-w-[100px]" title={staff.email}>{staff.email}</div>
+                        )}
+                        {staff.phone && (
+                          <div className="truncate max-w-[100px]" title={staff.phone}>{staff.phone}</div>
+                        )}
+                        {!staff.email && !staff.phone && (
+                          <span>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-4">
+                <User className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                  No staff assigned to this project
+                </p>
+              </div>
+              )}
+            </div>
+          </div>
+
+          {/* Balance Staff Table - Positions that need to be filled (only on last page) with Slider - Takes remaining space */}
+          {isLastPage && balanceStaffList.length > 0 && (
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
+            <div className="flex items-center justify-between mb-1">
+              <h3 
+                className="text-sm font-semibold"
+                style={{ color: colors.textPrimary }}
+              >
+                Balance Staff (Positions to be Filled)
+              </h3>
+              {balanceStaffList.length > 10 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setBalanceStaffPage(Math.max(0, balanceStaffPage - 1))}
+                    disabled={balanceStaffPage === 0}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: balanceStaffPage === 0 ? colors.textMuted : colors.primary,
+                      backgroundColor: balanceStaffPage === 0 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    {balanceStaffPage + 1} / {Math.ceil(balanceStaffList.length / 10)}
+                  </span>
+                  <button
+                    onClick={() => setBalanceStaffPage(Math.min(Math.ceil(balanceStaffList.length / 10) - 1, balanceStaffPage + 1))}
+                    disabled={balanceStaffPage >= Math.ceil(balanceStaffList.length / 10) - 1}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: balanceStaffPage >= Math.ceil(balanceStaffList.length / 10) - 1 ? colors.textMuted : colors.primary,
+                      backgroundColor: balanceStaffPage >= Math.ceil(balanceStaffList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', maxHeight: '100%' }}>
+              <div 
+                className="flex transition-transform duration-300 ease-in-out h-full"
+                style={{ 
+                  transform: `translateX(-${balanceStaffPage * 100}%)`,
+                  height: '100%'
+                }}
+              >
+                {Array.from({ length: Math.ceil(balanceStaffList.length / 10) }).map((_, pageIdx) => {
+                  const pageBalanceStaff = balanceStaffList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                  return (
+                    <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
+                      <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <thead>
+                  <tr>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Position
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Required
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Assigned
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Balance
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageBalanceStaff.map((pos: any, idx: number) => (
+                    <tr 
+                      key={idx}
+                      className="hover:opacity-90 transition-opacity"
+                      style={{ 
+                        borderBottom: `1px solid ${colors.primary}15`,
+                        backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                      }}
+                    >
+                      <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {pos.designation}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {pos.required}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                        <span 
+                          className="font-semibold"
+                          style={{ color: colors.warning, fontSize: '0.7rem' }}
+                        >
+                          {pos.assigned}
+                        </span>
+                      </td>
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                        <span 
+                          className="font-semibold"
+                          style={{ color: colors.warning, fontSize: '0.7rem' }}
+                        >
+                          {pos.balance} needed
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+                      </table>
+        </div>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+          )}
         </div>
       </div>
     );
@@ -1444,9 +2087,20 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
       </div>
 
-      {/* Slide Content */}
-      <div className="flex-1 overflow-hidden" style={{ backgroundColor: colors.backgroundPrimary }}>
-        <div className="h-full w-full">
+      {/* Slide Content - A3 Landscape Container */}
+      <div className="flex-1 overflow-hidden flex items-center justify-center p-4" style={{ backgroundColor: colors.backgroundPrimary }}>
+        {/* A3 Landscape: 420mm x 297mm (aspect ratio ~1.414:1) */}
+        <div 
+          className="relative overflow-hidden shadow-2xl"
+          style={{
+            width: '100%',
+            maxWidth: 'calc(100vh * 1.414)', // Height-based width for A3 landscape
+            height: '100%',
+            maxHeight: 'calc(100vw / 1.414)', // Width-based height for A3 landscape
+            aspectRatio: '420 / 297', // A3 landscape aspect ratio
+            backgroundColor: colors.backgroundPrimary
+          }}
+        >
           {renderSlide(slides[currentSlide])}
         </div>
       </div>

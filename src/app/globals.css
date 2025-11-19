@@ -571,4 +571,25 @@ input[type="checkbox"].sr-only {
   -webkit-appearance: none !important;
   -moz-appearance: none !important;
   appearance: none !important;
+}
+
+/* Extended tab border for project manager tabs */
+.tab-with-extended-border {
+  position: relative;
+}
+
+.tab-with-extended-border::after {
+  content: '';
+  position: absolute;
+  bottom: -2px;
+  left: -8px;
+  right: -8px;
+  height: 2px;
+  background-color: var(--tab-border-color, transparent);
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.tab-with-extended-border.active::after {
+  opacity: 1;
 } 

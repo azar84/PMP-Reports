@@ -95,6 +95,169 @@ export async function PUT(
       projectData.projectManagerId = projectManagerId || null;
     }
 
+    // Check for conflicts BEFORE starting the transaction
+    // Only check for conflicts on the fields that are actually being changed
+    let conflictInfo: any = null;
+    
+    // Get current project to compare with new values
+    const currentProject = await prisma.project.findUnique({
+      where: { id: projectId },
+      select: { 
+        projectName: true, 
+        projectCode: true,
+        projectDirectorId: true,
+        projectManagerId: true,
+      },
+    });
+
+    if (!currentProject) {
+      return NextResponse.json(
+        { success: false, error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
+    // Check for director conflict only if director is being changed
+    if (projectDirectorId !== undefined && projectDirectorId !== currentProject.projectDirectorId) {
+      const existingAssignmentInProject = await prisma.projectStaff.findFirst({
+        where: {
+          projectId: projectId,
+          staffId: projectDirectorId,
+        },
+        include: {
+          position: true,
+          project: {
+            select: {
+              id: true,
+              projectName: true,
+              projectCode: true,
+            },
+          },
+        },
+      });
+
+      const existingAssignmentOtherProject = await prisma.projectStaff.findFirst({
+        where: {
+          staffId: projectDirectorId,
+          projectId: { not: projectId },
+        },
+        include: {
+          position: true,
+          project: {
+            select: {
+              id: true,
+              projectName: true,
+              projectCode: true,
+            },
+          },
+        },
+      });
+
+      if (existingAssignmentInProject || existingAssignmentOtherProject) {
+        const conflict = existingAssignmentOtherProject || existingAssignmentInProject;
+        const isSameProject = existingAssignmentInProject?.projectId === projectId;
+        const staff = await prisma.companyStaff.findUnique({ 
+          where: { id: projectDirectorId }, 
+          select: { staffName: true } 
+        });
+        
+        conflictInfo = {
+          staffId: projectDirectorId,
+          staffName: staff?.staffName || 'Unknown',
+          type: 'director',
+          existingAssignment: {
+            projectId: conflict?.project.id,
+            projectName: conflict?.project.projectName,
+            projectCode: conflict?.project.projectCode,
+            positionId: conflict?.positionId,
+            positionName: conflict?.position.designation,
+            isSameProject: isSameProject,
+          },
+          newAssignment: {
+            projectId: projectId,
+            projectName: currentProject.projectName,
+            projectCode: currentProject.projectCode,
+            positionName: 'Project Director',
+          },
+        };
+      }
+    }
+
+    // Check for manager conflict only if manager is being changed AND no director conflict exists
+    if (!conflictInfo && projectManagerId !== undefined && projectManagerId !== currentProject.projectManagerId) {
+      const existingAssignmentInProject = await prisma.projectStaff.findFirst({
+        where: {
+          projectId: projectId,
+          staffId: projectManagerId,
+        },
+        include: {
+          position: true,
+          project: {
+            select: {
+              id: true,
+              projectName: true,
+              projectCode: true,
+            },
+          },
+        },
+      });
+
+      const existingAssignmentOtherProject = await prisma.projectStaff.findFirst({
+        where: {
+          staffId: projectManagerId,
+          projectId: { not: projectId },
+        },
+        include: {
+          position: true,
+          project: {
+            select: {
+              id: true,
+              projectName: true,
+              projectCode: true,
+            },
+          },
+        },
+      });
+
+      if (existingAssignmentInProject || existingAssignmentOtherProject) {
+        const conflict = existingAssignmentOtherProject || existingAssignmentInProject;
+        const isSameProject = existingAssignmentInProject?.projectId === projectId;
+        const staff = await prisma.companyStaff.findUnique({ 
+          where: { id: projectManagerId }, 
+          select: { staffName: true } 
+        });
+        
+        conflictInfo = {
+          staffId: projectManagerId,
+          staffName: staff?.staffName || 'Unknown',
+          type: 'manager',
+          existingAssignment: {
+            projectId: conflict?.project.id,
+            projectName: conflict?.project.projectName,
+            projectCode: conflict?.project.projectCode,
+            positionId: conflict?.positionId,
+            positionName: conflict?.position.designation,
+            isSameProject: isSameProject,
+          },
+          newAssignment: {
+            projectId: projectId,
+            projectName: currentProject.projectName,
+            projectCode: currentProject.projectCode,
+            positionName: 'Project Manager',
+          },
+        };
+      }
+    }
+
+    // If there's a conflict, return it for user confirmation
+    if (conflictInfo) {
+      return NextResponse.json({
+        success: false,
+        requiresConfirmation: true,
+        conflict: conflictInfo,
+      });
+    }
+
     // Use transaction to update project and handle staff assignments atomically
     const result = await prisma.$transaction(async (tx) => {
       // Update the project
@@ -143,7 +306,18 @@ export async function PUT(
           });
         }
 
-        // Remove any existing staff assignments for this position
+        // If a new director is provided, create or update the assignment
+        if (projectDirectorId) {
+          // Remove any existing assignments for this staff member in this project
+          // (to handle case where they might be assigned to a different position)
+          await tx.projectStaff.deleteMany({
+            where: {
+              projectId: projectId,
+              staffId: projectDirectorId,
+            },
+          });
+
+          // Also remove any existing assignments for this position (in case position changed)
         await tx.projectStaff.deleteMany({
           where: {
             projectId: projectId,
@@ -151,8 +325,7 @@ export async function PUT(
           },
         });
 
-        // If a new director is provided, create the assignment
-        if (projectDirectorId) {
+          // Create the new assignment
           await tx.projectStaff.create({
             data: {
               projectId: projectId,
@@ -162,6 +335,14 @@ export async function PUT(
               status: 'Active',
               startDate: projectData.startDate,
               endDate: projectData.endDate,
+            },
+          });
+        } else {
+          // If no director is provided, remove any existing assignments for this position
+          await tx.projectStaff.deleteMany({
+            where: {
+              projectId: projectId,
+              positionId: directorPosition.id,
             },
           });
         }
@@ -187,7 +368,18 @@ export async function PUT(
           });
         }
 
-        // Remove any existing staff assignments for this position
+        // If a new manager is provided, create or update the assignment
+        if (projectManagerId) {
+          // Remove any existing assignments for this staff member in this project
+          // (to handle case where they might be assigned to a different position)
+          await tx.projectStaff.deleteMany({
+            where: {
+              projectId: projectId,
+              staffId: projectManagerId,
+            },
+          });
+
+          // Also remove any existing assignments for this position (in case position changed)
         await tx.projectStaff.deleteMany({
           where: {
             projectId: projectId,
@@ -195,8 +387,7 @@ export async function PUT(
           },
         });
 
-        // If a new manager is provided, create the assignment
-        if (projectManagerId) {
+          // Create the new assignment
           await tx.projectStaff.create({
             data: {
               projectId: projectId,
@@ -206,6 +397,14 @@ export async function PUT(
               status: 'Active',
               startDate: projectData.startDate,
               endDate: projectData.endDate,
+            },
+          });
+        } else {
+          // If no manager is provided, remove any existing assignments for this position
+          await tx.projectStaff.deleteMany({
+            where: {
+              projectId: projectId,
+              positionId: managerPosition.id,
             },
           });
         }

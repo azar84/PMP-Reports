@@ -16,6 +16,7 @@ interface ProjectVendorsProps {
 interface SupplierOption {
   id: number;
   name: string;
+  vendorCode: string | null;
   type: string;
 }
 
@@ -30,6 +31,7 @@ interface VendorEvaluation {
   supplier: {
     id: number;
     name: string;
+    vendorCode: string | null;
     type: string;
   };
 }
@@ -40,6 +42,7 @@ interface SuppliersResponse {
     suppliers: Array<{
       id: number;
       name: string;
+      vendorCode: string | null;
       type: string;
       typeOfWorks?: Array<unknown>;
     }>;
@@ -145,6 +148,7 @@ export default function ProjectVendors({ projectId, projectName }: ProjectVendor
       const supplierOptions: SupplierOption[] = (suppliersRes.data?.suppliers ?? []).map((supplier) => ({
         id: supplier.id,
         name: supplier.name,
+        vendorCode: supplier.vendorCode ?? null,
         type: supplier.type,
       }));
 
@@ -342,7 +346,7 @@ export default function ProjectVendors({ projectId, projectName }: ProjectVendor
               </option>
               {availableSuppliers.map((supplier) => (
                 <option key={supplier.id} value={supplier.id}>
-                  {supplier.name} {supplier.type ? `(${supplier.type})` : ''}
+                  {supplier.name} {supplier.vendorCode ? `[${supplier.vendorCode}]` : ''} {supplier.type ? `(${supplier.type})` : ''}
                 </option>
               ))}
             </select>
@@ -484,6 +488,18 @@ export default function ProjectVendors({ projectId, projectName }: ProjectVendor
                         <h4 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
                           {evaluation.supplier?.name || 'Vendor'}
                         </h4>
+                        {evaluation.supplier?.vendorCode && (
+                          <span
+                            className="rounded-full px-3 py-1 text-xs font-medium"
+                            style={{
+                              backgroundColor: `${colors.info}18`,
+                              color: colors.info,
+                              border: `1px solid ${colors.info}40`,
+                            }}
+                          >
+                            {evaluation.supplier.vendorCode}
+                          </span>
+                        )}
                         <span
                           className="rounded-full px-3 py-1 text-xs font-medium"
                           style={{

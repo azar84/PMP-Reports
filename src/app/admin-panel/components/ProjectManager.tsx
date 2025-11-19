@@ -26,6 +26,9 @@ import ProjectAssets from './ProjectAssets';
 import ProjectPictures from './ProjectPictures';
 import ProjectCloseOut from './ProjectCloseOut';
 import ProjectCommercial from './ProjectCommercial';
+import ProjectSuppliers from './ProjectSuppliers';
+import SupplierDetailView from './SupplierDetailView';
+import StaffMovementConfirmationDialog from './StaffMovementConfirmationDialog';
 import { 
   Plus, 
   Edit, 
@@ -55,7 +58,8 @@ import {
   Camera,
   ClipboardCheck,
   MessageSquare,
-  Download
+  Download,
+  Truck
 } from 'lucide-react';
 
 interface Project {
@@ -185,7 +189,9 @@ export default function ProjectManager() {
     | 'closeOut'
     | 'clientFeedback'
     | 'commercial'
+    | 'suppliers'
   >('overview');
+  const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -200,6 +206,8 @@ export default function ProjectManager() {
   const [showCostContactDropdown, setShowCostContactDropdown] = useState(false);
   const [showSupervisionContactDropdown, setShowSupervisionContactDropdown] = useState(false);
   const [showClientForm, setShowClientForm] = useState(false);
+  const [staffMovementConflict, setStaffMovementConflict] = useState<any>(null);
+  const [pendingProjectData, setPendingProjectData] = useState<any>(null);
   const [showConsultantForm, setShowConsultantForm] = useState(false);
   const [showClientContactForm, setShowClientContactForm] = useState(false);
   const [showConsultantContactForm, setShowConsultantContactForm] = useState(false);
@@ -506,9 +514,22 @@ export default function ProjectManager() {
       };
 
       if (editingProject) {
-        const response = await put<{ success: boolean; data: Project }>(`/api/admin/projects/${editingProject.id}`, projectData);
-        if (response.success) {
-          setProjects(projects.map(p => p.id === editingProject.id ? response.data : p));
+        const response = await put<{ 
+          success: boolean; 
+          data?: Project;
+          requiresConfirmation?: boolean;
+          conflict?: any;
+        }>(`/api/admin/projects/${editingProject.id}`, projectData);
+        
+        // Check if confirmation is required
+        if (response.requiresConfirmation && response.conflict) {
+          setStaffMovementConflict(response.conflict);
+          setPendingProjectData({ projectId: editingProject.id, projectData });
+          return; // Don't close the form yet
+        }
+        
+        if (response.success && response.data) {
+          setProjects(projects.map(p => p.id === editingProject.id ? response.data! : p));
         }
       } else {
         const response = await post<{ success: boolean; data: Project }>('/api/admin/projects', projectData);
@@ -550,7 +571,71 @@ export default function ProjectManager() {
       });
     } catch (error) {
       console.error('Error saving project:', error);
+      alert('Failed to save project. Please try again.');
     }
+  };
+
+  const handleConfirmStaffMovement = async () => {
+    if (!pendingProjectData || !staffMovementConflict) return;
+
+    try {
+      const response = await post<{ success: boolean; data: Project }>(
+        `/api/admin/projects/${pendingProjectData.projectId}/confirm-staff-movement`,
+        {
+          ...pendingProjectData.projectData,
+          conflict: staffMovementConflict,
+        }
+      );
+
+      if (response.success && response.data) {
+        setProjects(projects.map(p => p.id === pendingProjectData.projectId ? response.data! : p));
+        setStaffMovementConflict(null);
+        setPendingProjectData(null);
+        
+        // Close form and reset
+        setShowForm(false);
+        setEditingProject(null);
+        setSelectedContacts([]);
+        setProjectContacts([]);
+        setPendingContacts([]);
+        setContactSearchTerm('');
+        setPMCContactSearchTerm('');
+        setDesignContactSearchTerm('');
+        setCostContactSearchTerm('');
+        setSupervisionContactSearchTerm('');
+        setShowContactDropdown(false);
+        setShowPMCContactDropdown(false);
+        setShowDesignContactDropdown(false);
+        setShowCostContactDropdown(false);
+        setShowSupervisionContactDropdown(false);
+        setFormData({
+          projectCode: '',
+          projectName: '',
+          projectDescription: '',
+          clientId: undefined,
+          projectManagementConsultantId: undefined,
+          designConsultantId: undefined,
+          supervisionConsultantId: undefined,
+          costConsultantId: undefined,
+          projectDirectorId: undefined,
+          projectManagerId: undefined,
+          startDate: '',
+          endDate: '',
+          duration: '',
+          eot: '',
+        });
+      } else {
+        alert('Failed to confirm staff movement. Please try again.');
+      }
+    } catch (error) {
+      console.error('Error confirming staff movement:', error);
+      alert('Failed to confirm staff movement. Please try again.');
+    }
+  };
+
+  const handleCancelStaffMovement = () => {
+    setStaffMovementConflict(null);
+    setPendingProjectData(null);
   };
 
   const calculateDuration = (startDate: string, endDate: string) => {
@@ -622,28 +707,118 @@ export default function ProjectManager() {
   const collectProjectData = async (): Promise<any> => {
     if (!selectedProject) return null;
 
+    // Ensure we have full project data with all relationships
+    // Fetch the complete project data to ensure we have all full objects, not just IDs
+    let fullProjectData = selectedProject;
+    if (!selectedProject.projectDirector || !selectedProject.projectManager || 
+        !selectedProject.client || !selectedProject.projectManagementConsultant) {
+      try {
+        const projectRes = await get<{ success: boolean; data: Project }>(`/api/admin/projects/${selectedProject.id}`);
+        if (projectRes.success) {
+          fullProjectData = projectRes.data;
+        }
+      } catch (error) {
+        console.error('Error fetching full project data:', error);
+      }
+    }
+
     const reportData: any = {
       project: {
-        id: selectedProject.id,
-        projectCode: selectedProject.projectCode,
-        projectName: selectedProject.projectName,
-        projectDescription: selectedProject.projectDescription,
-        client: selectedProject.client,
+        id: fullProjectData.id,
+        projectCode: fullProjectData.projectCode,
+        projectName: fullProjectData.projectName,
+        projectDescription: fullProjectData.projectDescription,
+        // Store full client object, not just ID
+        client: fullProjectData.client ? {
+          id: fullProjectData.client.id,
+          name: fullProjectData.client.name,
+          officeAddress: fullProjectData.client.officeAddress,
+          phone: fullProjectData.client.phone,
+          email: fullProjectData.client.email,
+          isActive: fullProjectData.client.isActive,
+        } : null,
+        // Store full consultant objects, not just IDs
         consultants: {
-          projectManagement: selectedProject.projectManagementConsultant,
-          design: selectedProject.designConsultant,
-          supervision: selectedProject.supervisionConsultant,
-          cost: selectedProject.costConsultant,
+          projectManagement: fullProjectData.projectManagementConsultant ? {
+            id: fullProjectData.projectManagementConsultant.id,
+            name: fullProjectData.projectManagementConsultant.name,
+            officeAddress: fullProjectData.projectManagementConsultant.officeAddress,
+            phone: fullProjectData.projectManagementConsultant.phone,
+            email: fullProjectData.projectManagementConsultant.email,
+            isActive: fullProjectData.projectManagementConsultant.isActive,
+          } : null,
+          design: fullProjectData.designConsultant ? {
+            id: fullProjectData.designConsultant.id,
+            name: fullProjectData.designConsultant.name,
+            officeAddress: fullProjectData.designConsultant.officeAddress,
+            phone: fullProjectData.designConsultant.phone,
+            email: fullProjectData.designConsultant.email,
+            isActive: fullProjectData.designConsultant.isActive,
+          } : null,
+          supervision: fullProjectData.supervisionConsultant ? {
+            id: fullProjectData.supervisionConsultant.id,
+            name: fullProjectData.supervisionConsultant.name,
+            officeAddress: fullProjectData.supervisionConsultant.officeAddress,
+            phone: fullProjectData.supervisionConsultant.phone,
+            email: fullProjectData.supervisionConsultant.email,
+            isActive: fullProjectData.supervisionConsultant.isActive,
+          } : null,
+          cost: fullProjectData.costConsultant ? {
+            id: fullProjectData.costConsultant.id,
+            name: fullProjectData.costConsultant.name,
+            officeAddress: fullProjectData.costConsultant.officeAddress,
+            phone: fullProjectData.costConsultant.phone,
+            email: fullProjectData.costConsultant.email,
+            isActive: fullProjectData.costConsultant.isActive,
+          } : null,
         },
-        projectDirector: selectedProject.projectDirectorId,
-        projectManager: selectedProject.projectManagerId,
-        startDate: selectedProject.startDate,
-        endDate: selectedProject.endDate,
-        duration: selectedProject.duration,
-        eot: selectedProject.eot,
-        projectValue: selectedProject.projectValue,
+        // Store full project director object, not just ID
+        projectDirector: fullProjectData.projectDirector ? {
+          id: fullProjectData.projectDirector.id,
+          staffName: fullProjectData.projectDirector.staffName,
+          employeeNumber: fullProjectData.projectDirector.employeeNumber,
+          position: fullProjectData.projectDirector.position,
+          email: fullProjectData.projectDirector.email,
+          phone: fullProjectData.projectDirector.phone,
+          isActive: fullProjectData.projectDirector.isActive,
+        } : null,
+        // Store full project manager object, not just ID
+        projectManager: fullProjectData.projectManager ? {
+          id: fullProjectData.projectManager.id,
+          staffName: fullProjectData.projectManager.staffName,
+          employeeNumber: fullProjectData.projectManager.employeeNumber,
+          position: fullProjectData.projectManager.position,
+          email: fullProjectData.projectManager.email,
+          phone: fullProjectData.projectManager.phone,
+          isActive: fullProjectData.projectManager.isActive,
+        } : null,
+        startDate: fullProjectData.startDate,
+        endDate: fullProjectData.endDate,
+        duration: fullProjectData.duration,
+        eot: fullProjectData.eot,
+        projectValue: fullProjectData.projectValue ? fullProjectData.projectValue.toString() : null,
       },
-      contacts: projectContacts,
+      // Store full contact data with all contact details
+      contacts: projectContacts.map((pc: any) => ({
+        id: pc.id,
+        contactId: pc.contactId,
+        isPrimary: pc.isPrimary,
+        consultantType: pc.consultantType,
+        // Store full contact object
+        contact: pc.contact ? {
+          id: pc.contact.id,
+          firstName: pc.contact.firstName,
+          lastName: pc.contact.lastName,
+          email: pc.contact.email,
+          phone: pc.contact.phone,
+          position: pc.contact.position,
+          notes: pc.contact.notes,
+          isPrimary: pc.contact.isPrimary,
+          isActive: pc.contact.isActive,
+          entityType: pc.contact.entityType,
+          entityId: pc.contact.entityId,
+        } : null,
+      })),
       generatedAt: new Date().toISOString(),
     };
 
@@ -1323,6 +1498,14 @@ export default function ProjectManager() {
   }
 
   return (
+    <>
+      {staffMovementConflict && (
+        <StaffMovementConfirmationDialog
+          conflict={staffMovementConflict}
+          onConfirm={handleConfirmStaffMovement}
+          onCancel={handleCancelStaffMovement}
+        />
+      )}
     <div className="space-y-6">
       {showDetailView && selectedProject ? (
         // Project Detail View
@@ -1374,9 +1557,9 @@ export default function ProjectManager() {
           <div className="flex flex-wrap gap-1 mb-6" style={{ borderBottom: `1px solid ${colors.border}` }}>
             <button
               onClick={() => setActiveTab('overview')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'overview' 
-                  ? 'border-current' 
+                  ? 'border-current active' 
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1395,8 +1578,9 @@ export default function ProjectManager() {
                 color: activeTab === 'overview' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'overview' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'overview' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'overview' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'overview' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'overview' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <FileText className="w-4 h-4" />
@@ -1405,9 +1589,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('checklist')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'checklist' 
-                  ? 'border-current' 
+                  ? 'border-current active' 
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1426,8 +1610,9 @@ export default function ProjectManager() {
                 color: activeTab === 'checklist' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'checklist' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'checklist' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'checklist' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'checklist' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'checklist' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <ClipboardList className="w-4 h-4" />
@@ -1436,9 +1621,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('staff')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'staff' 
-                  ? 'border-current' 
+                  ? 'border-current active' 
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1457,8 +1642,9 @@ export default function ProjectManager() {
                 color: activeTab === 'staff' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'staff' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'staff' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'staff' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'staff' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'staff' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Users className="w-4 h-4" />
@@ -1467,9 +1653,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('labours')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'labours' 
-                  ? 'border-current' 
+                  ? 'border-current active' 
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1488,8 +1674,9 @@ export default function ProjectManager() {
                 color: activeTab === 'labours' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'labours' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'labours' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'labours' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'labours' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'labours' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <HardHat className="w-4 h-4" />
@@ -1498,9 +1685,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('labourSupply')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'labourSupply' 
-                  ? 'border-current' 
+                  ? 'border-current active' 
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1519,8 +1706,9 @@ export default function ProjectManager() {
                 color: activeTab === 'labourSupply' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'labourSupply' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'labourSupply' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'labourSupply' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'labourSupply' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'labourSupply' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Wrench className="w-4 h-4" />
@@ -1529,9 +1717,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('plants')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'plants'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1550,8 +1738,9 @@ export default function ProjectManager() {
                 color: activeTab === 'plants' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'plants' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'plants' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'plants' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'plants' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'plants' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Bus className="w-4 h-4" />
@@ -1560,9 +1749,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('assets')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'assets'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1581,8 +1770,9 @@ export default function ProjectManager() {
                 color: activeTab === 'assets' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'assets' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'assets' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'assets' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'assets' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'assets' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Package className="w-4 h-4" />
@@ -1591,9 +1781,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('planning')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'planning'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1612,8 +1802,9 @@ export default function ProjectManager() {
                 color: activeTab === 'planning' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'planning' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'planning' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'planning' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'planning' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'planning' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <DraftingCompass className="w-4 h-4" />
@@ -1622,9 +1813,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('quality')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'quality'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1643,8 +1834,9 @@ export default function ProjectManager() {
                 color: activeTab === 'quality' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'quality' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'quality' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'quality' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'quality' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'quality' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <ShieldCheck className="w-4 h-4" />
@@ -1653,9 +1845,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('risks')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'risks'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1674,8 +1866,9 @@ export default function ProjectManager() {
                 color: activeTab === 'risks' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'risks' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'risks' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'risks' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'risks' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'risks' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <AlertTriangle className="w-4 h-4" />
@@ -1684,9 +1877,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('hse')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'hse'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1705,8 +1898,9 @@ export default function ProjectManager() {
                 color: activeTab === 'hse' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'hse' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'hse' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'hse' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'hse' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'hse' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <LifeBuoy className="w-4 h-4" />
@@ -1715,9 +1909,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('pictures')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'pictures'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1736,8 +1930,9 @@ export default function ProjectManager() {
                 color: activeTab === 'pictures' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'pictures' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'pictures' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'pictures' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'pictures' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'pictures' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Camera className="w-4 h-4" />
@@ -1746,9 +1941,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('closeOut')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'closeOut'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1767,8 +1962,9 @@ export default function ProjectManager() {
                 color: activeTab === 'closeOut' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'closeOut' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'closeOut' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'closeOut' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'closeOut' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'closeOut' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <ClipboardCheck className="w-4 h-4" />
@@ -1777,9 +1973,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('clientFeedback')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'clientFeedback'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1798,8 +1994,9 @@ export default function ProjectManager() {
                 color: activeTab === 'clientFeedback' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'clientFeedback' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'clientFeedback' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'clientFeedback' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'clientFeedback' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <MessageSquare className="w-4 h-4" />
@@ -1808,9 +2005,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('commercial')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'commercial'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1829,8 +2026,9 @@ export default function ProjectManager() {
                 color: activeTab === 'commercial' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'commercial' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'commercial' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'commercial' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'commercial' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'commercial' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Calculator className="w-4 h-4" />
@@ -1839,9 +2037,9 @@ export default function ProjectManager() {
             </button>
             <button
               onClick={() => setActiveTab('ipc')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors ${
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'ipc'
-                  ? 'border-current'
+                  ? 'border-current active'
                   : 'border-transparent'
               }`}
               onMouseEnter={(e) => {
@@ -1860,12 +2058,45 @@ export default function ProjectManager() {
                 color: activeTab === 'ipc' ? colors.primary : colors.textSecondary,
                 borderColor: activeTab === 'ipc' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'ipc' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'ipc' ? colors.primary : colors.border
-              }}
+                borderBottomColor: activeTab === 'ipc' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'ipc' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
                 <Receipt className="w-4 h-4" />
                 <span>IPC</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('suppliers')}
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
+                activeTab === 'suppliers'
+                  ? 'border-current active'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'suppliers') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'suppliers') {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'suppliers' ? colors.primary : colors.textSecondary,
+                borderColor: activeTab === 'suppliers' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'suppliers' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'suppliers' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'suppliers' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
+            >
+              <div className="flex items-center space-x-2">
+                <Truck className="w-4 h-4" />
+                <span>Suppliers</span>
               </div>
             </button>
           </div>
@@ -2443,6 +2674,23 @@ export default function ProjectManager() {
                   projectName={selectedProject.projectName}
                 />
               )}
+            </div>
+          ) : activeTab === 'suppliers' ? (
+            <div>
+              {selectedProject && selectedSupplierId ? (
+                <SupplierDetailView
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  supplierId={selectedSupplierId}
+                  onBack={() => setSelectedSupplierId(null)}
+                />
+              ) : selectedProject ? (
+                <ProjectSuppliers
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  onViewSupplierDetails={(supplierId) => setSelectedSupplierId(supplierId)}
+                />
+              ) : null}
             </div>
           ) : null}
         </div>
@@ -6332,5 +6580,6 @@ export default function ProjectManager() {
         </div>
       )}
     </div>
+    </>
   );
 }
