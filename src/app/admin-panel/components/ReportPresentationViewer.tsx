@@ -1139,13 +1139,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         <ReportHeader project={project} pageTitle="Project Checklist" />
           
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
-          <div className="flex items-center justify-between mb-1">
-            <h3 
-              className="text-sm font-semibold"
-              style={{ color: colors.textPrimary }}
-            >
-              Checklist Items
-            </h3>
+          <div className="flex items-center justify-end mb-1">
             {allChecklistItems.length > 25 && (
               <div className="flex items-center gap-2">
                 <button
@@ -1188,6 +1182,52 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 >
                   {Array.from({ length: Math.ceil(allChecklistItems.length / 25) }).map((_, pageIdx) => {
                     const pageItems = allChecklistItems.slice(pageIdx * 25, (pageIdx + 1) * 25);
+                    
+                    // Calculate hierarchical item numbers for the entire list first
+                    let mainItemCounter = 0;
+                    const parentSubItemCounters: { [key: number]: number } = {};
+                    const parentMainNumbers: { [key: number]: number } = {};
+                    
+                    const allItemsWithNumbers = allChecklistItems.map((item, index) => {
+                      if (item.isSubItem) {
+                        // Find parent item ID
+                        const parentId = item.parentItem?.id || item.parentItemId;
+                        if (parentId) {
+                          // Find parent item in the list to get its main number
+                          if (!parentMainNumbers[parentId]) {
+                            let parentMainNum = 0;
+                            for (let i = 0; i < allChecklistItems.length; i++) {
+                              if (allChecklistItems[i].id === parentId) {
+                                parentMainNumbers[parentId] = parentMainNum + 1; // +1 because we want 1-based numbering
+                                break;
+                              }
+                              if (!allChecklistItems[i].isSubItem) {
+                                parentMainNum++;
+                              }
+                            }
+                          }
+                          
+                          // Initialize counter for this parent if not exists
+                          if (!parentSubItemCounters[parentId]) {
+                            parentSubItemCounters[parentId] = 0;
+                          }
+                          parentSubItemCounters[parentId]++;
+                          
+                          return { ...item, displayNumber: `${parentMainNumbers[parentId]}.${parentSubItemCounters[parentId]}` };
+                        }
+                        return { ...item, displayNumber: '-' };
+                      } else {
+                        mainItemCounter++;
+                        return { ...item, displayNumber: `${mainItemCounter}` };
+                      }
+                    });
+                    
+                    // Get items with numbers for this page
+                    const itemsWithNumbers = pageItems.map((item, idx) => {
+                      const fullIndex = pageIdx * 25 + idx;
+                      return allItemsWithNumbers[fullIndex];
+                    });
+                    
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
                         <table className="w-full border-collapse" style={{ fontSize: '0.85rem' }}>
@@ -1268,7 +1308,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   </tr>
                 </thead>
                 <tbody>
-                  {pageItems.map((item: any, idx: number) => (
+                  {itemsWithNumbers.map((item: any, idx: number) => (
                         <tr 
                       key={item.id || idx}
                           className="hover:opacity-90 transition-opacity"
@@ -1277,12 +1317,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                             backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
                           }}
                         >
-                      <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-6' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.8rem', height: 'auto' }}>
-                        {item.isSubItem && (
-                          <span className="inline-block w-1.5 h-1.5 rounded-full mr-2" style={{ backgroundColor: colors.primary }}></span>
-                        )}
-                            {item.itemNumber || '-'}
-                          </td>
+                      <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-8' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.8rem', height: 'auto' }}>
+                        {item.displayNumber || '-'}
+                      </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.8rem', height: 'auto' }}>
                             {item.phase}
                           </td>

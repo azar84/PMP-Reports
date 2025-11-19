@@ -59,7 +59,8 @@ import {
   ClipboardCheck,
   MessageSquare,
   Download,
-  Truck
+  Truck,
+  FileBarChart
 } from 'lucide-react';
 
 interface Project {
@@ -1534,9 +1535,9 @@ export default function ProjectManager() {
               <Button
                 onClick={() => setShowGenerateReportModal(true)}
                 className="flex items-center space-x-2"
-                style={{ backgroundColor: colors.success, color: colors.backgroundPrimary }}
+                variant="outline"
               >
-                <Download className="w-4 h-4" />
+                <FileBarChart className="w-4 h-4" />
                 <span>Generate Report</span>
               </Button>
             <Button
@@ -6455,7 +6456,7 @@ export default function ProjectManager() {
       {/* Generate Report Modal */}
       {showGenerateReportModal && selectedProject && (
         <div 
-          className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4"
           onClick={() => setShowGenerateReportModal(false)}
         >
           <Card 
@@ -6556,20 +6557,17 @@ export default function ProjectManager() {
                 <Button
                   onClick={handleGenerateReport}
                   className="px-4 py-2 flex items-center space-x-2"
-                  style={{ 
-                    backgroundColor: colors.success,
-                    color: colors.backgroundPrimary
-                  }}
+                  variant="outline"
                   disabled={isGeneratingReport}
                 >
                   {isGeneratingReport ? (
                     <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: colors.primary }}></div>
                       <span>Generating...</span>
                     </>
                   ) : (
                     <>
-                      <Download className="w-4 h-4" />
+                      <FileBarChart className="w-4 h-4" />
                       <span>Generate Report</span>
                     </>
                   )}
