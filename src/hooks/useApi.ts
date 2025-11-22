@@ -27,7 +27,24 @@ export function useAdminApi() {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        // Try to parse error response JSON to get human-readable error message
+        let errorMessage = `HTTP error! status: ${response.status}`;
+        try {
+          const errorData = await response.json();
+          if (errorData?.error) {
+            errorMessage = errorData.error;
+          } else if (errorData?.message) {
+            errorMessage = errorData.message;
+          }
+        } catch {
+          // If parsing fails, use default error message
+        }
+        
+        // Create an error object with the parsed message and original response
+        const error: any = new Error(errorMessage);
+        error.status = response.status;
+        error.response = response;
+        throw error;
       }
 
       const data = await response.json();

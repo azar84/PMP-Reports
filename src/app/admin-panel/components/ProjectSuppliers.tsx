@@ -85,6 +85,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
   const [projectSuppliers, setProjectSuppliers] = useState<ProjectSupplier[]>([]);
   const [allSuppliers, setAllSuppliers] = useState<SupplierOption[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
+  const [supplierFilterTerm, setSupplierFilterTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [notes, setNotes] = useState('');
@@ -467,16 +468,112 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           </span>
         </div>
 
-        {projectSuppliers.length === 0 ? (
-          <div
-            className="rounded-lg border px-4 py-6 text-center text-sm"
-            style={{ borderColor: colors.borderLight, color: colors.textSecondary }}
+        {/* Supplier Name Filter */}
+        {projectSuppliers.length > 0 && (
+          <Card
+            className="p-4 mb-4 shadow-sm"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              borderColor: supplierFilterTerm ? colors.primary : colors.borderLight,
+              borderWidth: supplierFilterTerm ? '2px' : '1px',
+              transition: 'all 0.2s ease',
+            }}
           >
-            No suppliers assigned to this project yet.
-          </div>
-        ) : (
-          <div className="space-y-4">
-            {projectSuppliers.map((projectSupplier) => {
+            <div className="flex items-center gap-3">
+              <div className="flex items-center justify-center w-10 h-10 rounded-lg" style={{
+                backgroundColor: supplierFilterTerm ? colors.primary : `${colors.primary}15`,
+                color: supplierFilterTerm ? colors.secondary : colors.primary,
+              }}>
+                <Search className="h-5 w-5" />
+              </div>
+              <div className="flex-1">
+                <label className="block text-xs font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                  Filter by Supplier Name
+                </label>
+                <Input
+                  type="text"
+                  value={supplierFilterTerm}
+                  onChange={(e) => setSupplierFilterTerm(e.target.value)}
+                  placeholder="Search by supplier name..."
+                  className="w-full rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-all"
+                  style={{
+                    backgroundColor: colors.backgroundSecondary,
+                    borderColor: supplierFilterTerm ? colors.primary : colors.borderLight,
+                    borderWidth: supplierFilterTerm ? '2px' : '1px',
+                    color: colors.textPrimary,
+                    outline: 'none',
+                    boxShadow: supplierFilterTerm ? `0 0 0 3px ${colors.primary}20` : 'none',
+                  }}
+                  leftIcon={<Search className="h-4 w-4" />}
+                />
+              </div>
+              {supplierFilterTerm && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  onClick={() => setSupplierFilterTerm('')}
+                  className="h-10 w-10 hover:bg-opacity-20 transition-all"
+                  style={{ 
+                    color: colors.primary,
+                    backgroundColor: `${colors.primary}10`,
+                  }}
+                  title="Clear filter"
+                >
+                  <X className="h-5 w-5" />
+                </Button>
+              )}
+            </div>
+            {supplierFilterTerm && (() => {
+              const filteredCount = projectSuppliers.filter((ps) => 
+                ps.supplier.name.toLowerCase().includes(supplierFilterTerm.toLowerCase())
+              ).length;
+              return (
+                <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                      Filter active:
+                    </span>
+                    <span className="text-xs font-semibold px-2 py-1 rounded" style={{
+                      backgroundColor: `${colors.primary}15`,
+                      color: colors.primary,
+                    }}>
+                      "{supplierFilterTerm}"
+                    </span>
+                  </div>
+                  <div className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                    {filteredCount} {filteredCount === 1 ? 'supplier' : 'suppliers'} found
+                  </div>
+                </div>
+              );
+            })()}
+          </Card>
+        )}
+
+        {(() => {
+          // Filter suppliers by name if filter term is set
+          const filteredSuppliers = supplierFilterTerm
+            ? projectSuppliers.filter((ps) => 
+                ps.supplier.name.toLowerCase().includes(supplierFilterTerm.toLowerCase())
+              )
+            : projectSuppliers;
+
+          if (filteredSuppliers.length === 0) {
+            return (
+              <div
+                className="rounded-lg border px-4 py-6 text-center text-sm"
+                style={{ borderColor: colors.borderLight, color: colors.textSecondary }}
+              >
+                {supplierFilterTerm 
+                  ? `No suppliers found matching "${supplierFilterTerm}".`
+                  : 'No suppliers assigned to this project yet.'
+                }
+              </div>
+            );
+          }
+
+          return (
+            <div className="space-y-4">
+              {filteredSuppliers.map((projectSupplier) => {
               const supplier = projectSupplier.supplier;
               return (
                 <Card
@@ -640,7 +737,8 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
               );
             })}
           </div>
-        )}
+          );
+        })()}
       </Card>
     </div>
   );

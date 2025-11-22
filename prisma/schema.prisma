@@ -526,6 +526,7 @@ model Project {
   purchaseOrders                  ProjectPurchaseOrder[]
   grns                            ProjectGRN[]
   invoices                        ProjectInvoice[]
+  payments                        ProjectSupplierPayment[]
   areaOfConcerns                  ProjectAreaOfConcern[]
   clientFeedback                  ProjectClientFeedback?
   projectAssets                   ProjectAsset[]
@@ -1187,6 +1188,7 @@ model ProjectSupplier {
   purchaseOrders ProjectPurchaseOrder[]
   grns           ProjectGRN[]
   invoices       ProjectInvoice[]
+  payments       ProjectSupplierPayment[]
 
   @@unique([projectId, supplierId])
   @@map("project_suppliers")
@@ -1245,6 +1247,7 @@ model ProjectInvoice {
   purchaseOrderId   Int?     // For Down Payment invoices - links to PO
   invoiceNumber     String
   invoiceDate       DateTime
+  dueDate           DateTime? // Due date for the invoice
   paymentType       String   // "Down Payment" or "Progress Payment"
   downPayment       Decimal? // Down Payment amount (only for Down Payment type)
   invoiceAmount     Decimal  // Invoice amount before VAT (A)
@@ -1258,12 +1261,54 @@ model ProjectInvoice {
   project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
   purchaseOrder   ProjectPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   invoiceGRNs     InvoiceGRN[]
+  paymentInvoices PaymentInvoice[]
 
   @@unique([projectId, projectSupplierId, invoiceNumber])
   @@index([projectId])
   @@index([projectSupplierId])
   @@index([purchaseOrderId])
   @@map("project_invoices")
+}
+
+model ProjectSupplierPayment {
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  projectSupplierId Int
+  paymentMethod     String   // "Post Dated" or "Current Dated"
+  paymentType       String?  // For Post Dated: "PDC", "LC", or "Trust Receipt"
+  paymentDate       DateTime // For Current Dated: payment date, For Post Dated: issue date
+  dueDate           DateTime? // For Post Dated: due date
+  totalPaymentAmount Decimal // Total payment amount (sum of all invoice payments)
+  totalVatAmount     Decimal // Total VAT amount (sum of all invoice VAT amounts)
+  notes             String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projectSupplier ProjectSupplier   @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  paymentInvoices PaymentInvoice[]
+
+  @@index([projectId])
+  @@index([projectSupplierId])
+  @@map("project_supplier_payments")
+}
+
+model PaymentInvoice {
+  id                Int      @id @default(autoincrement())
+  paymentId         Int
+  invoiceId         Int
+  paymentAmount     Decimal  // Amount paid for this invoice
+  vatAmount         Decimal  // VAT amount paid for this invoice
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  payment ProjectSupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice ProjectInvoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, invoiceId])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("payment_invoices")
 }
 
 model InvoiceGRN {

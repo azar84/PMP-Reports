@@ -62,7 +62,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { invoiceNumber, invoiceDate, purchaseOrderId, grnIds, paymentType, downPayment, invoiceAmount, vatAmount, downPaymentRecovery, totalAmount } = body;
+    const { invoiceNumber, invoiceDate, dueDate, purchaseOrderId, grnIds, paymentType, downPayment, invoiceAmount, vatAmount, downPaymentRecovery, totalAmount } = body;
 
     // Validate required fields
     if (!invoiceNumber || !invoiceDate) {
@@ -213,6 +213,7 @@ export async function POST(
       projectSupplierId,
       invoiceNumber,
       invoiceDate: parseDateFromInput(invoiceDate),
+      dueDate: dueDate ? parseDateFromInput(dueDate) : null,
       paymentType,
       downPayment: paymentType === 'Down Payment' ? parseFloat(downPayment) : null,
       purchaseOrderId: paymentType === 'Down Payment' ? purchaseOrderId : null,

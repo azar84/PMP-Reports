@@ -4,9 +4,10 @@ import { useCallback, useEffect, useState, Fragment } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
-import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle } from 'lucide-react';
 import { formatDateForInput } from '@/lib/dateUtils';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
 
@@ -90,6 +91,7 @@ interface Invoice {
   purchaseOrderId: number | null;
   invoiceNumber: string;
   invoiceDate: string;
+  dueDate: string | null; // Due date for the invoice
   paymentType: string; // "Down Payment" or "Progress Payment"
   downPayment: number | null;
   invoiceAmount: number; // Invoice amount before VAT
@@ -105,6 +107,37 @@ interface Invoice {
 interface InvoicesResponse {
   success: boolean;
   data?: Invoice[];
+  error?: string;
+}
+
+interface PaymentInvoice {
+  id: number;
+  paymentId: number;
+  invoiceId: number;
+  paymentAmount: number;
+  vatAmount: number;
+  invoice: Invoice;
+}
+
+interface Payment {
+  id: number;
+  projectId: number;
+  projectSupplierId: number;
+  totalPaymentAmount: number;
+  totalVatAmount: number;
+  paymentMethod: string; // "Post Dated" or "Current Dated"
+  paymentType: string | null; // For Post Dated: "PDC", "LC", or "Trust Receipt"
+  paymentDate: string; // For Current Dated: payment date, For Post Dated: issue date
+  dueDate: string | null; // For Post Dated: due date
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+  paymentInvoices: PaymentInvoice[];
+}
+
+interface PaymentsResponse {
+  success: boolean;
+  data?: Payment[];
   error?: string;
 }
 
@@ -142,6 +175,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
   const [invoiceFormData, setInvoiceFormData] = useState({
     invoiceNumber: '',
     invoiceDate: '',
+    dueDate: '', // Due date for the invoice
     paymentType: 'Progress Payment' as 'Down Payment' | 'Progress Payment',
     downPayment: '',
     selectedPurchaseOrderId: null as number | null, // For Down Payment
@@ -151,9 +185,30 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     downPaymentRecovery: '', // Down Payment Recovery (for Progress Payment)
   });
   const [hasDownPayment, setHasDownPayment] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pos' | 'grns' | 'invoices'>('pos');
+  const [activeTab, setActiveTab] = useState<'pos' | 'grns' | 'invoices' | 'payments'>('pos');
   const [grnFilterPOId, setGrnFilterPOId] = useState<number | null>(null);
   const [invoiceFilterPOId, setInvoiceFilterPOId] = useState<number | null>(null);
+  const [paymentFilterPOId, setPaymentFilterPOId] = useState<number | null>(null);
+  const [payments, setPayments] = useState<Payment[]>([]);
+  const [showPaymentForm, setShowPaymentForm] = useState(false);
+  const [editingPayment, setEditingPayment] = useState<Payment | null>(null);
+  const [paymentFormData, setPaymentFormData] = useState<{
+    selectedInvoiceIds: number[];
+    invoicePayments: Record<number, { paymentAmount: string; vatAmount: string }>;
+    paymentMethod: 'Post Dated' | 'Current Dated';
+    paymentType: 'PDC' | 'LC' | 'Trust Receipt' | null;
+    paymentDate: string;
+    dueDate: string;
+    notes: string;
+  }>({
+    selectedInvoiceIds: [],
+    invoicePayments: {},
+    paymentMethod: 'Current Dated',
+    paymentType: null,
+    paymentDate: '',
+    dueDate: '',
+    notes: '',
+  });
   const [poFormData, setPOFormData] = useState({
     lpoNumber: '',
     lpoDate: '',
@@ -287,6 +342,76 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     }
   }, [get, supplierId, projectId]);
 
+  const loadPayments = useCallback(async () => {
+    try {
+      const response = await get<PaymentsResponse>(`/api/admin/project-suppliers/${supplierId}/payments`);
+      if (response.success && response.data) {
+        setPayments(response.data);
+      }
+    } catch (error: any) {
+      console.error('Failed to load payments:', error);
+      setError(error?.message || 'Failed to load payments.');
+    }
+  }, [get, supplierId]);
+
+  // Helper function to calculate paid amounts for invoices
+  const calculateInvoicePaidAmounts = useCallback(() => {
+    const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+    
+    // Exclude the payment being edited from calculations
+    payments
+      .filter(payment => editingPayment ? payment.id !== editingPayment.id : true)
+      .forEach(payment => {
+        payment.paymentInvoices?.forEach(paymentInvoice => {
+          const invoiceId = paymentInvoice.invoiceId;
+          if (!paidAmounts[invoiceId]) {
+            paidAmounts[invoiceId] = { paymentAmount: 0, vatAmount: 0 };
+          }
+          paidAmounts[invoiceId].paymentAmount += Number(paymentInvoice.paymentAmount || 0);
+          paidAmounts[invoiceId].vatAmount += Number(paymentInvoice.vatAmount || 0);
+        });
+      });
+    
+    return paidAmounts;
+  }, [payments, editingPayment]);
+
+  // Get invoices to display in payment form
+  // When editing: show invoices from the current payment + unpaid invoices
+  // When creating: show only unpaid invoices
+  const getInvoicesForPayment = useCallback(() => {
+    const paidAmounts = calculateInvoicePaidAmounts();
+    
+    if (editingPayment) {
+      // When editing, include invoices from the current payment
+      const paymentInvoiceIds = editingPayment.paymentInvoices?.map(pi => pi.invoiceId) || [];
+      const paymentInvoices = invoices.filter(inv => paymentInvoiceIds.includes(inv.id));
+      
+      // Also include unpaid invoices (excluding those already in the payment)
+      const unpaidInvoices = invoices.filter(invoice => {
+        if (paymentInvoiceIds.includes(invoice.id)) return false; // Already in payment
+        const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+        const totalPaid = paid.paymentAmount + paid.vatAmount;
+        const invoiceTotal = Number(invoice.totalAmount || 0);
+        return totalPaid < invoiceTotal;
+      });
+      
+      return [...paymentInvoices, ...unpaidInvoices];
+    } else {
+      // When creating, show only unpaid invoices
+      return invoices.filter(invoice => {
+        const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+        const totalPaid = paid.paymentAmount + paid.vatAmount;
+        const invoiceTotal = Number(invoice.totalAmount || 0);
+        return totalPaid < invoiceTotal;
+      });
+    }
+  }, [invoices, calculateInvoicePaidAmounts, editingPayment]);
+
+  // Get invoices that are not fully paid (for backward compatibility)
+  const getUnpaidInvoices = useCallback(() => {
+    return getInvoicesForPayment();
+  }, [getInvoicesForPayment]);
+
   useEffect(() => {
     // Load GRNs for all POs when switching to GRNs tab
     if (activeTab === 'grns' && purchaseOrders.length > 0) {
@@ -301,6 +426,11 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       loadInvoices();
     }
     
+    // Load payments when switching to Payments tab
+    if (activeTab === 'payments') {
+      loadPayments();
+    }
+    
     // Reset filters when switching tabs
     if (activeTab !== 'grns') {
       setGrnFilterPOId(null);
@@ -308,7 +438,10 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     if (activeTab !== 'invoices') {
       setInvoiceFilterPOId(null);
     }
-  }, [activeTab, purchaseOrders, grns, loadGRNs, loadInvoices]);
+    if (activeTab !== 'payments') {
+      setPaymentFilterPOId(null);
+    }
+  }, [activeTab, purchaseOrders, grns, loadGRNs, loadInvoices, loadPayments]);
 
   const loadPurchaseOrders = useCallback(async () => {
     try {
@@ -532,6 +665,37 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     };
   }, [invoiceFormData, grns]);
 
+  // Helper function to get invoice validation errors (user-friendly messages)
+  const getInvoiceValidationErrors = useCallback(() => {
+    const errors: string[] = [];
+    
+    if (!invoiceFormData.invoiceNumber) {
+      errors.push('Please enter an invoice number.');
+    }
+    
+    if (!invoiceFormData.invoiceDate) {
+      errors.push('Please select an invoice date.');
+    }
+
+    if (invoiceFormData.paymentType === 'Down Payment') {
+      if (!invoiceFormData.downPayment || parseFloat(invoiceFormData.downPayment) <= 0) {
+        errors.push('Please enter a down payment amount for Down Payment type.');
+      }
+      if (!invoiceFormData.selectedPurchaseOrderId) {
+        errors.push('Please select a Purchase Order for Down Payment type.');
+      }
+    } else {
+      if (!invoiceFormData.selectedProgressPOId) {
+        errors.push('Please select a Purchase Order for Progress Payment type.');
+      }
+      if (invoiceFormData.selectedGrnIds.length === 0) {
+        errors.push('Please select at least one GRN for Progress Payment type.');
+      }
+    }
+
+    return errors;
+  }, [invoiceFormData]);
+
   const handleSaveInvoice = useCallback(async () => {
     console.log('handleSaveInvoice called with:', {
       invoiceNumber: invoiceFormData.invoiceNumber,
@@ -541,38 +705,16 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       selectedGrnIds: invoiceFormData.selectedGrnIds,
     });
     
-    if (!invoiceFormData.invoiceNumber || !invoiceFormData.invoiceDate) {
-      const errorMsg = 'Please fill in all required fields.';
-      console.log('Validation failed:', errorMsg);
+    // Get all validation errors
+    const validationErrors = getInvoiceValidationErrors();
+    
+    if (validationErrors.length > 0) {
+      const errorMsg = validationErrors.join('\n• ');
+      const fullMsg = 'Please fix the following errors:\n\n• ' + errorMsg;
+      console.log('Validation failed:', fullMsg);
       setError(errorMsg);
-      alert(errorMsg);
+      alert(fullMsg);
       return;
-    }
-
-    if (invoiceFormData.paymentType === 'Down Payment') {
-      if (!invoiceFormData.downPayment || parseFloat(invoiceFormData.downPayment) <= 0) {
-        setError('Down payment amount is required for Down Payment type.');
-        return;
-      }
-      if (!invoiceFormData.selectedPurchaseOrderId) {
-        setError('Please select a Purchase Order for Down Payment type.');
-        return;
-      }
-    } else {
-      if (!invoiceFormData.selectedProgressPOId) {
-        const errorMsg = 'Please select a Purchase Order for Progress Payment type.';
-        console.log('Validation failed:', errorMsg);
-        setError(errorMsg);
-        alert(errorMsg);
-        return;
-      }
-      if (invoiceFormData.selectedGrnIds.length === 0) {
-        const errorMsg = 'Please select at least one GRN for Progress Payment type.';
-        console.log('Validation failed:', errorMsg);
-        setError(errorMsg);
-        alert(errorMsg);
-        return;
-      }
     }
     
     console.log('All validations passed, proceeding with save...');
@@ -608,6 +750,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       const invoiceData: any = {
         invoiceNumber: invoiceFormData.invoiceNumber,
         invoiceDate: invoiceFormData.invoiceDate,
+        dueDate: invoiceFormData.dueDate || null,
         paymentType: invoiceFormData.paymentType,
         downPayment: invoiceFormData.paymentType === 'Down Payment' ? invoiceFormData.downPayment : undefined,
         invoiceAmount: Number(finalInvoiceAmount.toFixed(2)),
@@ -640,7 +783,11 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       console.log('Invoice save response:', response);
       
       if (!response.success) {
-        throw new Error(response.error || 'Failed to save invoice');
+        const errorMsg = response.error || 'Failed to save invoice';
+        console.log('Invoice save failed:', errorMsg);
+        setError(errorMsg);
+        alert(errorMsg);
+        return;
       }
 
       await loadInvoices();
@@ -649,6 +796,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       setInvoiceFormData({
         invoiceNumber: '',
         invoiceDate: '',
+        dueDate: '',
         paymentType: hasDownPayment ? 'Progress Payment' : 'Down Payment',
         downPayment: '',
         selectedPurchaseOrderId: null,
@@ -659,18 +807,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       });
     } catch (submitError: any) {
       console.error('Failed to save invoice:', submitError);
-      console.error('Error details:', {
-        message: submitError?.message,
-        error: submitError?.error,
-        response: submitError?.response,
-        data: submitError?.response?.data
-      });
-      const errorMessage = submitError?.response?.data?.error || submitError?.error || submitError?.message || 'Failed to save invoice. Please check all fields and try again.';
+      
+      // Extract human-readable error message
+      // The useAdminApi hook now includes the parsed error message in error.message
+      const errorMessage = submitError?.message || 'Failed to save invoice. Please check all fields and try again.';
+      
+      console.error('Error message:', errorMessage);
       setError(errorMessage);
-      // Show error to user
-      setTimeout(() => {
-        alert(`Error: ${errorMessage}`);
-      }, 100);
+      alert(errorMessage);
     } finally {
       setIsSaving(false);
     }
@@ -689,6 +833,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     setInvoiceFormData({
       invoiceNumber: invoice.invoiceNumber || '',
       invoiceDate: formatDateForInput(invoice.invoiceDate) || '',
+      dueDate: invoice.dueDate ? formatDateForInput(invoice.dueDate) : '',
       paymentType: invoice.paymentType as 'Down Payment' | 'Progress Payment',
       downPayment: invoice.downPayment?.toString() || '',
       selectedPurchaseOrderId: invoice.paymentType === 'Down Payment' ? (invoice.purchaseOrderId || null) : null,
@@ -715,6 +860,182 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       }
     },
     [del, supplierId, loadInvoices]
+  );
+
+  // Helper function to get validation errors (user-friendly messages)
+  const getPaymentValidationErrors = useCallback(() => {
+    const errors: string[] = [];
+    const selectedInvoiceIds = paymentFormData.selectedInvoiceIds || [];
+    
+    if (selectedInvoiceIds.length === 0) {
+      errors.push('Please select at least one invoice to pay.');
+    }
+
+    if (!paymentFormData.paymentDate) {
+      errors.push(`Please select a ${paymentFormData.paymentMethod === 'Current Dated' ? 'payment date' : 'issue date'}.`);
+    }
+
+    if (paymentFormData.paymentMethod === 'Post Dated') {
+      if (!paymentFormData.paymentType) {
+        errors.push('Please select a payment type (PDC, LC, or Trust Receipt).');
+      }
+      if (!paymentFormData.dueDate) {
+        errors.push('Please select a due date for the post-dated payment.');
+      }
+    }
+
+    // Validate each selected invoice has payment amount
+    const missingAmounts: string[] = [];
+    for (const invoiceId of selectedInvoiceIds) {
+      const invoicePayment = paymentFormData.invoicePayments[invoiceId];
+      if (!invoicePayment || !invoicePayment.paymentAmount || parseFloat(invoicePayment.paymentAmount) <= 0) {
+        const invoice = invoices.find(inv => inv.id === invoiceId);
+        missingAmounts.push(invoice?.invoiceNumber || `Invoice ${invoiceId}`);
+      }
+    }
+    
+    if (missingAmounts.length > 0) {
+      errors.push(`Please enter payment amounts for: ${missingAmounts.join(', ')}`);
+    }
+
+    return errors;
+  }, [paymentFormData, invoices]);
+
+  const handleSavePayment = useCallback(async () => {
+    console.log('handleSavePayment called with:', paymentFormData);
+    
+    // Get all validation errors
+    const validationErrors = getPaymentValidationErrors();
+    
+    if (validationErrors.length > 0) {
+      const errorMsg = validationErrors.join('\n• ');
+      const fullMsg = 'Please fix the following errors:\n\n• ' + errorMsg;
+      console.log('Validation failed:', fullMsg);
+      setError(errorMsg);
+      alert(fullMsg);
+      return;
+    }
+
+
+    console.log('All validations passed, proceeding with save...');
+    setIsSaving(true);
+    setError(null);
+
+    try {
+      // Build invoice payments array
+      const invoicePayments = (paymentFormData.selectedInvoiceIds || []).map(invoiceId => {
+        const invoicePayment = paymentFormData.invoicePayments[invoiceId];
+        return {
+          invoiceId,
+          paymentAmount: invoicePayment.paymentAmount,
+          vatAmount: invoicePayment.vatAmount || '0',
+        };
+      });
+
+      console.log('Invoice payments array:', invoicePayments);
+
+      const paymentData: any = {
+        invoicePayments,
+        paymentMethod: paymentFormData.paymentMethod,
+        paymentType: paymentFormData.paymentMethod === 'Post Dated' ? paymentFormData.paymentType : null,
+        paymentDate: paymentFormData.paymentDate,
+        dueDate: paymentFormData.paymentMethod === 'Post Dated' ? paymentFormData.dueDate : null,
+        notes: paymentFormData.notes || null,
+      };
+
+      console.log('Sending payment data:', paymentData);
+
+      let response;
+      if (editingPayment) {
+        console.log('Updating payment:', editingPayment.id);
+        response = await put<{ success: boolean; data?: Payment; error?: string }>(
+          `/api/admin/project-suppliers/${supplierId}/payments/${editingPayment.id}`,
+          paymentData
+        );
+      } else {
+        console.log('Creating new payment');
+        response = await post<{ success: boolean; data?: Payment; error?: string }>(
+          `/api/admin/project-suppliers/${supplierId}/payments`,
+          paymentData
+        );
+      }
+
+      console.log('Payment save response:', response);
+
+      if (!response.success) {
+        const errorMsg = response.error || 'Failed to save payment';
+        console.error('Payment save failed:', errorMsg);
+        setError(errorMsg);
+        alert(errorMsg);
+        return;
+      }
+
+      console.log('Payment saved successfully');
+      await loadPayments();
+      setShowPaymentForm(false);
+      setEditingPayment(null);
+      setPaymentFormData({
+        selectedInvoiceIds: [],
+        invoicePayments: {},
+        paymentMethod: 'Current Dated',
+        paymentType: null,
+        paymentDate: '',
+        dueDate: '',
+        notes: '',
+      });
+    } catch (submitError: any) {
+      console.error('Failed to save payment - exception:', submitError);
+      const errorMsg = submitError?.response?.data?.error || submitError?.error || submitError?.message || 'Failed to save payment.';
+      console.error('Error message:', errorMsg);
+      setError(errorMsg);
+      alert(errorMsg);
+    } finally {
+      setIsSaving(false);
+    }
+  }, [paymentFormData, editingPayment, supplierId, invoices, post, put, loadPayments]);
+
+  const handleEditPayment = useCallback((payment: Payment) => {
+    setEditingPayment(payment);
+    setShowPaymentForm(true);
+    
+    // Build invoice payments object from payment.paymentInvoices
+    const invoicePayments: Record<number, { paymentAmount: string; vatAmount: string }> = {};
+    const selectedInvoiceIds: number[] = [];
+    
+    payment.paymentInvoices?.forEach(pi => {
+      selectedInvoiceIds.push(pi.invoiceId);
+      invoicePayments[pi.invoiceId] = {
+        paymentAmount: pi.paymentAmount.toString(),
+        vatAmount: (pi.vatAmount || 0).toString(),
+      };
+    });
+    
+    setPaymentFormData({
+      selectedInvoiceIds,
+      invoicePayments,
+      paymentMethod: payment.paymentMethod as 'Post Dated' | 'Current Dated',
+      paymentType: payment.paymentType as 'PDC' | 'LC' | 'Trust Receipt' | null,
+      paymentDate: formatDateForInput(payment.paymentDate),
+      dueDate: payment.dueDate ? formatDateForInput(payment.dueDate) : '',
+      notes: payment.notes || '',
+    });
+  }, []);
+
+  const handleDeletePayment = useCallback(
+    async (paymentId: number, invoiceNumber: string) => {
+      if (!confirm(`Delete payment for invoice ${invoiceNumber}?`)) {
+        return;
+      }
+
+      try {
+        await del(`/api/admin/project-suppliers/${supplierId}/payments/${paymentId}`);
+        await loadPayments();
+      } catch (deleteError: any) {
+        console.error('Failed to delete payment:', deleteError);
+        setError(deleteError?.message || 'Failed to delete payment.');
+      }
+    },
+    [del, supplierId, loadPayments]
   );
 
   if (isLoading) {
@@ -902,6 +1223,187 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         )}
       </Card>
 
+      {/* Payment Summary Cards - Available for all tabs */}
+      {(() => {
+        // Calculate Total Invoiced (sum of all invoice totalAmount)
+        const totalInvoiced = invoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.totalAmount || 0);
+        }, 0);
+
+        // Calculate Total Paid (sum of all payment amounts including VAT)
+        const totalPaid = payments.reduce((sum, payment) => {
+          return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+        }, 0);
+
+        // Calculate Balance to be Paid
+        const balanceToBePaid = totalInvoiced - totalPaid;
+
+        // Calculate LPO Balance (Total PO amount - Total Paid)
+        const totalPOAmount = purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValueWithVat || 0);
+        }, 0);
+        const lpoBalance = totalPOAmount - totalPaid;
+
+        // Calculate Due Amount (invoices past due date)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const dueAmount = invoices.reduce((sum, invoice) => {
+          if (!invoice.dueDate) return sum;
+          
+          const dueDate = new Date(invoice.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          // Check if invoice is past due date
+          if (dueDate < today) {
+            // Calculate remaining balance for this invoice
+            const paidAmounts = calculateInvoicePaidAmounts();
+            const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+            const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+            
+            // Only add if there's still a balance to be paid
+            return sum + (remaining > 0 ? remaining : 0);
+          }
+          
+          return sum;
+        }, 0);
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Invoiced
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalInvoiced)}
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.info}20` }}
+                >
+                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Paid
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: colors.success }}>
+                    {formatCurrencyWithDecimals(totalPaid)}
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.success}20` }}
+                >
+                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance to be Paid
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(balanceToBePaid)}
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}
+                >
+                  <Calendar className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    LPO Balance
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(lpoBalance)}
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${lpoBalance > 0 ? colors.warning : colors.success}20` }}
+                >
+                  <ShoppingCart className="h-6 w-6" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Due Amount
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>
+                    {formatCurrencyWithDecimals(dueAmount)}
+                  </p>
+                  {dueAmount > 0 && (
+                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                      Past due date
+                    </p>
+                  )}
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${dueAmount > 0 ? colors.error : colors.success}20` }}
+                >
+                  <AlertCircle className="h-6 w-6" style={{ color: dueAmount > 0 ? colors.error : colors.success }} />
+                </div>
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
+
       {/* Contract Value - Tabbed Interface */}
       <Card
         className="p-6"
@@ -966,6 +1468,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
               onClick={() => {
                 setShowInvoiceForm(true);
                 setEditingInvoice(null);
+                setError(null);
                 setInvoiceFormData({
                   invoiceNumber: '',
                   invoiceDate: '',
@@ -1022,6 +1525,19 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 color: activeTab === 'invoices' ? colors.primary : colors.textSecondary,
               }} />
               Invoices
+            </button>
+            <button
+              onClick={() => setActiveTab('payments')}
+              className="inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+              style={{
+                borderColor: activeTab === 'payments' ? colors.primary : 'transparent',
+                color: activeTab === 'payments' ? colors.primary : colors.textSecondary,
+              }}
+            >
+              <CreditCard className="w-4 h-4 mr-2" style={{
+                color: activeTab === 'payments' ? colors.primary : colors.textSecondary,
+              }} />
+              Payments
             </button>
           </nav>
         </div>
@@ -1606,6 +2122,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                         onClick={() => {
                         setShowInvoiceForm(false);
                         setEditingInvoice(null);
+                        setError(null);
                         setInvoiceFormData({
                                             invoiceNumber: '',
                                             invoiceDate: '',
@@ -1620,6 +2137,32 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                       <X className="h-4 w-4" />
                                       </Button>
                                     </div>
+
+                  {/* Error Display - Only shown when validation fails on save */}
+                  {error && (
+                    <div
+                      className="rounded-lg border px-3 py-2 text-sm flex items-start gap-2"
+                      style={{
+                        backgroundColor: `${colors.error}15`,
+                        borderColor: `${colors.error}45`,
+                        color: colors.error,
+                      }}
+                    >
+                      <span style={{ color: colors.error, fontSize: '16px', lineHeight: '20px' }}>⚠️</span>
+                      <div className="flex-1">
+                        {error.includes('•') || error.includes('\n') ? (
+                          <ul className="list-disc list-inside space-y-1">
+                            {error.split(/[\n•]/).filter(msg => msg.trim()).map((msg, idx) => (
+                              <li key={idx}>{msg.trim()}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div>{error}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       <div>
                                         <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
@@ -1645,6 +2188,21 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           type="date"
                         value={invoiceFormData.invoiceDate || ''}
                         onChange={(e) => setInvoiceFormData({ ...invoiceFormData, invoiceDate: e.target.value })}
+                                          style={{
+                          backgroundColor: colors.backgroundSecondary,
+                                            borderColor: colors.borderLight,
+                                            color: colors.textPrimary,
+                                          }}
+                                        />
+                                      </div>
+                                      <div>
+                                        <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                                          Due Date
+                                        </label>
+                                        <Input
+                                          type="date"
+                        value={invoiceFormData.dueDate || ''}
+                        onChange={(e) => setInvoiceFormData({ ...invoiceFormData, dueDate: e.target.value })}
                                           style={{
                           backgroundColor: colors.backgroundSecondary,
                                             borderColor: colors.borderLight,
@@ -1809,9 +2367,37 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           }}>
                             {grns[invoiceFormData.selectedProgressPOId] && grns[invoiceFormData.selectedProgressPOId].length > 0 ? (
                               <div className="space-y-2">
-                                {grns[invoiceFormData.selectedProgressPOId].map((grn) => {
-                                  const isSelected = invoiceFormData.selectedGrnIds.includes(grn.id);
-                                  return (
+                                {(() => {
+                                  // Get all GRN IDs that are already invoiced (excluding the current invoice being edited)
+                                  const invoicedGrnIds = new Set<number>();
+                                  invoices.forEach(invoice => {
+                                    // Exclude the current invoice being edited
+                                    if (editingInvoice && invoice.id === editingInvoice.id) {
+                                      return;
+                                    }
+                                    // Add all GRN IDs from this invoice
+                                    invoice.invoiceGRNs.forEach(ig => {
+                                      invoicedGrnIds.add(ig.grnId);
+                                    });
+                                  });
+                                  
+                                  // Filter out already-invoiced GRNs
+                                  const availableGrns = grns[invoiceFormData.selectedProgressPOId].filter(grn => 
+                                    !invoicedGrnIds.has(grn.id) || invoiceFormData.selectedGrnIds.includes(grn.id)
+                                  );
+                                  
+                                  if (availableGrns.length === 0) {
+                                    return (
+                                      <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
+                                        All GRNs for this Purchase Order have already been invoiced.
+                                      </p>
+                                    );
+                                  }
+                                  
+                                  return availableGrns.map((grn) => {
+                                    const isSelected = invoiceFormData.selectedGrnIds.includes(grn.id);
+                                    const isAlreadyInvoiced = invoicedGrnIds.has(grn.id);
+                                    return (
                                     <div 
                                       key={grn.id} 
                                       className="flex items-center space-x-3 p-2 hover:bg-opacity-50 transition-colors"
@@ -1846,6 +2432,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                       <div className="flex-1 flex items-center justify-between">
                                         <span className="text-sm" style={{ color: colors.textPrimary }}>
                                           {grn.grnRefNo}
+                                          {isAlreadyInvoiced && invoiceFormData.selectedGrnIds.includes(grn.id) && (
+                                            <span className="ml-2 text-xs px-2 py-0.5 rounded" style={{ 
+                                              backgroundColor: `${colors.warning}20`, 
+                                              color: colors.warning 
+                                            }}>
+                                              (Current Invoice)
+                                            </span>
+                                          )}
                                         </span>
                                         <span className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
                                           {formatCurrencyWithDecimals(Number(grn.deliveredAmount))}
@@ -1853,7 +2447,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                       </div>
                                     </div>
                                   );
-                                })}
+                                });
+                              })()}
                               </div>
                             ) : (
                               <p className="text-xs text-center py-4" style={{ color: colors.textSecondary }}>
@@ -1979,6 +2574,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                         onClick={() => {
                         setShowInvoiceForm(false);
                         setEditingInvoice(null);
+                        setError(null);
                         setInvoiceFormData({
                                             invoiceNumber: '',
                                             invoiceDate: '',
@@ -1998,14 +2594,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                       leftIcon={<Save className="h-4 w-4" />}
                       onClick={handleSaveInvoice}
                                         isLoading={isSaving}
-                      disabled={
-                        isSaving || 
-                        !invoiceFormData.invoiceNumber || 
-                        !invoiceFormData.invoiceDate || 
-                        (invoiceFormData.paymentType === 'Down Payment' && (!invoiceFormData.downPayment || !invoiceFormData.selectedPurchaseOrderId)) ||
-                        (invoiceFormData.paymentType === 'Progress Payment' && (!invoiceFormData.selectedProgressPOId || invoiceFormData.selectedGrnIds.length === 0))
-                      }
-                    >
+                      disabled={isSaving}
+                                      >
                       {editingInvoice ? 'Update' : 'Save'}
                                       </Button>
                                     </div>
@@ -2120,6 +2710,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                         Invoice Date
                                       </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                                        Due Date
+                                      </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Payment Type
                                       </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
@@ -2166,6 +2759,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                          </td>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {invoice.dueDate 
+                            ? new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : <span style={{ color: colors.textSecondary }}>-</span>
+                          }
                                           </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           <span className="text-xs px-2 py-1 rounded font-medium" style={{
@@ -2239,7 +2838,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                       ))
                                     ) : (
                                       <tr>
-                        <td colSpan={8} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+                        <td colSpan={9} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
                           {invoiceFilterPOId ? 'No invoices found for the selected PO.' : 'No invoices yet. Click "Add Invoice" to add one.'}
                                         </td>
                                       </tr>
@@ -2249,6 +2848,799 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                 </table>
                               </div>
                             </div>
+        )}
+
+        {activeTab === 'payments' && (
+          <div className="space-y-6">
+            {showPaymentForm && (
+              <Card
+                className="p-4"
+                style={{
+                  backgroundColor: colors.backgroundPrimary,
+                  borderColor: colors.borderLight,
+                }}
+              >
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      {editingPayment ? 'Edit Payment' : 'Add Payment'}
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => {
+                        setShowPaymentForm(false);
+                        setEditingPayment(null);
+                        setError(null);
+                        setPaymentFormData({
+                          selectedInvoiceIds: [],
+                          invoicePayments: {},
+                          paymentMethod: 'Current Dated',
+                          paymentType: null,
+                          paymentDate: '',
+                          dueDate: '',
+                          notes: '',
+                        });
+                      }}
+                      className="h-7 w-7"
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  {/* Error Display - Only shown when validation fails on save */}
+                  {error && (
+                    <div
+                      className="rounded-lg border px-3 py-2 text-sm flex items-start gap-2"
+                      style={{
+                        backgroundColor: `${colors.error}15`,
+                        borderColor: `${colors.error}45`,
+                        color: colors.error,
+                      }}
+                    >
+                      <span style={{ color: colors.error, fontSize: '16px', lineHeight: '20px' }}>⚠️</span>
+                      <div className="flex-1">
+                        {error.includes('•') || error.includes('\n') ? (
+                          <ul className="list-disc list-inside space-y-1">
+                            {error.split(/[\n•]/).filter(msg => msg.trim()).map((msg, idx) => (
+                              <li key={idx}>{msg.trim()}</li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <div>{error}</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Payment Details Form */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                        Payment Method *
+                      </label>
+                      <select
+                        value={paymentFormData.paymentMethod}
+                        onChange={(e) => {
+                          const method = e.target.value as 'Post Dated' | 'Current Dated';
+                          setPaymentFormData({
+                            ...paymentFormData,
+                            paymentMethod: method,
+                            paymentType: method === 'Post Dated' ? null : null,
+                            dueDate: method === 'Post Dated' ? paymentFormData.dueDate : '',
+                          });
+                        }}
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
+                          borderColor: colors.borderLight,
+                          color: colors.textPrimary,
+                        }}
+                      >
+                        <option value="Current Dated">Current Dated</option>
+                        <option value="Post Dated">Post Dated</option>
+                      </select>
+                    </div>
+
+                    {paymentFormData.paymentMethod === 'Post Dated' && (
+                      <>
+                        <div>
+                          <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                            Payment Type *
+                          </label>
+                          <select
+                            value={paymentFormData.paymentType || ''}
+                            onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentType: e.target.value as 'PDC' | 'LC' | 'Trust Receipt' | null })}
+                            className="w-full rounded-lg border px-3 py-2 text-sm"
+                            style={{
+                              backgroundColor: colors.backgroundSecondary,
+                              borderColor: colors.borderLight,
+                              color: colors.textPrimary,
+                            }}
+                          >
+                            <option value="">Select Payment Type</option>
+                            <option value="PDC">PDC</option>
+                            <option value="LC">LC</option>
+                            <option value="Trust Receipt">Trust Receipt</option>
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                            Due Date *
+                          </label>
+                          <Input
+                            type="date"
+                            value={paymentFormData.dueDate}
+                            onChange={(e) => setPaymentFormData({ ...paymentFormData, dueDate: e.target.value })}
+                            style={{
+                              backgroundColor: colors.backgroundSecondary,
+                              borderColor: colors.borderLight,
+                              color: colors.textPrimary,
+                            }}
+                          />
+                        </div>
+                      </>
+                    )}
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                        {paymentFormData.paymentMethod === 'Current Dated' ? 'Payment Date *' : 'Issue Date *'}
+                      </label>
+                      <Input
+                        type="date"
+                        value={paymentFormData.paymentDate}
+                        onChange={(e) => setPaymentFormData({ ...paymentFormData, paymentDate: e.target.value })}
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
+                          borderColor: colors.borderLight,
+                          color: colors.textPrimary,
+                        }}
+                      />
+                    </div>
+
+                    <div className="md:col-span-2">
+                      <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                        Notes
+                      </label>
+                      <textarea
+                        value={paymentFormData.notes}
+                        onChange={(e) => setPaymentFormData({ ...paymentFormData, notes: e.target.value })}
+                        rows={3}
+                        className="w-full rounded-lg border px-3 py-2 text-sm"
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
+                          borderColor: colors.borderLight,
+                          color: colors.textPrimary,
+                        }}
+                        placeholder="Optional notes"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Invoice Selection Spreadsheet - Below Form */}
+                  <div className="md:col-span-2 border-t pt-4" style={{ borderColor: colors.borderLight }}>
+                    <div className="flex items-center justify-between mb-3">
+                      <label className="block text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                        Select Invoices for Payment *
+                      </label>
+                      {(() => {
+                        const selectedIds = paymentFormData.selectedInvoiceIds || [];
+                        const totalPaymentAmount = selectedIds.reduce((sum, invoiceId) => {
+                          const invoicePayment = paymentFormData.invoicePayments[invoiceId];
+                          if (invoicePayment && invoicePayment.paymentAmount) {
+                            return sum + (parseFloat(invoicePayment.paymentAmount) || 0);
+                          }
+                          return sum;
+                        }, 0);
+                        const totalVatAmount = selectedIds.reduce((sum, invoiceId) => {
+                          const invoicePayment = paymentFormData.invoicePayments[invoiceId];
+                          if (invoicePayment && invoicePayment.vatAmount) {
+                            return sum + (parseFloat(invoicePayment.vatAmount) || 0);
+                          }
+                          return sum;
+                        }, 0);
+                        const grandTotal = totalPaymentAmount + totalVatAmount;
+                        
+                        return (
+                          <div className="flex items-center gap-4 text-sm">
+                            <div className="text-right">
+                              <span className="text-xs" style={{ color: colors.textSecondary }}>Total Payment:</span>
+                              <span className="ml-2 font-semibold" style={{ color: colors.textPrimary }}>
+                                {formatCurrencyWithDecimals(totalPaymentAmount)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs" style={{ color: colors.textSecondary }}>Total VAT:</span>
+                              <span className="ml-2 font-semibold" style={{ color: colors.textPrimary }}>
+                                {formatCurrencyWithDecimals(totalVatAmount)}
+                              </span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs" style={{ color: colors.textSecondary }}>Grand Total:</span>
+                              <span className="ml-2 font-bold text-lg" style={{ color: colors.primary }}>
+                                {formatCurrencyWithDecimals(grandTotal)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                    
+                    <div className="overflow-x-auto rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr style={{ backgroundColor: `${colors.primary}15` }}>
+                            <th className="px-3 py-2 text-center text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary, width: '50px' }}>
+                              <div className="flex justify-center">
+                                <Checkbox
+                                  variant="primary"
+                                  size="md"
+                                  checked={getUnpaidInvoices().length > 0 && getUnpaidInvoices().every(inv => (paymentFormData.selectedInvoiceIds || []).includes(inv.id))}
+                                  onChange={(e) => {
+                                    const unpaidInvoices = getUnpaidInvoices();
+                                    const paidAmounts = calculateInvoicePaidAmounts();
+                                    
+                                    if (e.target.checked) {
+                                      // Select all
+                                      const newSelectedIds = unpaidInvoices.map(inv => inv.id);
+                                      const newInvoicePayments = { ...paymentFormData.invoicePayments };
+                                      
+                                      unpaidInvoices.forEach(invoice => {
+                                        const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+                                        const totalPaid = paid.paymentAmount + paid.vatAmount;
+                                        const invoiceTotal = Number(invoice.totalAmount || 0);
+                                        const remaining = invoiceTotal - totalPaid;
+                                        // Auto-populate VAT amount from invoice
+                                        const invoiceVatAmount = invoice.vatAmount ? Number(invoice.vatAmount).toFixed(2) : '0';
+                                        
+                                        newInvoicePayments[invoice.id] = {
+                                          paymentAmount: remaining > 0 ? remaining.toFixed(2) : '0',
+                                          vatAmount: invoiceVatAmount, // Auto-populate from invoice VAT amount
+                                        };
+                                      });
+                                      
+                                      setPaymentFormData({
+                                        ...paymentFormData,
+                                        selectedInvoiceIds: newSelectedIds,
+                                        invoicePayments: newInvoicePayments,
+                                      });
+                                    } else {
+                                      // Deselect all
+                                      const newInvoicePayments = { ...paymentFormData.invoicePayments };
+                                      unpaidInvoices.forEach(invoice => {
+                                        delete newInvoicePayments[invoice.id];
+                                      });
+                                      
+                                      setPaymentFormData({
+                                        ...paymentFormData,
+                                        selectedInvoiceIds: [],
+                                        invoicePayments: newInvoicePayments,
+                                      });
+                                    }
+                                  }}
+                                  title="Select/Deselect all invoices"
+                                />
+                              </div>
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Invoice #
+                            </th>
+                            <th className="px-3 py-2 text-left text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Invoice Date
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Invoice Total
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Paid Amount
+                            </th>
+                            {editingPayment && (
+                              <th className="px-3 py-2 text-right text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                                Registered Payment
+                              </th>
+                            )}
+                            <th className="px-3 py-2 text-right text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Remaining
+                            </th>
+                            <th className="px-3 py-2 text-center text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Due Days
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              VAT Amount
+                            </th>
+                            <th className="px-3 py-2 text-right text-xs font-semibold border-b" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                              Payment Amount (including VAT)
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {getUnpaidInvoices().length === 0 ? (
+                            <tr>
+                              <td colSpan={editingPayment ? 10 : 9} className="px-4 py-6 text-center text-sm" style={{ color: colors.textSecondary }}>
+                                No invoices available.
+                          </td>
+                        </tr>
+                          ) : (
+                            getUnpaidInvoices().map((invoice) => {
+                              const isSelected = (paymentFormData.selectedInvoiceIds || []).includes(invoice.id);
+                              const paidAmounts = calculateInvoicePaidAmounts();
+                              const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+                              const totalPaid = paid.paymentAmount + paid.vatAmount;
+                              const invoiceTotal = Number(invoice.totalAmount || 0);
+                              const remaining = invoiceTotal - totalPaid;
+                              const invoicePayment = paymentFormData.invoicePayments[invoice.id] || { paymentAmount: '', vatAmount: '0' };
+                              
+                              // Get registered payment amount from the payment being edited
+                              const registeredPayment = editingPayment?.paymentInvoices?.find(pi => pi.invoiceId === invoice.id);
+                              const registeredPaymentAmount = registeredPayment ? Number(registeredPayment.paymentAmount || 0) : 0;
+                              const registeredVatAmount = registeredPayment ? Number(registeredPayment.vatAmount || 0) : 0;
+                              const registeredTotal = registeredPaymentAmount + registeredVatAmount;
+                              
+                              return (
+                                <tr 
+                                  key={invoice.id} 
+                                  className="hover:opacity-80 transition-opacity"
+                                  style={{ 
+                                    backgroundColor: isSelected ? `${colors.primary}08` : 'transparent',
+                                    borderBottom: `1px solid ${colors.borderLight}`
+                                  }}
+                                >
+                                  <td className="px-3 py-2 border-r text-center align-middle" style={{ borderColor: colors.borderLight, width: '50px' }}>
+                                    <div className="flex justify-center">
+                                      <Checkbox
+                                        variant="primary"
+                                        size="md"
+                                        checked={isSelected}
+                                        onChange={(e) => {
+                                          const currentSelectedIds = paymentFormData.selectedInvoiceIds || [];
+                                          const newSelectedIds = e.target.checked
+                                            ? [...currentSelectedIds, invoice.id]
+                                            : currentSelectedIds.filter(id => id !== invoice.id);
+                                          
+                                          const newInvoicePayments = { ...paymentFormData.invoicePayments };
+                                          if (e.target.checked) {
+                                            // Auto-fill payment amount with Remaining amount when checked
+                                            // Auto-populate VAT amount from invoice
+                                            const invoiceVatAmount = invoice.vatAmount ? Number(invoice.vatAmount).toFixed(2) : '0';
+                                            newInvoicePayments[invoice.id] = {
+                                              paymentAmount: remaining > 0 ? remaining.toFixed(2) : '0',
+                                              vatAmount: invoiceVatAmount, // Auto-populate from invoice VAT amount
+                                            };
+                                          } else {
+                                            delete newInvoicePayments[invoice.id];
+                                          }
+                                          
+                                          setPaymentFormData({
+                                            ...paymentFormData,
+                                            selectedInvoiceIds: newSelectedIds,
+                                            invoicePayments: newInvoicePayments,
+                                          });
+                                        }}
+                                        title={isSelected ? 'Uncheck to remove from payment' : 'Check to add invoice to payment'}
+                                      />
+                                    </div>
+                                  </td>
+                                  <td className="px-3 py-2 text-sm font-medium border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                                    {invoice.invoiceNumber}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                                    {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-right font-semibold border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                                    {formatCurrencyWithDecimals(invoiceTotal)}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-right border-r" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+                                    {formatCurrencyWithDecimals(totalPaid)}
+                                  </td>
+                                  {editingPayment && (
+                                    <td className="px-3 py-2 text-sm text-right font-medium border-r" style={{ borderColor: colors.borderLight, color: colors.primary }}>
+                                      {registeredTotal > 0 ? (
+                                        <div>
+                                          <div>{formatCurrencyWithDecimals(registeredPaymentAmount)}</div>
+                                          {registeredVatAmount > 0 && (
+                                            <div className="text-xs" style={{ color: colors.textSecondary }}>
+                                              + VAT: {formatCurrencyWithDecimals(registeredVatAmount)}
+                                            </div>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        '-'
+                                      )}
+                                    </td>
+                                  )}
+                                  <td className="px-3 py-2 text-sm text-right font-medium border-r" style={{ borderColor: colors.borderLight, color: remaining > 0 ? colors.warning : colors.success }}>
+                                    {formatCurrencyWithDecimals(remaining)}
+                                  </td>
+                                  <td className="px-3 py-2 text-sm text-center border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                                    {(() => {
+                                      if (!invoice.dueDate) return '-';
+                                      const dueDate = new Date(invoice.dueDate);
+                                      const today = new Date();
+                                      today.setHours(0, 0, 0, 0);
+                                      dueDate.setHours(0, 0, 0, 0);
+                                      const diffTime = dueDate.getTime() - today.getTime();
+                                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                      const color = diffDays < 0 ? colors.error : diffDays <= 7 ? colors.warning : colors.textPrimary;
+                                      return (
+                                        <span style={{ color, fontWeight: diffDays <= 7 ? 'bold' : 'normal' }}>
+                                          {diffDays}
+                                        </span>
+                                      );
+                                    })()}
+                                  </td>
+                                  <td className="px-3 py-2 border-r" style={{ borderColor: colors.borderLight }}>
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={invoicePayment.vatAmount}
+                                      onChange={(e) => {
+                                        setPaymentFormData({
+                                          ...paymentFormData,
+                                          invoicePayments: {
+                                            ...paymentFormData.invoicePayments,
+                                            [invoice.id]: {
+                                              ...invoicePayment,
+                                              vatAmount: e.target.value,
+                                            },
+                                          },
+                                        });
+                                      }}
+                                      disabled={!isSelected}
+                                      className="w-full text-right text-sm px-2 py-1"
+                                      style={{
+                                        backgroundColor: isSelected ? colors.backgroundSecondary : colors.backgroundDark,
+                                        borderColor: colors.borderLight,
+                                        color: colors.textPrimary,
+                                      }}
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                  <td className="px-3 py-2">
+                                    <Input
+                                      type="number"
+                                      step="0.01"
+                                      value={invoicePayment.paymentAmount}
+                                      onChange={(e) => {
+                                        setPaymentFormData({
+                                          ...paymentFormData,
+                                          invoicePayments: {
+                                            ...paymentFormData.invoicePayments,
+                                            [invoice.id]: {
+                                              ...invoicePayment,
+                                              paymentAmount: e.target.value,
+                                            },
+                                          },
+                                        });
+                                      }}
+                                      disabled={!isSelected}
+                                      className="w-full text-right text-sm px-2 py-1"
+                                      style={{
+                                        backgroundColor: isSelected ? colors.backgroundSecondary : colors.backgroundDark,
+                                        borderColor: colors.borderLight,
+                                        color: colors.textPrimary,
+                                      }}
+                                      placeholder="0.00"
+                                    />
+                                  </td>
+                                </tr>
+                              );
+                            })
+                          )}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 md:col-span-2">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => {
+                        setShowPaymentForm(false);
+                        setEditingPayment(null);
+                        setError(null);
+                        setPaymentFormData({
+                          selectedInvoiceIds: [],
+                          invoicePayments: {},
+                          paymentMethod: 'Current Dated',
+                          paymentType: null,
+                          paymentDate: '',
+                          dueDate: '',
+                          notes: '',
+                        });
+                      }}
+                      disabled={isSaving}
+                    >
+                      Cancel
+                    </Button>
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<Save className="h-4 w-4" />}
+                      onClick={handleSavePayment}
+                      isLoading={isSaving}
+                      disabled={isSaving}
+                    >
+                      {editingPayment ? 'Update' : 'Save'}
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
+
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
+                Payment Register
+              </h3>
+              {activeTab === 'payments' && (
+                <Button
+                  variant="primary"
+                  size="sm"
+                  leftIcon={<Plus className="h-4 w-4" />}
+                  onClick={() => {
+                    setShowPaymentForm(true);
+                    setEditingPayment(null);
+                    setError(null);
+                    setPaymentFormData({
+                      selectedInvoiceIds: [],
+                      invoicePayments: {},
+                      paymentMethod: 'Current Dated',
+                      paymentType: null,
+                      paymentDate: '',
+                      dueDate: '',
+                      notes: '',
+                    });
+                  }}
+                >
+                  Add Payment
+                </Button>
+              )}
+            </div>
+
+            {/* PO Filter for Payments */}
+            {activeTab === 'payments' && (
+              <Card
+                className="p-4 mb-4 shadow-sm"
+                style={{
+                  backgroundColor: paymentFilterPOId ? `${colors.primary}05` : colors.backgroundPrimary,
+                  borderColor: paymentFilterPOId ? colors.primary : colors.borderLight,
+                  borderWidth: paymentFilterPOId ? '2px' : '1px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-4 flex-1">
+                    <div 
+                      className="flex items-center justify-center w-12 h-12 rounded-lg transition-all"
+                      style={{
+                        backgroundColor: paymentFilterPOId ? colors.primary : `${colors.primary}15`,
+                        color: paymentFilterPOId ? colors.secondary : colors.primary,
+                      }}
+                    >
+                      <Filter className="h-5 w-5" />
+                    </div>
+                    <div className="flex-1">
+                      <label className="block text-xs font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                        Filter by Purchase Order
+                      </label>
+                      <select
+                        value={paymentFilterPOId || ''}
+                        onChange={(e) => setPaymentFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                        className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer hover:border-opacity-80"
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
+                          borderColor: paymentFilterPOId ? colors.primary : colors.borderLight,
+                          borderWidth: paymentFilterPOId ? '2px' : '1px',
+                          color: colors.textPrimary,
+                          outline: 'none',
+                          boxShadow: paymentFilterPOId ? `0 0 0 3px ${colors.primary}20` : 'none',
+                        }}
+                      >
+                        <option value="">All Purchase Orders</option>
+                        {purchaseOrders.map((po) => (
+                          <option key={po.id} value={po.id}>
+                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                  {paymentFilterPOId && (
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setPaymentFilterPOId(null)}
+                      className="h-10 w-10 hover:bg-opacity-20 transition-all"
+                      style={{ 
+                        color: colors.primary,
+                        backgroundColor: `${colors.primary}10`,
+                      }}
+                      title="Clear filter"
+                    >
+                      <XCircle className="h-5 w-5" />
+                    </Button>
+                  )}
+                </div>
+                {paymentFilterPOId && (() => {
+                  const filteredPayments = payments.filter((payment) => {
+                    // Check if any invoice in this payment has GRNs that belong to the selected PO
+                    return payment.paymentInvoices?.some(pi => {
+                      const invoice = pi.invoice;
+                      if (!invoice) return false;
+                      
+                      // For Down Payment invoices, check purchaseOrderId
+                      if (invoice.paymentType === 'Down Payment') {
+                        return invoice.purchaseOrderId === paymentFilterPOId;
+                      }
+                      
+                      // For Progress Payment invoices, check if any GRN belongs to the selected PO
+                      if (invoice.paymentType === 'Progress Payment') {
+                        return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
+                      }
+                      
+                      return false;
+                    });
+                  });
+                  const selectedPO = purchaseOrders.find(po => po.id === paymentFilterPOId);
+                  return (
+                    <div className="mt-4 pt-4 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
+                      <div className="flex items-center gap-3">
+                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                          Active filter:
+                        </span>
+                        <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-2" style={{
+                          backgroundColor: colors.primary,
+                          color: colors.secondary,
+                        }}>
+                          <ShoppingCart className="h-3 w-3" />
+                          {selectedPO?.lpoNumber || 'Unknown PO'}
+                        </span>
+                      </div>
+                      <div className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                        Showing {filteredPayments.length} of {payments.length} payment{payments.length !== 1 ? 's' : ''}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </Card>
+            )}
+
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse" style={{ borderColor: colors.borderLight }}>
+                <thead>
+                  <tr style={{ backgroundColor: `${colors.primary}20` }}>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Invoices
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Total Payment Amount
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Total VAT Amount
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Payment Method
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Payment Type
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Payment Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Due Date
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {(() => {
+                    // Filter payments by selected PO if filter is set
+                    const filteredPayments = paymentFilterPOId 
+                      ? payments.filter((payment) => {
+                          // Check if any invoice in this payment has GRNs that belong to the selected PO
+                          return payment.paymentInvoices?.some(pi => {
+                            const invoice = pi.invoice;
+                            if (!invoice) return false;
+                            
+                            // For Down Payment invoices, check purchaseOrderId
+                            if (invoice.paymentType === 'Down Payment') {
+                              return invoice.purchaseOrderId === paymentFilterPOId;
+                            }
+                            
+                            // For Progress Payment invoices, check if any GRN belongs to the selected PO
+                            if (invoice.paymentType === 'Progress Payment') {
+                              return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
+                            }
+                            
+                            return false;
+                          });
+                        })
+                      : payments;
+                    
+                    if (filteredPayments.length === 0) {
+                      return (
+                        <tr>
+                          <td colSpan={8} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+                            {paymentFilterPOId ? 'No payments found for the selected Purchase Order.' : 'No payments recorded yet. Click "Add Payment" to add one.'}
+                  </td>
+                </tr>
+                      );
+                    }
+                    
+                    return filteredPayments.map((payment) => (
+                      <tr key={payment.id} style={{ backgroundColor: `${colors.success}08` }}>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          <div className="space-y-1">
+                            {payment.paymentInvoices?.map((pi, index) => (
+                              <span key={pi.id} className="font-medium">
+                                {pi.invoice.invoiceNumber}
+                                {index < (payment.paymentInvoices?.length || 0) - 1 && <span className="mx-1" style={{ color: colors.textSecondary }}>,</span>}
+                              </span>
+                            ))}
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {formatCurrencyWithDecimals(payment.totalPaymentAmount)}
+                        </td>
+                        <td className="px-4 py-3 text-sm text-right font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {formatCurrencyWithDecimals(payment.totalVatAmount)}
+                        </td>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                            backgroundColor: payment.paymentMethod === 'Post Dated' ? `${colors.warning || '#f59e0b'}20` : `${colors.success}20`,
+                            color: payment.paymentMethod === 'Post Dated' ? colors.warning || '#f59e0b' : colors.success,
+                          }}>
+                            {payment.paymentMethod}
+                          </span>
+                        </td>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {payment.paymentType || '-'}
+                        </td>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {new Date(payment.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        </td>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {payment.dueDate 
+                            ? new Date(payment.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+                            : '-'
+                          }
+                        </td>
+                        <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
+                          <div className="flex items-center justify-center gap-2">
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => handleEditPayment(payment)}
+                              className="h-7 w-7"
+                              style={{ color: colors.info }}
+                            >
+                              <Edit className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              onClick={() => {
+                                const invoiceNumbers = payment.paymentInvoices?.map(pi => pi.invoice.invoiceNumber).join(', ') || 'payment';
+                                handleDeletePayment(payment.id, invoiceNumbers);
+                              }}
+                              className="h-7 w-7"
+                              style={{ color: colors.error }}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                    ));
+                  })()}
+            </tbody>
+          </table>
+        </div>
+          </div>
         )}
       </Card>
     </div>
