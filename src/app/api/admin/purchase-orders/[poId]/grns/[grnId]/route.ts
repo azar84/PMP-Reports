@@ -20,10 +20,10 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { invoiceNumber, invoiceDate, grnRefNo, grnDate, advancePayment, deliveredAmount } = body;
+    const { grnRefNo, grnDate, deliveredAmount } = body;
 
     // Validate required fields
-    if (!invoiceNumber || !invoiceDate || !grnRefNo || !grnDate || deliveredAmount === undefined) {
+    if (!grnRefNo || !grnDate || deliveredAmount === undefined) {
       return NextResponse.json(
         { success: false, error: 'Missing required fields' },
         { status: 400 }
@@ -33,11 +33,8 @@ export async function PUT(
     const grn = await prisma.projectGRN.update({
       where: { id: grnIdNum },
       data: {
-        invoiceNumber,
-        invoiceDate: parseDateFromInput(invoiceDate),
         grnRefNo,
         grnDate: parseDateFromInput(grnDate),
-        advancePayment: advancePayment ? parseFloat(advancePayment) : 0,
         deliveredAmount: parseFloat(deliveredAmount),
       },
     });

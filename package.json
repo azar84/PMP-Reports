@@ -8,7 +8,8 @@
     "start": "next start",
     "lint": "next lint",
     "db:seed": "node prisma/seed.js",
-    "demo:data": "node scripts/demo-data.js"
+    "demo:data": "node scripts/demo-data.js",
+    "migrate:grn-invoices": "node scripts/safe-grn-migration.js"
   },
   "dependencies": {
     "@headlessui/react": "^2.1.6",

@@ -201,6 +201,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       data.staff.forEach((position: any) => {
         let assignedCount = 0;
         
+        // Get required utilization from position (default to 100 if not available)
+        const requiredUtilization = position.requiredUtilization || 100;
+        const requiredValue = requiredUtilization / 100;
+        
         if (position.staffAssignments && Array.isArray(position.staffAssignments)) {
           position.staffAssignments.forEach((assignment: any) => {
             if (assignment.staff && assignment.staff.staffName) {
@@ -208,17 +212,20 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 ...assignment,
                 designation: position.designation,
               });
-              assignedCount += 1;
+              // Count utilization percentage (50% = 0.5, 100% = 1.0)
+              const utilizationValue = (assignment.utilization || 100) / 100;
+              assignedCount += utilizationValue;
             }
           });
         }
         
-        const balance = 1 - assignedCount;
+        const balance = requiredValue - assignedCount;
         positionSummary.push({
           designation: position.designation,
-          required: 1,
+          required: requiredValue,
           assigned: assignedCount,
           balance: balance,
+          requiredUtilization: requiredUtilization, // Keep original for reference
         });
       });
       
@@ -234,6 +241,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           assignedStaff: allAssignedStaff, // All assigned staff in one slide
           balanceStaff: balanceStaffList, // All balance staff
           positionSummary: positionSummary, // Keep for summary calculations
+          positions: data.staff, // Include full positions array for requiredUtilization access
           pageNumber: 1,
           totalPages: 1,
           isLastPage: true,
@@ -1319,7 +1327,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         >
                       <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-8' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.8rem', height: 'auto' }}>
                         {item.displayNumber || '-'}
-                      </td>
+                          </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.8rem', height: 'auto' }}>
                             {item.phase}
                           </td>
@@ -1377,9 +1385,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     // Check if content is in new format (with assignedStaff array) or old format (positions array)
     const isNewFormat = content.assignedStaff !== undefined;
     
-    // Calculate summary statistics
+    // Calculate summary statistics - matching ProjectStaff.tsx logic
     let totalNeeded = 0;
     let totalAssigned = 0;
+    const assignedStaffIds = new Set<number>();
     const assignedStaffList: Array<{
       staffName: string;
       designation: string;
@@ -1390,6 +1399,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       duration?: string;
       email?: string;
       phone?: string;
+      staffId?: number;
     }> = [];
     
     // Track positions and their required/assigned counts
@@ -1439,10 +1449,34 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
     if (isNewFormat) {
       // New format: content has assignedStaff array and balanceStaff array
+      // Calculate totalNeeded from positions (sum of requiredUtilization / 100)
+      if (content.positions && Array.isArray(content.positions)) {
+        totalNeeded = content.positions.reduce((sum: number, position: any) => {
+          const requiredUtilization = position.requiredUtilization || 100;
+          return sum + (requiredUtilization / 100);
+        }, 0);
+      } else if (content.positionSummary && Array.isArray(content.positionSummary)) {
+        // Fallback: calculate from positionSummary if positions not available
+        totalNeeded = content.positionSummary.reduce((sum: number, pos: any) => {
+          return sum + (pos.required || 0);
+        }, 0);
+      }
+      
+      // Calculate totalAssigned from assignedStaff (sum of utilization / 100)
       if (content.assignedStaff && Array.isArray(content.assignedStaff)) {
         content.assignedStaff.forEach((assignment: any) => {
           if (assignment.staff && assignment.staff.staffName) {
-            totalAssigned += 1;
+            // Count utilization percentage (50% = 0.5, 100% = 1.0)
+            const utilizationValue = (assignment.utilization || 100) / 100;
+            totalAssigned += utilizationValue;
+            
+            // Track unique staff IDs for involved staff count
+            if (assignment.staffId) {
+              assignedStaffIds.add(assignment.staffId);
+            } else if (assignment.staff?.id) {
+              assignedStaffIds.add(assignment.staff.id);
+            }
+            
             const startDate = assignment.startDate;
             const endDate = assignment.endDate;
             assignedStaffList.push({
@@ -1455,6 +1489,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               duration: calculateDuration(startDate, endDate),
               email: assignment.staff.email,
               phone: assignment.staff.phone,
+              staffId: assignment.staffId || assignment.staff?.id,
             });
           }
         });
@@ -1465,31 +1500,38 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         balanceStaffList = content.balanceStaff;
       }
       
-      // Get position summary for calculations
+      // Get position summary for reference
       if (content.positionSummary && Array.isArray(content.positionSummary)) {
         positionSummary = content.positionSummary;
-        totalNeeded = positionSummary.length;
-        // Recalculate totalAssigned from positionSummary if needed
-        if (totalAssigned === 0) {
-          totalAssigned = positionSummary.reduce((sum, pos) => sum + pos.assigned, 0);
-        }
       }
     } else {
       // Old format: content is array of positions
       if (content && Array.isArray(content)) {
         content.forEach((position: any) => {
-          // Count positions as needed (each position designation is 1 required)
-          totalNeeded += 1;
+          // Calculate required from requiredUtilization (matching ProjectStaff.tsx)
+          const requiredUtilization = position.requiredUtilization || 100;
+          const requiredValue = requiredUtilization / 100;
+          totalNeeded += requiredValue;
           
-          // Count assigned staff for this position
+          // Count assigned staff for this position using utilization percentages
           let assignedCount = 0;
           
           // Process staff assignments
           if (position.staffAssignments && Array.isArray(position.staffAssignments)) {
             position.staffAssignments.forEach((assignment: any) => {
               if (assignment.staff && assignment.staff.staffName) {
-                totalAssigned += 1;
-                assignedCount += 1;
+                // Count utilization percentage (50% = 0.5, 100% = 1.0)
+                const utilizationValue = (assignment.utilization || 100) / 100;
+                totalAssigned += utilizationValue;
+                assignedCount += utilizationValue;
+                
+                // Track unique staff IDs for involved staff count
+                if (assignment.staffId) {
+                  assignedStaffIds.add(assignment.staffId);
+                } else if (assignment.staff?.id) {
+                  assignedStaffIds.add(assignment.staff.id);
+                }
+                
                 const startDate = assignment.startDate;
                 const endDate = assignment.endDate;
                 assignedStaffList.push({
@@ -1502,16 +1544,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   duration: calculateDuration(startDate, endDate),
                   email: assignment.staff.email,
                   phone: assignment.staff.phone,
+                  staffId: assignment.staffId || assignment.staff?.id,
                 });
               }
             });
           }
           
-          // Track position summary
-          const balance = 1 - assignedCount;
+          // Track position summary (required uses requiredUtilization, assigned uses utilization)
+          const balance = requiredValue - assignedCount;
           const positionData = {
             designation: position.designation,
-            required: 1,
+            required: requiredValue,
             assigned: assignedCount,
             balance: balance,
           };
@@ -1526,7 +1569,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     }
 
+    // Calculate final values matching ProjectStaff.tsx
+    const totalInvolvedStaff = assignedStaffIds.size;
     const balance = totalNeeded - totalAssigned;
+    
+    // Round values to 2 decimal places (matching ProjectStaff.tsx)
+    const roundedTotalNeeded = Math.round(totalNeeded * 100) / 100;
+    const roundedTotalAssigned = Math.round(totalAssigned * 100) / 100;
+    const roundedBalance = Math.round(balance * 100) / 100;
     const isLastPage = content.isLastPage !== undefined ? content.isLastPage : true;
     
     // Get project from content
@@ -1539,18 +1589,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         <ReportHeader project={project} pageTitle="Project Staff" />
 
         {/* Summary Section */}
-        <div className="mb-2 grid grid-cols-3 gap-2 max-w-4xl mx-auto flex-shrink-0">
+        <div className="mb-2 grid grid-cols-4 gap-2 max-w-6xl mx-auto flex-shrink-0">
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
             <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
               Total Needed
-                        </p>
+            </p>
             <p className="text-xl font-bold" style={{ color: colors.primary }}>
-              {totalNeeded}
-                        </p>
-                      </div>
+              {roundedTotalNeeded.toFixed(2)}
+            </p>
+          </div>
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -1559,9 +1609,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               Total Assigned
             </p>
             <p className="text-xl font-bold" style={{ color: colors.success }}>
-              {totalAssigned}
+              {roundedTotalAssigned.toFixed(2)}
             </p>
-                    </div>
+          </div>
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -1569,10 +1619,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
               Balance
             </p>
-            <p className="text-xl font-bold" style={{ color: balance > 0 ? colors.warning : colors.success }}>
-              {balance}
+            <p className="text-xl font-bold" style={{ color: roundedBalance > 0 ? colors.warning : colors.success }}>
+              {roundedBalance.toFixed(2)}
             </p>
-                  </div>
+          </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Involved Staff
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {totalInvolvedStaff}
+            </p>
+          </div>
         </div>
 
         {/* Tables Container - Uses explicit heights to prevent overflow */}
@@ -1931,7 +1992,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           className="font-semibold"
                           style={{ color: colors.warning, fontSize: '0.7rem' }}
                         >
-                          {pos.assigned}
+                          {typeof pos.assigned === 'number' ? pos.assigned.toFixed(1) : pos.assigned}
                         </span>
                       </td>
                       <td className="py-0.5 px-2" style={{ height: 'auto' }}>
@@ -1939,7 +2000,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           className="font-semibold"
                           style={{ color: colors.warning, fontSize: '0.7rem' }}
                         >
-                          {pos.balance} needed
+                          {typeof pos.balance === 'number' ? pos.balance.toFixed(1) : pos.balance} needed
                         </span>
                       </td>
                     </tr>

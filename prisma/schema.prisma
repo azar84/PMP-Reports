@@ -525,6 +525,7 @@ model Project {
   projectSuppliers                ProjectSupplier[]
   purchaseOrders                  ProjectPurchaseOrder[]
   grns                            ProjectGRN[]
+  invoices                        ProjectInvoice[]
   areaOfConcerns                  ProjectAreaOfConcern[]
   clientFeedback                  ProjectClientFeedback?
   projectAssets                   ProjectAsset[]
@@ -1184,7 +1185,8 @@ model ProjectSupplier {
   project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier       Supplier               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   purchaseOrders ProjectPurchaseOrder[]
-  grns          ProjectGRN[]
+  grns           ProjectGRN[]
+  invoices       ProjectInvoice[]
 
   @@unique([projectId, supplierId])
   @@map("project_suppliers")
@@ -1206,6 +1208,7 @@ model ProjectPurchaseOrder {
   projectSupplier ProjectSupplier @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
   project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
   grns            ProjectGRN[]
+  invoices        ProjectInvoice[]
 
   @@unique([projectId, projectSupplierId, lpoNumber])
   @@index([projectId])
@@ -1218,23 +1221,64 @@ model ProjectGRN {
   projectId         Int
   projectSupplierId Int
   purchaseOrderId   Int
-  invoiceNumber     String
-  invoiceDate       DateTime
   grnRefNo          String
   grnDate           DateTime
-  advancePayment    Decimal? @default(0) // Advance Payment (D)
   deliveredAmount   Decimal  // Delivered Amount (GRN) (E)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
   purchaseOrder   ProjectPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  projectSupplier ProjectSupplier     @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
-  project         Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectSupplier ProjectSupplier      @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invoiceGRNs     InvoiceGRN[]
 
   @@index([projectId])
   @@index([projectSupplierId])
   @@index([purchaseOrderId])
   @@map("project_grns")
+}
+
+model ProjectInvoice {
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  projectSupplierId Int
+  purchaseOrderId   Int?     // For Down Payment invoices - links to PO
+  invoiceNumber     String
+  invoiceDate       DateTime
+  paymentType       String   // "Down Payment" or "Progress Payment"
+  downPayment       Decimal? // Down Payment amount (only for Down Payment type)
+  invoiceAmount     Decimal  // Invoice amount before VAT (A)
+  vatAmount         Decimal  // VAT amount at 5% (B)
+  downPaymentRecovery Decimal? // Down Payment Recovery (for Progress Payment) - deducted from total
+  totalAmount       Decimal  // Total amount with VAT (C) = A + B - Down Payment Recovery
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  projectSupplier ProjectSupplier   @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  purchaseOrder   ProjectPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  invoiceGRNs     InvoiceGRN[]
+
+  @@unique([projectId, projectSupplierId, invoiceNumber])
+  @@index([projectId])
+  @@index([projectSupplierId])
+  @@index([purchaseOrderId])
+  @@map("project_invoices")
+}
+
+model InvoiceGRN {
+  id        Int      @id @default(autoincrement())
+  invoiceId Int
+  grnId     Int
+  createdAt DateTime @default(now())
+
+  invoice ProjectInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  grn     ProjectGRN     @relation(fields: [grnId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, grnId])
+  @@index([invoiceId])
+  @@index([grnId])
+  @@map("invoice_grns")
 }
 
 model ProjectAreaOfConcern {
