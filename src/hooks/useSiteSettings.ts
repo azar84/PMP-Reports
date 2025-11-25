@@ -54,6 +54,7 @@ interface SiteSettings {
   sidebarSelectedColor?: string;
   sidebarHoverColor?: string;
   currencySymbol?: string;
+  vatPercent?: number | null;
   createdAt?: string;
   updatedAt?: string;
 }

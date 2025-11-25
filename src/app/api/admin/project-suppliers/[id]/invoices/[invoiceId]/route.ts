@@ -1,6 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
+import { updateInvoiceStatus } from '@/lib/invoiceStatus';
+
+// Helper function to get VAT percentage from site settings
+async function getVatPercent(): Promise<number> {
+  const siteSettings = await prisma.siteSettings.findFirst();
+  return siteSettings?.vatPercent ? Number(siteSettings.vatPercent) : 5; // Default to 5%
+}
 
 // PUT - Update an invoice
 export async function PUT(
@@ -128,6 +135,11 @@ export async function PUT(
       }
     }
 
+    // Get VAT percentage from site settings
+    const vatPercent = await getVatPercent();
+    const vatDecimal = vatPercent / 100; // e.g., 0.05 for 5%
+    const vatMultiplier = 1 + vatDecimal; // e.g., 1.05 for 5%
+
     // Calculate invoice amounts if not provided (for backward compatibility)
     let finalInvoiceAmount = invoiceAmount;
     let finalVatAmount = vatAmount;
@@ -137,8 +149,8 @@ export async function PUT(
       if (finalInvoiceAmount === undefined || finalVatAmount === undefined || finalTotalAmount === undefined) {
         const baseAmount = parseFloat(downPayment);
         finalInvoiceAmount = baseAmount;
-        finalVatAmount = baseAmount * 0.05;
-        finalTotalAmount = baseAmount * 1.05;
+        finalVatAmount = baseAmount * vatDecimal;
+        finalTotalAmount = baseAmount * vatMultiplier;
       }
     } else {
       // Progress Payment - calculate from GRN amounts
@@ -156,7 +168,7 @@ export async function PUT(
         const amountAfterRecovery = baseAmount - recovery;
         // Invoice Amount should be the amount after recovery (excluding VAT)
         finalInvoiceAmount = amountAfterRecovery;
-        finalVatAmount = amountAfterRecovery * 0.05;
+        finalVatAmount = amountAfterRecovery * vatDecimal;
         finalTotalAmount = amountAfterRecovery + finalVatAmount;
       }
     }
@@ -211,7 +223,27 @@ export async function PUT(
       },
     });
 
-    return NextResponse.json({ success: true, data: invoice });
+    // Recalculate and update invoice status (especially if due date changed)
+    await updateInvoiceStatus(invoice.id);
+
+    // Fetch updated invoice with status
+    const updatedInvoice = await prisma.projectInvoice.findUnique({
+      where: { id: invoice.id },
+      include: {
+        purchaseOrder: true,
+        invoiceGRNs: {
+          include: {
+            grn: {
+              include: {
+                purchaseOrder: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({ success: true, data: updatedInvoice });
   } catch (error: any) {
     console.error('Error updating invoice:', error);
     // Handle unique constraint violation

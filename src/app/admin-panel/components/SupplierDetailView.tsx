@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle } from 'lucide-react';
 import { formatDateForInput } from '@/lib/dateUtils';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
@@ -98,10 +99,12 @@ interface Invoice {
   vatAmount: number; // VAT amount at 5%
   downPaymentRecovery: number | null; // Down Payment Recovery (for Progress Payment)
   totalAmount: number; // Total amount with VAT - Down Payment Recovery
+  status?: string; // "paid", "partially_paid", or "unpaid"
   createdAt: string;
   updatedAt: string;
   purchaseOrder?: PurchaseOrder | null;
   invoiceGRNs: InvoiceGRN[];
+  paymentInvoices?: PaymentInvoice[]; // Payment invoices linked to this invoice
 }
 
 interface InvoicesResponse {
@@ -117,6 +120,7 @@ interface PaymentInvoice {
   paymentAmount: number;
   vatAmount: number;
   invoice: Invoice;
+  payment?: Payment; // Payment information
 }
 
 interface Payment {
@@ -129,6 +133,7 @@ interface Payment {
   paymentType: string | null; // For Post Dated: "PDC", "LC", or "Trust Receipt"
   paymentDate: string; // For Current Dated: payment date, For Post Dated: issue date
   dueDate: string | null; // For Post Dated: due date
+  liquidated: boolean; // For Post Dated: indicates if LC/PDC/Trust Receipt has been released
   notes: string | null;
   createdAt: string;
   updatedAt: string;
@@ -152,6 +157,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+  const { siteSettings } = useSiteSettings();
+  
+  // Get VAT percentage from site settings, default to 5%
+  const vatPercent = siteSettings?.vatPercent ?? 5;
+  const vatMultiplier = 1 + (vatPercent / 100); // e.g., 1.05 for 5%
+  const vatDecimal = vatPercent / 100; // e.g., 0.05 for 5%
 
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -199,6 +210,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     paymentType: 'PDC' | 'LC' | 'Trust Receipt' | null;
     paymentDate: string;
     dueDate: string;
+    liquidated: boolean;
     notes: string;
   }>({
     selectedInvoiceIds: [],
@@ -207,13 +219,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     paymentType: null,
     paymentDate: '',
     dueDate: '',
+    liquidated: false,
     notes: '',
   });
   const [poFormData, setPOFormData] = useState({
     lpoNumber: '',
     lpoDate: '',
     lpoValue: '',
-    vatPercent: '5',
+    vatPercent: vatPercent.toString(),
     notes: '',
   });
 
@@ -354,7 +367,31 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     }
   }, [get, supplierId]);
 
-  // Helper function to calculate paid amounts for invoices
+  // Helper function to calculate paid amounts from invoice data (from DB)
+  // This doesn't depend on payments state being loaded
+  const calculatePaidAmountsFromInvoices = useCallback((invoiceList: Invoice[]) => {
+    const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+    
+    invoiceList.forEach(invoice => {
+      if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+        const totalPaid = invoice.paymentInvoices.reduce(
+          (sum, pi) => ({
+            paymentAmount: sum.paymentAmount + Number(pi.paymentAmount || 0),
+            vatAmount: sum.vatAmount + Number(pi.vatAmount || 0),
+          }),
+          { paymentAmount: 0, vatAmount: 0 }
+        );
+        paidAmounts[invoice.id] = totalPaid;
+      } else {
+        paidAmounts[invoice.id] = { paymentAmount: 0, vatAmount: 0 };
+      }
+    });
+    
+    return paidAmounts;
+  }, []);
+
+  // Helper function to calculate paid amounts for invoices (from payments state)
+  // Used for payment form calculations when editing payments
   const calculateInvoicePaidAmounts = useCallback(() => {
     const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
     
@@ -374,6 +411,77 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     
     return paidAmounts;
   }, [payments, editingPayment]);
+
+  // Helper function to get invoice status from database or calculate if not available
+  const getInvoiceStatus = useCallback((invoice: Invoice): 'paid' | 'partially_paid' | 'unpaid' => {
+    // Use status from database if available
+    if (invoice.status && ['paid', 'partially_paid', 'unpaid'].includes(invoice.status)) {
+      return invoice.status as 'paid' | 'partially_paid' | 'unpaid';
+    }
+    
+    // Fallback calculation if status not in database
+    // Use paymentInvoices from invoice data (from DB) instead of payments state
+    let totalPaid = 0;
+    if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+      totalPaid = invoice.paymentInvoices.reduce((sum, pi) => {
+        return sum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+      }, 0);
+    }
+    
+    const invoiceTotal = Number(invoice.totalAmount || 0);
+    const tolerance = 0.01;
+    
+    // If fully paid, return 'paid'
+    if (totalPaid >= invoiceTotal - tolerance) {
+      return 'paid';
+    }
+    
+    // If partially paid, return 'partially_paid'
+    if (totalPaid > tolerance) {
+      return 'partially_paid';
+    }
+    
+    // Not paid
+    return 'unpaid';
+  }, []);
+
+  // Helper function to calculate due days (due date - current date or payment date if fully paid)
+  // Returns: positive if not yet due, negative if overdue
+  const calculateDueDays = useCallback((invoice: Invoice): number | null => {
+    if (!invoice.dueDate) {
+      return null;
+    }
+    
+    const due = new Date(invoice.dueDate);
+    due.setHours(0, 0, 0, 0);
+    
+    // If invoice is fully paid, use the payment date instead of current date
+    let referenceDate = new Date();
+    const invoiceStatus = getInvoiceStatus(invoice);
+    
+    // Only use payment date if invoice is fully paid (not partially paid)
+    if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+      // Get the latest payment date (most recent payment)
+      const paymentDates = invoice.paymentInvoices
+        .map(pi => pi.payment?.paymentDate)
+        .filter(date => date !== undefined)
+        .map(date => new Date(date!));
+      
+      if (paymentDates.length > 0) {
+        // Use the most recent payment date
+        referenceDate = new Date(Math.max(...paymentDates.map(d => d.getTime())));
+      }
+    }
+    
+    referenceDate.setHours(0, 0, 0, 0);
+    
+    // Calculate difference: due date - reference date (current date or payment date if paid)
+    // Positive = days until due, Negative = days overdue
+    const diffTime = due.getTime() - referenceDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    
+    return diffDays;
+  }, [getInvoiceStatus]);
 
   // Get invoices to display in payment form
   // When editing: show invoices from the current payment + unpaid invoices
@@ -471,7 +579,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         lpoNumber: poFormData.lpoNumber,
         lpoDate: poFormData.lpoDate,
         lpoValue: parseFloat(poFormData.lpoValue),
-        vatPercent: parseFloat(poFormData.vatPercent) || 5,
+        vatPercent: parseFloat(poFormData.vatPercent) || vatPercent,
         notes: poFormData.notes || null,
       };
 
@@ -494,7 +602,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         lpoNumber: '',
         lpoDate: '',
         lpoValue: '',
-        vatPercent: '5',
+        vatPercent: vatPercent.toString(),
         notes: '',
       });
     } catch (submitError: any) {
@@ -650,8 +758,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     // Amount after recovery (before VAT)
     const amountAfterRecovery = invoiceAmount - downPaymentRecovery;
     
-    // Use editable VAT amount if provided, otherwise calculate 5% of amount after recovery
-    const vatAmount = invoiceFormData.vatAmount ? parseFloat(invoiceFormData.vatAmount) : (amountAfterRecovery * 0.05);
+    // Use editable VAT amount if provided, otherwise calculate VAT of amount after recovery
+    const vatAmount = invoiceFormData.vatAmount ? parseFloat(invoiceFormData.vatAmount) : (amountAfterRecovery * vatDecimal);
     
     // Total amount = Amount after recovery + VAT
     const totalAmount = amountAfterRecovery + vatAmount;
@@ -734,10 +842,10 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       // Amount after recovery (before VAT) - this is the Invoice Amount (excluding VAT)
       const amountAfterRecovery = amounts.invoiceAmount - finalDownPaymentRecovery;
       
-      // Use the editable VAT amount if provided, otherwise calculate 5% of amount after recovery
+      // Use the editable VAT amount if provided, otherwise calculate VAT of amount after recovery
       const finalVatAmount = invoiceFormData.vatAmount && parseFloat(invoiceFormData.vatAmount) > 0 
         ? parseFloat(invoiceFormData.vatAmount) 
-        : (amountAfterRecovery * 0.05);
+        : (amountAfterRecovery * vatDecimal);
       
       // Total amount = Amount after recovery + VAT
       const finalTotalAmount = amountAfterRecovery + finalVatAmount;
@@ -940,6 +1048,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         paymentType: paymentFormData.paymentMethod === 'Post Dated' ? paymentFormData.paymentType : null,
         paymentDate: paymentFormData.paymentDate,
         dueDate: paymentFormData.paymentMethod === 'Post Dated' ? paymentFormData.dueDate : null,
+        liquidated: paymentFormData.paymentMethod === 'Post Dated' ? paymentFormData.liquidated : false,
         notes: paymentFormData.notes || null,
       };
 
@@ -971,7 +1080,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       }
 
       console.log('Payment saved successfully');
-      await loadPayments();
+      // Reload both payments and invoices to update status and summary cards
+      await Promise.all([loadPayments(), loadInvoices()]);
       setShowPaymentForm(false);
       setEditingPayment(null);
       setPaymentFormData({
@@ -981,6 +1091,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         paymentType: null,
         paymentDate: '',
         dueDate: '',
+        liquidated: false,
         notes: '',
       });
     } catch (submitError: any) {
@@ -992,7 +1103,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     } finally {
       setIsSaving(false);
     }
-  }, [paymentFormData, editingPayment, supplierId, invoices, post, put, loadPayments]);
+  }, [paymentFormData, editingPayment, supplierId, invoices, post, put, loadPayments, loadInvoices]);
 
   const handleEditPayment = useCallback((payment: Payment) => {
     setEditingPayment(payment);
@@ -1017,6 +1128,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       paymentType: payment.paymentType as 'PDC' | 'LC' | 'Trust Receipt' | null,
       paymentDate: formatDateForInput(payment.paymentDate),
       dueDate: payment.dueDate ? formatDateForInput(payment.dueDate) : '',
+      liquidated: payment.liquidated || false,
       notes: payment.notes || '',
     });
   }, []);
@@ -1029,13 +1141,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
 
       try {
         await del(`/api/admin/project-suppliers/${supplierId}/payments/${paymentId}`);
-        await loadPayments();
+        // Reload both payments and invoices to update status and summary cards
+        await Promise.all([loadPayments(), loadInvoices()]);
       } catch (deleteError: any) {
         console.error('Failed to delete payment:', deleteError);
         setError(deleteError?.message || 'Failed to delete payment.');
       }
     },
-    [del, supplierId, loadPayments]
+    [del, supplierId, loadPayments, loadInvoices]
   );
 
   if (isLoading) {
@@ -1230,23 +1343,58 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           return sum + Number(invoice.totalAmount || 0);
         }, 0);
 
-        // Calculate Total Paid (sum of all payment amounts including VAT)
+        // Calculate Total Paid - only count liquidated payments
+        // Current Dated payments are always considered liquidated
+        // Post Dated payments must be liquidated to count
         const totalPaid = payments.reduce((sum, payment) => {
-          return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          const isLiquidated = payment.paymentMethod === 'Current Dated' || 
+                               (payment.paymentMethod === 'Post Dated' && payment.liquidated);
+          
+          if (isLiquidated) {
+            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          }
+          return sum;
+        }, 0);
+
+        // Calculate Committed Payments - non-liquidated Post Dated payments
+        const committedPayments = payments.reduce((sum, payment) => {
+          if (payment.paymentMethod === 'Post Dated' && !payment.liquidated) {
+            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          }
+          return sum;
         }, 0);
 
         // Calculate Balance to be Paid
         const balanceToBePaid = totalInvoiced - totalPaid;
 
-        // Calculate LPO Balance (Total PO amount - Total Paid)
-        const totalPOAmount = purchaseOrders.reduce((sum, po) => {
+        // Calculate Total Delivered (sum of all GRN deliveredAmount) with VAT
+        const totalDeliveredBase = Object.values(grns).reduce((sum, poGrns) => {
+          return sum + poGrns.reduce((poSum, grn) => {
+            return poSum + Number(grn.deliveredAmount || 0);
+          }, 0);
+        }, 0);
+        const totalDelivered = totalDeliveredBase * vatMultiplier; // Add VAT
+
+        // Calculate Total PO Amounts (with VAT)
+        const totalPOAmountsWithVat = purchaseOrders.reduce((sum, po) => {
           return sum + Number(po.lpoValueWithVat || 0);
         }, 0);
-        const lpoBalance = totalPOAmount - totalPaid;
+
+        // Calculate LPO Balance: (Total PO amount - Delivered amount) * VAT multiplier (with VAT)
+        const totalPOAmount = purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0); // Use base LPO value without VAT
+        }, 0);
+        
+        const lpoBalanceBeforeVat = totalPOAmount - totalDeliveredBase;
+        const lpoBalance = lpoBalanceBeforeVat * vatMultiplier; // Add VAT
 
         // Calculate Due Amount (invoices past due date)
+        // Use invoice data directly from DB, not payments state
         const today = new Date();
         today.setHours(0, 0, 0, 0);
+        
+        // Calculate paid amounts from invoice data (from DB)
+        const paidAmountsFromDB = calculatePaidAmountsFromInvoices(invoices);
         
         const dueAmount = invoices.reduce((sum, invoice) => {
           if (!invoice.dueDate) return sum;
@@ -1256,9 +1404,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           
           // Check if invoice is past due date
           if (dueDate < today) {
-            // Calculate remaining balance for this invoice
-            const paidAmounts = calculateInvoicePaidAmounts();
-            const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            // Calculate remaining balance for this invoice using DB data
+            const paid = paidAmountsFromDB[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
             const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
             const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
             
@@ -1270,7 +1417,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         }, 0);
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
             <Card
               className="p-4"
               style={{
@@ -1281,67 +1428,48 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
-                    Total Invoiced
+                    Total PO Amounts
                   </p>
                   <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
-                    {formatCurrencyWithDecimals(totalInvoiced)}
+                    {formatCurrencyWithDecimals(totalPOAmountsWithVat)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    With VAT
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.primary}20` }}
+                >
+                  <FileText className="h-6 w-6" style={{ color: colors.primary }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Delivered
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalDelivered)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    With VAT
                   </p>
                 </div>
                 <div
                   className="w-12 h-12 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: `${colors.info}20` }}
                 >
-                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
-                    Total Paid
-                  </p>
-                  <p className="text-xl font-bold" style={{ color: colors.success }}>
-                    {formatCurrencyWithDecimals(totalPaid)}
-                  </p>
-                </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.success}20` }}
-                >
-                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
-                    Balance to be Paid
-                  </p>
-                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
-                    {formatCurrencyWithDecimals(balanceToBePaid)}
-                  </p>
-                </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}
-                >
-                  <Calendar className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
+                  <Package className="h-6 w-6" style={{ color: colors.info }} />
                 </div>
               </div>
             </Card>
@@ -1381,6 +1509,31 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Invoiced
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalInvoiced)}
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.info}20` }}
+                >
+                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Due Amount
                   </p>
                   <p className="text-xl font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>
@@ -1397,6 +1550,87 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                   style={{ backgroundColor: `${dueAmount > 0 ? colors.error : colors.success}20` }}
                 >
                   <AlertCircle className="h-6 w-6" style={{ color: dueAmount > 0 ? colors.error : colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Paid
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: colors.success }}>
+                    {formatCurrencyWithDecimals(totalPaid)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    Liquidated only
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.success}20` }}
+                >
+                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Committed Payments
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: colors.warning }}>
+                    {formatCurrencyWithDecimals(committedPayments)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    Not liquidated
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${colors.warning}20` }}
+                >
+                  <Calendar className="h-6 w-6" style={{ color: colors.warning }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card
+              className="p-4"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: colors.borderLight,
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance to be Paid
+                  </p>
+                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(balanceToBePaid)}
+                  </p>
+                </div>
+                <div
+                  className="w-12 h-12 rounded-lg flex items-center justify-center"
+                  style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}
+                >
+                  <Calendar className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
                 </div>
               </div>
             </Card>
@@ -1635,7 +1869,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     step="0.01"
                     value={poFormData.vatPercent}
                     onChange={(e) => setPOFormData({ ...poFormData, vatPercent: e.target.value })}
-                    placeholder="5"
+                    placeholder={vatPercent.toString()}
                     style={{
                       backgroundColor: colors.backgroundSecondary,
                       borderColor: colors.borderLight,
@@ -2713,6 +2947,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                         Due Date
                                       </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Status
+                                      </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Due Days
+                                      </th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Payment Type
                                       </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
@@ -2765,6 +3005,64 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             ? new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                             : <span style={{ color: colors.textSecondary }}>-</span>
                           }
+                                          </td>
+                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight }}>
+                          {(() => {
+                            const status = getInvoiceStatus(invoice);
+                            const statusConfig = {
+                              paid: {
+                                label: 'Paid',
+                                bgColor: `${colors.success}20`,
+                                textColor: colors.success,
+                              },
+                              partially_paid: {
+                                label: 'Partially Paid',
+                                bgColor: `${colors.warning}20`,
+                                textColor: colors.warning,
+                              },
+                              unpaid: {
+                                label: 'Unpaid',
+                                bgColor: `${colors.error}20`,
+                                textColor: colors.error,
+                              },
+                            };
+                            const config = statusConfig[status];
+                            return (
+                              <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                                backgroundColor: config.bgColor,
+                                color: config.textColor,
+                              }}>
+                                {config.label}
+                              </span>
+                            );
+                          })()}
+                                          </td>
+                        <td className="px-4 py-3 text-sm text-center border" style={{ borderColor: colors.borderLight }}>
+                          {(() => {
+                            const dueDays = calculateDueDays(invoice);
+                            if (dueDays === null) {
+                              return <span style={{ color: colors.textSecondary }}>-</span>;
+                            }
+                            
+                            // Positive = days until due, negative = days overdue
+                            const isOverdue = dueDays < 0;
+                            const displayDays = Math.abs(dueDays);
+                            const invoiceStatus = getInvoiceStatus(invoice);
+                            
+                            return (
+                              <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                                backgroundColor: isOverdue ? `${colors.error}20` : `${colors.info}20`,
+                                color: isOverdue ? colors.error : colors.info,
+                              }}>
+                                {isOverdue ? `-${displayDays}` : `+${displayDays}`}
+                                {invoiceStatus === 'paid' && (
+                                  <span className="ml-1 text-xs" style={{ color: colors.textSecondary }}>
+                                    (paid)
+                                  </span>
+                                )}
+                              </span>
+                            );
+                          })()}
                                           </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           <span className="text-xs px-2 py-1 rounded font-medium" style={{
@@ -2838,7 +3136,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                       ))
                                     ) : (
                                       <tr>
-                        <td colSpan={9} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+                        <td colSpan={11} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
                           {invoiceFilterPOId ? 'No invoices found for the selected PO.' : 'No invoices yet. Click "Add Invoice" to add one.'}
                                         </td>
                                       </tr>
@@ -2929,6 +3227,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             paymentMethod: method,
                             paymentType: method === 'Post Dated' ? null : null,
                             dueDate: method === 'Post Dated' ? paymentFormData.dueDate : '',
+                            liquidated: method === 'Post Dated' ? paymentFormData.liquidated : false,
                           });
                         }}
                         className="w-full rounded-lg border px-3 py-2 text-sm"
@@ -2979,6 +3278,22 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                               color: colors.textPrimary,
                             }}
                           />
+                        </div>
+                        <div className="md:col-span-2">
+                          <label className="flex items-center gap-2 cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={paymentFormData.liquidated}
+                              onChange={(e) => setPaymentFormData({ ...paymentFormData, liquidated: e.target.checked })}
+                              className="w-4 h-4 rounded"
+                              style={{
+                                accentColor: colors.primary,
+                              }}
+                            />
+                            <span className="text-xs font-medium" style={{ color: colors.textPrimary }}>
+                              Liquidated (LC/PDC/Trust Receipt has been released)
+                            </span>
+                          </label>
                         </div>
                       </>
                     )}
@@ -3091,12 +3406,16 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                         const totalPaid = paid.paymentAmount + paid.vatAmount;
                                         const invoiceTotal = Number(invoice.totalAmount || 0);
                                         const remaining = invoiceTotal - totalPaid;
-                                        // Auto-populate VAT amount from invoice
-                                        const invoiceVatAmount = invoice.vatAmount ? Number(invoice.vatAmount).toFixed(2) : '0';
+                                        
+                                        // Calculate remaining base amount and VAT
+                                        // remaining is the total with VAT, so we need to split it
+                                        // If remaining = 525 (with 5% VAT), base = 525/1.05 = 500, VAT = 25
+                                        const remainingBase = remaining > 0 ? remaining / 1.05 : 0;
+                                        const remainingVat = remaining - remainingBase;
                                         
                                         newInvoicePayments[invoice.id] = {
-                                          paymentAmount: remaining > 0 ? remaining.toFixed(2) : '0',
-                                          vatAmount: invoiceVatAmount, // Auto-populate from invoice VAT amount
+                                          paymentAmount: remainingBase > 0 ? remainingBase.toFixed(2) : '0',
+                                          vatAmount: remainingVat > 0 ? remainingVat.toFixed(2) : '0',
                                         };
                                       });
                                       
@@ -3201,11 +3520,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           const newInvoicePayments = { ...paymentFormData.invoicePayments };
                                           if (e.target.checked) {
                                             // Auto-fill payment amount with Remaining amount when checked
-                                            // Auto-populate VAT amount from invoice
-                                            const invoiceVatAmount = invoice.vatAmount ? Number(invoice.vatAmount).toFixed(2) : '0';
+                                            // Calculate remaining base amount and VAT
+                                            // remaining is the total with VAT, so we need to split it
+                                            const remainingBase = remaining > 0 ? remaining / 1.05 : 0;
+                                            const remainingVat = remaining - remainingBase;
+                                            
                                             newInvoicePayments[invoice.id] = {
-                                              paymentAmount: remaining > 0 ? remaining.toFixed(2) : '0',
-                                              vatAmount: invoiceVatAmount, // Auto-populate from invoice VAT amount
+                                              paymentAmount: remainingBase > 0 ? remainingBase.toFixed(2) : '0',
+                                              vatAmount: remainingVat > 0 ? remainingVat.toFixed(2) : '0',
                                             };
                                           } else {
                                             delete newInvoicePayments[invoice.id];
@@ -3254,17 +3576,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                   </td>
                                   <td className="px-3 py-2 text-sm text-center border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                                     {(() => {
-                                      if (!invoice.dueDate) return '-';
-                                      const dueDate = new Date(invoice.dueDate);
-                                      const today = new Date();
-                                      today.setHours(0, 0, 0, 0);
-                                      dueDate.setHours(0, 0, 0, 0);
-                                      const diffTime = dueDate.getTime() - today.getTime();
-                                      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                                      const color = diffDays < 0 ? colors.error : diffDays <= 7 ? colors.warning : colors.textPrimary;
+                                      const dueDays = calculateDueDays(invoice);
+                                      if (dueDays === null) return '-';
+                                      const color = dueDays < 0 ? colors.error : dueDays <= 7 ? colors.warning : colors.textPrimary;
                                       return (
-                                        <span style={{ color, fontWeight: diffDays <= 7 ? 'bold' : 'normal' }}>
-                                          {diffDays}
+                                        <span style={{ color, fontWeight: dueDays <= 7 ? 'bold' : 'normal' }}>
+                                          {dueDays < 0 ? `-${Math.abs(dueDays)}` : `+${dueDays}`}
                                         </span>
                                       );
                                     })()}
@@ -3514,10 +3831,13 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                       Invoices
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Total Payment Amount
+                      Payment Amount (Excluding VAT)
                     </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Total VAT Amount
+                    </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Total Payment Amount (Including VAT)
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Payment Method
@@ -3530,6 +3850,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     </th>
                     <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Due Date
+                    </th>
+                    <th className="px-4 py-3 text-center text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Liquidated
                     </th>
                     <th className="px-4 py-3 text-center text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Actions
@@ -3564,7 +3887,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     if (filteredPayments.length === 0) {
                       return (
                         <tr>
-                          <td colSpan={8} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+                          <td colSpan={10} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
                             {paymentFilterPOId ? 'No payments found for the selected Purchase Order.' : 'No payments recorded yet. Click "Add Payment" to add one.'}
                   </td>
                 </tr>
@@ -3589,6 +3912,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                         <td className="px-4 py-3 text-sm text-right font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {formatCurrencyWithDecimals(payment.totalVatAmount)}
                         </td>
+                        <td className="px-4 py-3 text-sm text-right font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {formatCurrencyWithDecimals(parseFloat((Number(payment.totalPaymentAmount) + Number(payment.totalVatAmount)).toFixed(2)))}
+                        </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           <span className="text-xs px-2 py-1 rounded font-medium" style={{
                             backgroundColor: payment.paymentMethod === 'Post Dated' ? `${colors.warning || '#f59e0b'}20` : `${colors.success}20`,
@@ -3608,6 +3934,18 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             ? new Date(payment.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
                             : '-'
                           }
+                        </td>
+                        <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
+                          {payment.paymentMethod === 'Post Dated' ? (
+                            <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                              backgroundColor: payment.liquidated ? `${colors.success}20` : `${colors.textMuted}20`,
+                              color: payment.liquidated ? colors.success : colors.textMuted,
+                            }}>
+                              {payment.liquidated ? 'Yes' : 'No'}
+                            </span>
+                          ) : (
+                            <span className="text-xs" style={{ color: colors.textMuted }}>-</span>
+                          )}
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           <div className="flex items-center justify-center gap-2">

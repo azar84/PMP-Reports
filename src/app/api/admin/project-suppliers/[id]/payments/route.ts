@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
+import { updateMultipleInvoiceStatuses } from '@/lib/invoiceStatus';
 
 // GET - Fetch all payments for a project supplier
 export async function GET(
@@ -66,7 +67,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { invoicePayments, paymentMethod, paymentType, paymentDate, dueDate, notes } = body;
+    const { invoicePayments, paymentMethod, paymentType, paymentDate, dueDate, liquidated, notes } = body;
 
     // Validate required fields
     if (!invoicePayments || !Array.isArray(invoicePayments) || invoicePayments.length === 0) {
@@ -180,6 +181,7 @@ export async function POST(
         paymentType: paymentMethod === 'Post Dated' ? paymentType : null,
         paymentDate: parseDateFromInput(paymentDate),
         dueDate: paymentMethod === 'Post Dated' && dueDate ? parseDateFromInput(dueDate) : null,
+        liquidated: paymentMethod === 'Post Dated' ? (liquidated === true) : false,
         notes: notes || null,
         paymentInvoices: {
           create: invoicePayments.map((ip: any) => ({
@@ -206,6 +208,9 @@ export async function POST(
         },
       },
     });
+
+    // Update status for all affected invoices
+    await updateMultipleInvoiceStatuses(invoiceIds);
 
     return NextResponse.json({ success: true, data: payment });
   } catch (error: any) {

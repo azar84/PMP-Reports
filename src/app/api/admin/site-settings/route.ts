@@ -19,6 +19,7 @@ export async function GET() {
           emailLoggingEnabled: true,
           emailRateLimitPerHour: 100,
           currencySymbol: '$',
+          vatPercent: 5,
         },
       });
     }
@@ -26,9 +27,15 @@ export async function GET() {
     // Remove sensitive data before sending to client
     const { smtpPassword, ...safeSiteSettings } = siteSettings;
 
+    // Normalize Decimal fields to numbers
+    const normalizedSettings = {
+      ...safeSiteSettings,
+      vatPercent: safeSiteSettings.vatPercent ? Number(safeSiteSettings.vatPercent) : null,
+    };
+
     const response = NextResponse.json({
       success: true,
-      data: safeSiteSettings
+      data: normalizedSettings
     });
     
     // Add cache-busting headers
@@ -155,13 +162,18 @@ export async function PUT(request: NextRequest) {
           emailBrandingEnabled: validatedData.emailBrandingEnabled ?? true,
           emailLoggingEnabled: validatedData.emailLoggingEnabled ?? true,
           emailRateLimitPerHour: validatedData.emailRateLimitPerHour ?? 100,
+          vatPercent: validatedData.vatPercent ?? 5,
         },
       });
 
       const { smtpPassword, ...safeSiteSettings } = newSettings;
+      const normalizedSettings = {
+        ...safeSiteSettings,
+        vatPercent: safeSiteSettings.vatPercent ? Number(safeSiteSettings.vatPercent) : null,
+      };
       return NextResponse.json({
         success: true,
-        data: safeSiteSettings,
+        data: normalizedSettings,
         message: 'Site settings created successfully'
       });
     } else {
@@ -172,9 +184,13 @@ export async function PUT(request: NextRequest) {
       });
 
       const { smtpPassword, ...safeSiteSettings } = updatedSettings;
+      const normalizedSettings = {
+        ...safeSiteSettings,
+        vatPercent: safeSiteSettings.vatPercent ? Number(safeSiteSettings.vatPercent) : null,
+      };
       return NextResponse.json({
         success: true,
-        data: safeSiteSettings,
+        data: normalizedSettings,
         message: 'Site settings updated successfully'
       });
     }

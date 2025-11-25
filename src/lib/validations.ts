@@ -95,6 +95,9 @@ export const SiteSettingsSchema = z.object({
   
   // Currency Configuration
   currencySymbol: optionalString,
+  
+  // VAT Configuration
+  vatPercent: z.number().min(0).max(100).optional().nullable(),
 });
 
 export const SiteSettingsUpdateSchema = SiteSettingsSchema.partial();

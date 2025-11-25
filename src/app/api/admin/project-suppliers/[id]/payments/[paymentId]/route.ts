@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
+import { updateMultipleInvoiceStatuses } from '@/lib/invoiceStatus';
 
 // PUT - Update a payment with multiple invoices
 export async function PUT(
@@ -20,7 +21,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { invoicePayments, paymentMethod, paymentType, paymentDate, dueDate, notes } = body;
+    const { invoicePayments, paymentMethod, paymentType, paymentDate, dueDate, liquidated, notes } = body;
 
     // Validate required fields
     if (!invoicePayments || !Array.isArray(invoicePayments) || invoicePayments.length === 0) {
@@ -66,6 +67,11 @@ export async function PUT(
         id: paymentIdNum,
         projectSupplierId,
       },
+      include: {
+        paymentInvoices: {
+          select: { invoiceId: true },
+        },
+      },
     });
 
     if (!existingPayment) {
@@ -74,6 +80,9 @@ export async function PUT(
         { status: 404 }
       );
     }
+
+    // Get old invoice IDs for status recalculation
+    const oldInvoiceIds = existingPayment.paymentInvoices.map(pi => pi.invoiceId);
 
     // Validate all invoices belong to this supplier and calculate totals
     let totalPaymentAmount = 0;
@@ -141,6 +150,7 @@ export async function PUT(
         paymentType: paymentMethod === 'Post Dated' ? paymentType : null,
         paymentDate: parseDateFromInput(paymentDate),
         dueDate: paymentMethod === 'Post Dated' && dueDate ? parseDateFromInput(dueDate) : null,
+        liquidated: paymentMethod === 'Post Dated' ? (liquidated === true) : false,
         notes: notes || null,
         paymentInvoices: {
           create: invoicePayments.map((ip: any) => ({
@@ -167,6 +177,10 @@ export async function PUT(
         },
       },
     });
+
+    // Update status for all affected invoices (both old and new)
+    const allAffectedInvoiceIds = [...new Set([...oldInvoiceIds, ...invoiceIds])];
+    await updateMultipleInvoiceStatuses(allAffectedInvoiceIds);
 
     return NextResponse.json({ success: true, data: payment });
   } catch (error: any) {
@@ -201,6 +215,11 @@ export async function DELETE(
         id: paymentIdNum,
         projectSupplierId,
       },
+      include: {
+        paymentInvoices: {
+          select: { invoiceId: true },
+        },
+      },
     });
 
     if (!existingPayment) {
@@ -210,10 +229,16 @@ export async function DELETE(
       );
     }
 
+    // Get invoice IDs before deleting
+    const invoiceIds = existingPayment.paymentInvoices.map(pi => pi.invoiceId);
+
     // Delete payment (cascade delete will remove payment invoices)
     await prisma.projectSupplierPayment.delete({
       where: { id: paymentIdNum },
     });
+
+    // Update status for all affected invoices
+    await updateMultipleInvoiceStatuses(invoiceIds);
 
     return NextResponse.json({ success: true });
   } catch (error) {

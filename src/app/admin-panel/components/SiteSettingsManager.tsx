@@ -112,6 +112,7 @@ interface SiteSettings {
   sidebarSelectedColor?: string | null;
   sidebarHoverColor?: string | null;
   currencySymbol?: string | null;
+  vatPercent?: number | null;
   
   createdAt?: string;
   updatedAt?: string;
@@ -1603,6 +1604,31 @@ export default function SiteSettingsManager() {
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
                   Currency symbol used throughout the application (e.g., $, €, £, ¥)
+                </p>
+              </div>
+
+              {/* VAT Percentage */}
+              <div className="mt-4">
+                <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                  VAT Percentage
+                </label>
+                <Input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.01"
+                  placeholder="5"
+                  value={settings.vatPercent ?? 5}
+                  onChange={(e) => handleInputChange('vatPercent', e.target.value ? parseFloat(e.target.value) : null)}
+                  className="w-full"
+                  style={{ 
+                    color: 'var(--color-text-primary)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    borderColor: 'var(--color-gray-light)'
+                  }}
+                />
+                <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
+                  VAT percentage used for calculations throughout the application (e.g., 5 for 5%)
                 </p>
               </div>
             </div>

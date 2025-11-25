@@ -63,6 +63,7 @@ model SiteSettings {
   sidebarSelectedColor     String?  @default("#FFFFFF")
   sidebarTextColor         String?  @default("#E5E7EB")
   currencySymbol           String?  @default("$")
+  vatPercent               Decimal? @default(5) // VAT percentage (e.g., 5 for 5%)
 
   @@map("site_settings")
 }
@@ -1254,6 +1255,7 @@ model ProjectInvoice {
   vatAmount         Decimal  // VAT amount at 5% (B)
   downPaymentRecovery Decimal? // Down Payment Recovery (for Progress Payment) - deducted from total
   totalAmount       Decimal  // Total amount with VAT (C) = A + B - Down Payment Recovery
+  status            String   @default("unpaid") // "paid", "partially_paid", or "unpaid"
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -1280,6 +1282,7 @@ model ProjectSupplierPayment {
   dueDate           DateTime? // For Post Dated: due date
   totalPaymentAmount Decimal // Total payment amount (sum of all invoice payments)
   totalVatAmount     Decimal // Total VAT amount (sum of all invoice VAT amounts)
+  liquidated        Boolean  @default(false) // For Post Dated: indicates if LC/PDC/Trust Receipt has been released
   notes             String?
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

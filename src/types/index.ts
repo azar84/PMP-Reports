@@ -60,6 +60,8 @@ export interface SiteSettings {
   sidebarHoverColor: string | null;
   sidebarSelectedColor: string | null;
   sidebarTextColor: string | null;
+  currencySymbol: string | null;
+  vatPercent: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
