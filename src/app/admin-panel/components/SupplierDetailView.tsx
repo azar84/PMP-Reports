@@ -5,10 +5,11 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
+import { Toggle } from '@/components/ui/Toggle';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet } from 'lucide-react';
 import { formatDateForInput } from '@/lib/dateUtils';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
 
@@ -1133,6 +1134,52 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     });
   }, []);
 
+  const handleToggleLiquidated = useCallback(
+    async (payment: Payment) => {
+      // Only allow toggling for Post Dated payments
+      if (payment.paymentMethod !== 'Post Dated') {
+        return;
+      }
+
+      const newLiquidatedStatus = !payment.liquidated;
+      
+      try {
+        // Build invoice payments array from existing payment
+        const invoicePayments = payment.paymentInvoices?.map(pi => ({
+          invoiceId: pi.invoiceId,
+          paymentAmount: Number(pi.paymentAmount),
+          vatAmount: Number(pi.vatAmount || 0),
+        })) || [];
+
+        // Format dates for API (convert to input format YYYY-MM-DD)
+        const paymentDateFormatted = formatDateForInput(payment.paymentDate);
+        const dueDateFormatted = payment.dueDate ? formatDateForInput(payment.dueDate) : null;
+
+        // Update only the liquidated field
+        await put<{ success: boolean; data?: Payment; error?: string }>(
+          `/api/admin/project-suppliers/${supplierId}/payments/${payment.id}`,
+          {
+            invoicePayments,
+            paymentMethod: payment.paymentMethod,
+            paymentType: payment.paymentType,
+            paymentDate: paymentDateFormatted,
+            dueDate: dueDateFormatted,
+            liquidated: newLiquidatedStatus,
+            notes: payment.notes || null,
+          }
+        );
+
+        // Reload both payments and invoices to update status and summary cards
+        await Promise.all([loadPayments(), loadInvoices()]);
+      } catch (toggleError: any) {
+        console.error('Failed to toggle liquidated status:', toggleError);
+        setError(toggleError?.message || 'Failed to update liquidated status.');
+        alert(`Failed to update liquidated status: ${toggleError?.message || 'Unknown error'}`);
+      }
+    },
+    [put, supplierId, loadPayments, loadInvoices]
+  );
+
   const handleDeletePayment = useCallback(
     async (paymentId: number, invoiceNumber: string) => {
       if (!confirm(`Delete payment for invoice ${invoiceNumber}?`)) {
@@ -1560,6 +1607,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 backgroundColor: colors.backgroundPrimary,
                 borderColor: colors.borderLight,
               }}
+              title="Total paid amounts (liquidated payments only - Current Dated or liquidated Post Dated)"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1568,9 +1616,6 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                   </p>
                   <p className="text-xl font-bold" style={{ color: colors.success }}>
                     {formatCurrencyWithDecimals(totalPaid)}
-                  </p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                    Liquidated only
                   </p>
                 </div>
                 <div
@@ -1588,6 +1633,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 backgroundColor: colors.backgroundPrimary,
                 borderColor: colors.borderLight,
               }}
+              title="Committed payments (Post Dated payments that are not yet liquidated)"
             >
               <div className="flex items-center justify-between">
                 <div>
@@ -1597,15 +1643,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                   <p className="text-xl font-bold" style={{ color: colors.warning }}>
                     {formatCurrencyWithDecimals(committedPayments)}
                   </p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                    Not liquidated
-                  </p>
                 </div>
                 <div
                   className="w-12 h-12 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: `${colors.warning}20` }}
                 >
-                  <Calendar className="h-6 w-6" style={{ color: colors.warning }} />
+                  <Clock className="h-6 w-6" style={{ color: colors.warning }} />
                 </div>
               </div>
             </Card>
@@ -1630,7 +1673,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                   className="w-12 h-12 rounded-lg flex items-center justify-center"
                   style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}
                 >
-                  <Calendar className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
+                  <Wallet className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
                 </div>
               </div>
             </Card>
@@ -3937,12 +3980,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           {payment.paymentMethod === 'Post Dated' ? (
-                            <span className="text-xs px-2 py-1 rounded font-medium" style={{
-                              backgroundColor: payment.liquidated ? `${colors.success}20` : `${colors.textMuted}20`,
-                              color: payment.liquidated ? colors.success : colors.textMuted,
-                            }}>
-                              {payment.liquidated ? 'Yes' : 'No'}
-                            </span>
+                            <div className="flex items-center justify-center" title={payment.liquidated ? 'Liquidated - Toggle to mark as not liquidated' : 'Not liquidated - Toggle to mark as liquidated'}>
+                              <Toggle
+                                checked={payment.liquidated || false}
+                                onChange={() => handleToggleLiquidated(payment)}
+                                size="sm"
+                                variant={payment.liquidated ? 'success' : 'default'}
+                              />
+                            </div>
                           ) : (
                             <span className="text-xs" style={{ color: colors.textMuted }}>-</span>
                           )}
