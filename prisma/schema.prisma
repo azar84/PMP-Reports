@@ -484,71 +484,76 @@ model ProjectContact {
 }
 
 model Project {
-  id                              Int                              @id @default(autoincrement())
-  tenantId                        Int                              @default(1)
-  projectCode                     String
-  projectName                     String
-  projectDescription              String?
-  clientId                        Int?
-  projectManagementConsultantId   Int?
-  designConsultantId              Int?
-  supervisionConsultantId         Int?
-  costConsultantId                Int?
-  projectDirectorId               Int?
-  projectManagerId                Int?
-  startDate                       DateTime
-  endDate                         DateTime
-  duration                        String?
-  eot                             String?
-  projectValue                    Decimal
+  id                                 Int                                 @id @default(autoincrement())
+  tenantId                           Int                                 @default(1)
+  projectCode                        String
+  projectName                        String
+  projectDescription                 String?
+  clientId                           Int?
+  projectManagementConsultantId      Int?
+  designConsultantId                 Int?
+  supervisionConsultantId            Int?
+  costConsultantId                   Int?
+  projectDirectorId                  Int?
+  projectManagerId                   Int?
+  startDate                          DateTime
+  endDate                            DateTime
+  duration                           String?
+  eot                                String?
+  projectValue                       Decimal
   // IPC Settings
-  advancePaymentPercentage        Decimal? // e.g., 10.0 for 10%
-  retentionPercentage             Decimal? // e.g., 5.0 for 5%
-  paymentTermsDays                Int? // Payment terms in days
-  lastUpdate                      DateTime                         @default(now()) @updatedAt
-  createdAt                       DateTime                         @default(now())
-  updatedAt                       DateTime                         @updatedAt
-  tenant                          Tenant                           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  projectChecklistItems           ProjectChecklistItem[]
-  projectContacts                 ProjectContact[]
-  projectPositions                ProjectPosition[]
-  projectStaff                    ProjectStaff[]
-  projectTrades                   ProjectTrade[]
-  projectLabours                  ProjectLabour[]
-  projectLabourSupplies           ProjectLabourSupply[]
-  plantRequirements               ProjectPlantRequirement[]
-  projectPlants                   ProjectPlant[]
-  projectMemberships              ProjectMembership[]
-  hseChecklistItems               ProjectHseChecklistItem[]
-  nocTrackerEntries               ProjectNocTrackerEntry[]
-  projectRisks                    ProjectRiskEntry[]
-  projectVendorEvaluations        ProjectVendorEvaluation[]
-  projectSuppliers                ProjectSupplier[]
-  purchaseOrders                  ProjectPurchaseOrder[]
-  grns                            ProjectGRN[]
-  invoices                        ProjectInvoice[]
-  payments                        ProjectSupplierPayment[]
-  areaOfConcerns                  ProjectAreaOfConcern[]
-  clientFeedback                  ProjectClientFeedback?
-  projectAssets                   ProjectAsset[]
-  projectPictures                 ProjectPicture[]
-  closeOutEntries                 ProjectCloseOutEntry[]
-  projectManager                  CompanyStaff?                    @relation("ProjectManager", fields: [projectManagerId], references: [id])
-  projectDirector                 CompanyStaff?                    @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
-  costConsultant                  Consultant?                      @relation("CostConsultant", fields: [costConsultantId], references: [id])
-  supervisionConsultant           Consultant?                      @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
-  designConsultant                Consultant?                      @relation("DesignConsultant", fields: [designConsultantId], references: [id])
-  projectManagementConsultant     Consultant?                      @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
-  client                          Client?                          @relation(fields: [clientId], references: [id])
-  projectPlanning                 ProjectPlanning?
-  projectCommercial               ProjectCommercial?
-  projectCommercialChecklistItems ProjectCommercialChecklistItem[]
-  controlMilestones               ProjectControlMilestone[]
-  qualityE1Logs                   ProjectQualityE1Log[]
-  qualityE2Logs                   ProjectQualityE2Log[]
-  qualityChecklistEntries         ProjectQualityChecklistEntry[]
-  ipcEntries                      ProjectIPC[]
-  projectReports                  ProjectReport[]
+  advancePaymentPercentage           Decimal? // e.g., 10.0 for 10%
+  retentionPercentage                Decimal? // e.g., 5.0 for 5%
+  paymentTermsDays                   Int? // Payment terms in days
+  lastUpdate                         DateTime                            @default(now()) @updatedAt
+  createdAt                          DateTime                            @default(now())
+  updatedAt                          DateTime                            @updatedAt
+  tenant                             Tenant                              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  projectChecklistItems              ProjectChecklistItem[]
+  projectContacts                    ProjectContact[]
+  projectPositions                   ProjectPosition[]
+  projectStaff                       ProjectStaff[]
+  projectTrades                      ProjectTrade[]
+  projectLabours                     ProjectLabour[]
+  projectLabourSupplies              ProjectLabourSupply[]
+  plantRequirements                  ProjectPlantRequirement[]
+  projectPlants                      ProjectPlant[]
+  projectMemberships                 ProjectMembership[]
+  hseChecklistItems                  ProjectHseChecklistItem[]
+  nocTrackerEntries                  ProjectNocTrackerEntry[]
+  projectRisks                       ProjectRiskEntry[]
+  projectVendorEvaluations           ProjectVendorEvaluation[]
+  projectSuppliers                   ProjectSupplier[]
+  projectSubcontractors              ProjectSubcontractor[]
+  purchaseOrders                     ProjectPurchaseOrder[]
+  projectSubcontractorPurchaseOrders ProjectSubcontractorPurchaseOrder[]
+  grns                               ProjectGRN[]
+  projectSubcontractorChangeOrders   ProjectSubcontractorChangeOrder[]
+  invoices                           ProjectInvoice[]
+  projectSubcontractorInvoices       ProjectSubcontractorInvoice[]
+  payments                           ProjectSupplierPayment[]
+  projectSubcontractorPayments       ProjectSubcontractorPayment[]
+  areaOfConcerns                     ProjectAreaOfConcern[]
+  clientFeedback                     ProjectClientFeedback?
+  projectAssets                      ProjectAsset[]
+  projectPictures                    ProjectPicture[]
+  closeOutEntries                    ProjectCloseOutEntry[]
+  projectManager                     CompanyStaff?                       @relation("ProjectManager", fields: [projectManagerId], references: [id])
+  projectDirector                    CompanyStaff?                       @relation("ProjectDirector", fields: [projectDirectorId], references: [id])
+  costConsultant                     Consultant?                         @relation("CostConsultant", fields: [costConsultantId], references: [id])
+  supervisionConsultant              Consultant?                         @relation("SupervisionConsultant", fields: [supervisionConsultantId], references: [id])
+  designConsultant                   Consultant?                         @relation("DesignConsultant", fields: [designConsultantId], references: [id])
+  projectManagementConsultant        Consultant?                         @relation("ProjectManagementConsultant", fields: [projectManagementConsultantId], references: [id])
+  client                             Client?                             @relation(fields: [clientId], references: [id])
+  projectPlanning                    ProjectPlanning?
+  projectCommercial                  ProjectCommercial?
+  projectCommercialChecklistItems    ProjectCommercialChecklistItem[]
+  controlMilestones                  ProjectControlMilestone[]
+  qualityE1Logs                      ProjectQualityE1Log[]
+  qualityE2Logs                      ProjectQualityE2Log[]
+  qualityChecklistEntries            ProjectQualityChecklistEntry[]
+  ipcEntries                         ProjectIPC[]
+  projectReports                     ProjectReport[]
 
   @@unique([tenantId, projectCode])
   @@index([tenantId])
@@ -1128,20 +1133,21 @@ model TypeOfWork {
 }
 
 model Supplier {
-  id                 Int                       @id @default(autoincrement())
-  tenantId           Int                       @default(1)
-  name               String
-  vendorCode         String?
-  type               String
-  contactPerson      String?
-  contactNumber      String?
-  email              String?
-  createdAt          DateTime                  @default(now())
-  updatedAt          DateTime                  @updatedAt
-  tenant             Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  typeOfWorks        SupplierTypeOfWork[]
-  projectEvaluations ProjectVendorEvaluation[]
-  projectSuppliers   ProjectSupplier[]
+  id                    Int                       @id @default(autoincrement())
+  tenantId              Int                       @default(1)
+  name                  String
+  vendorCode            String?
+  type                  String
+  contactPerson         String?
+  contactNumber         String?
+  email                 String?
+  createdAt             DateTime                  @default(now())
+  updatedAt             DateTime                  @updatedAt
+  tenant                Tenant                    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  typeOfWorks           SupplierTypeOfWork[]
+  projectEvaluations    ProjectVendorEvaluation[]
+  projectSuppliers      ProjectSupplier[]
+  projectSubcontractors ProjectSubcontractor[]
 
   @@unique([tenantId, name])
   @@index([tenantId])
@@ -1184,8 +1190,8 @@ model ProjectSupplier {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  project        Project                @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  supplier       Supplier               @relation(fields: [supplierId], references: [id], onDelete: Cascade)
+  project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  supplier       Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Cascade)
   purchaseOrders ProjectPurchaseOrder[]
   grns           ProjectGRN[]
   invoices       ProjectInvoice[]
@@ -1208,8 +1214,8 @@ model ProjectPurchaseOrder {
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  projectSupplier ProjectSupplier @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
-  project         Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectSupplier ProjectSupplier  @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   grns            ProjectGRN[]
   invoices        ProjectInvoice[]
 
@@ -1226,7 +1232,7 @@ model ProjectGRN {
   purchaseOrderId   Int
   grnRefNo          String
   grnDate           DateTime
-  deliveredAmount   Decimal  // Delivered Amount (GRN) (E)
+  deliveredAmount   Decimal // Delivered Amount (GRN) (E)
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
@@ -1242,25 +1248,25 @@ model ProjectGRN {
 }
 
 model ProjectInvoice {
-  id                Int      @id @default(autoincrement())
-  projectId         Int
-  projectSupplierId Int
-  purchaseOrderId   Int?     // For Down Payment invoices - links to PO
-  invoiceNumber     String
-  invoiceDate       DateTime
-  dueDate           DateTime? // Due date for the invoice
-  paymentType       String   // "Down Payment" or "Progress Payment"
-  downPayment       Decimal? // Down Payment amount (only for Down Payment type)
-  invoiceAmount     Decimal  // Invoice amount before VAT (A)
-  vatAmount         Decimal  // VAT amount at 5% (B)
+  id                  Int       @id @default(autoincrement())
+  projectId           Int
+  projectSupplierId   Int
+  purchaseOrderId     Int? // For Down Payment invoices - links to PO
+  invoiceNumber       String
+  invoiceDate         DateTime
+  dueDate             DateTime? // Due date for the invoice
+  paymentType         String // "Down Payment" or "Progress Payment"
+  downPayment         Decimal? // Down Payment amount (only for Down Payment type)
+  invoiceAmount       Decimal // Invoice amount before VAT (A)
+  vatAmount           Decimal // VAT amount at 5% (B)
   downPaymentRecovery Decimal? // Down Payment Recovery (for Progress Payment) - deducted from total
-  totalAmount       Decimal  // Total amount with VAT (C) = A + B - Down Payment Recovery
-  status            String   @default("unpaid") // "paid", "partially_paid", or "unpaid"
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  totalAmount         Decimal // Total amount with VAT (C) = A + B - Down Payment Recovery
+  status              String    @default("unpaid") // "paid", "partially_paid", or "unpaid"
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
 
-  projectSupplier ProjectSupplier   @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
-  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectSupplier ProjectSupplier       @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
   purchaseOrder   ProjectPurchaseOrder? @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
   invoiceGRNs     InvoiceGRN[]
   paymentInvoices PaymentInvoice[]
@@ -1273,22 +1279,22 @@ model ProjectInvoice {
 }
 
 model ProjectSupplierPayment {
-  id                Int      @id @default(autoincrement())
-  projectId         Int
-  projectSupplierId Int
-  paymentMethod     String   // "Post Dated" or "Current Dated"
-  paymentType       String?  // For Post Dated: "PDC", "LC", or "Trust Receipt"
-  paymentDate       DateTime // For Current Dated: payment date, For Post Dated: issue date
-  dueDate           DateTime? // For Post Dated: due date
+  id                 Int       @id @default(autoincrement())
+  projectId          Int
+  projectSupplierId  Int
+  paymentMethod      String // "Post Dated" or "Current Dated"
+  paymentType        String? // For Post Dated: "PDC", "LC", or "Trust Receipt"
+  paymentDate        DateTime // For Current Dated: payment date, For Post Dated: issue date
+  dueDate            DateTime? // For Post Dated: due date
   totalPaymentAmount Decimal // Total payment amount (sum of all invoice payments)
   totalVatAmount     Decimal // Total VAT amount (sum of all invoice VAT amounts)
-  liquidated        Boolean  @default(false) // For Post Dated: indicates if LC/PDC/Trust Receipt has been released
-  notes             String?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  liquidated         Boolean   @default(false) // For Post Dated: indicates if LC/PDC/Trust Receipt has been released
+  notes              String?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  projectSupplier ProjectSupplier   @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
-  project         Project           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  projectSupplier ProjectSupplier  @relation(fields: [projectSupplierId], references: [id], onDelete: Cascade)
+  project         Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
   paymentInvoices PaymentInvoice[]
 
   @@index([projectId])
@@ -1297,13 +1303,13 @@ model ProjectSupplierPayment {
 }
 
 model PaymentInvoice {
-  id                Int      @id @default(autoincrement())
-  paymentId         Int
-  invoiceId         Int
-  paymentAmount     Decimal  // Amount paid for this invoice
-  vatAmount         Decimal  // VAT amount paid for this invoice
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  id            Int      @id @default(autoincrement())
+  paymentId     Int
+  invoiceId     Int
+  paymentAmount Decimal // Amount paid for this invoice
+  vatAmount     Decimal // VAT amount paid for this invoice
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   payment ProjectSupplierPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   invoice ProjectInvoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
@@ -1327,6 +1333,166 @@ model InvoiceGRN {
   @@index([invoiceId])
   @@index([grnId])
   @@map("invoice_grns")
+}
+
+model ProjectSubcontractor {
+  id                              Int      @id @default(autoincrement())
+  projectId                       Int
+  subcontractorId                 Int
+  scopeOfWork                     String?
+  subcontractAgreement            Boolean  @default(false)
+  subcontractAgreementDocumentUrl String?
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  project        Project                             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  subcontractor  Supplier                            @relation(fields: [subcontractorId], references: [id], onDelete: Cascade)
+  purchaseOrders ProjectSubcontractorPurchaseOrder[]
+  changeOrders   ProjectSubcontractorChangeOrder[]
+  invoices       ProjectSubcontractorInvoice[]
+  payments       ProjectSubcontractorPayment[]
+
+  @@unique([projectId, subcontractorId])
+  @@map("project_subcontractors")
+}
+
+model ProjectSubcontractorPurchaseOrder {
+  id                     Int      @id @default(autoincrement())
+  projectId              Int
+  projectSubcontractorId Int
+  lpoNumber              String
+  lpoDate                DateTime
+  lpoValue               Decimal // LPO Value (A)
+  vatPercent             Decimal  @default(5.0) // VAT 5% (B)
+  lpoValueWithVat        Decimal // LPO Value with VAT (C) = A * (1 + B/100)
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  projectSubcontractor ProjectSubcontractor              @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
+  project              Project                           @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  changeOrders         ProjectSubcontractorChangeOrder[]
+  invoices             ProjectSubcontractorInvoice[]
+
+  @@unique([projectId, projectSubcontractorId, lpoNumber])
+  @@index([projectId])
+  @@index([projectSubcontractorId])
+  @@map("project_subcontractor_purchase_orders")
+}
+
+model ProjectSubcontractorChangeOrder {
+  id                     Int      @id @default(autoincrement())
+  projectId              Int
+  projectSubcontractorId Int
+  purchaseOrderId        Int
+  chRefNo                String
+  chDate                 DateTime
+  type                   String // "addition" or "omission"
+  amount                 Decimal // Amount of the change order (positive for addition, negative for omission)
+  vatPercent             Decimal  @default(5.0) // VAT percentage
+  vatAmount              Decimal  @default(0) // VAT amount
+  amountWithVat          Decimal  @default(0) // Amount including VAT
+  description            String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+
+  purchaseOrder        ProjectSubcontractorPurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  projectSubcontractor ProjectSubcontractor                     @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
+  project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invoiceChangeOrders  ProjectSubcontractorInvoiceChangeOrder[]
+
+  @@index([projectId])
+  @@index([projectSubcontractorId])
+  @@index([purchaseOrderId])
+  @@map("project_subcontractor_change_orders")
+}
+
+model ProjectSubcontractorInvoice {
+  id                     Int       @id @default(autoincrement())
+  projectId              Int
+  projectSubcontractorId Int
+  purchaseOrderId        Int? // For Down Payment invoices - links to PO
+  invoiceNumber          String
+  invoiceDate            DateTime
+  dueDate                DateTime? // Due date for the invoice
+  paymentType            String // "Down Payment" or "Progress Payment"
+  downPayment            Decimal? // Down Payment amount (only for Down Payment type)
+  invoiceAmount          Decimal // Invoice amount before VAT (A)
+  vatAmount              Decimal // VAT amount at 5% (B)
+  downPaymentRecovery    Decimal? // Down Payment Recovery (for Progress Payment) - deducted from total
+  totalAmount            Decimal // Total amount with VAT (C) = A + B - Down Payment Recovery
+  status                 String    @default("unpaid") // "paid", "partially_paid", or "unpaid"
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  projectSubcontractor ProjectSubcontractor                     @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
+  project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  purchaseOrder        ProjectSubcontractorPurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  invoiceChangeOrders  ProjectSubcontractorInvoiceChangeOrder[]
+  paymentInvoices      ProjectSubcontractorPaymentInvoice[]
+
+  @@unique([projectId, projectSubcontractorId, invoiceNumber])
+  @@index([projectId])
+  @@index([projectSubcontractorId])
+  @@index([purchaseOrderId])
+  @@map("project_subcontractor_invoices")
+}
+
+model ProjectSubcontractorPayment {
+  id                     Int       @id @default(autoincrement())
+  projectId              Int
+  projectSubcontractorId Int
+  paymentMethod          String // "Post Dated" or "Current Dated"
+  paymentType            String? // For Post Dated: "PDC", "LC", or "Trust Receipt"
+  paymentDate            DateTime // For Current Dated: payment date, For Post Dated: issue date
+  dueDate                DateTime? // For Post Dated: due date
+  totalPaymentAmount     Decimal // Total payment amount (sum of all invoice payments)
+  totalVatAmount         Decimal // Total VAT amount (sum of all invoice VAT amounts)
+  liquidated             Boolean   @default(false) // For Post Dated: indicates if LC/PDC/Trust Receipt has been released
+  notes                  String?
+  createdAt              DateTime  @default(now())
+  updatedAt              DateTime  @updatedAt
+
+  projectSubcontractor ProjectSubcontractor                 @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
+  project              Project                              @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  paymentInvoices      ProjectSubcontractorPaymentInvoice[]
+
+  @@index([projectId])
+  @@index([projectSubcontractorId])
+  @@map("project_subcontractor_payments")
+}
+
+model ProjectSubcontractorPaymentInvoice {
+  id            Int      @id @default(autoincrement())
+  paymentId     Int
+  invoiceId     Int
+  paymentAmount Decimal // Amount paid for this invoice
+  vatAmount     Decimal // VAT amount paid for this invoice
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  payment ProjectSubcontractorPayment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoice ProjectSubcontractorInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([paymentId, invoiceId])
+  @@index([paymentId])
+  @@index([invoiceId])
+  @@map("project_subcontractor_payment_invoices")
+}
+
+model ProjectSubcontractorInvoiceChangeOrder {
+  id            Int      @id @default(autoincrement())
+  invoiceId     Int
+  changeOrderId Int
+  createdAt     DateTime @default(now())
+
+  invoice     ProjectSubcontractorInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  changeOrder ProjectSubcontractorChangeOrder @relation(fields: [changeOrderId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, changeOrderId])
+  @@index([invoiceId])
+  @@index([changeOrderId])
+  @@map("project_subcontractor_invoice_change_orders")
 }
 
 model ProjectAreaOfConcern {

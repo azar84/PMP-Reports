@@ -28,6 +28,8 @@ import ProjectCloseOut from './ProjectCloseOut';
 import ProjectCommercial from './ProjectCommercial';
 import ProjectSuppliers from './ProjectSuppliers';
 import SupplierDetailView from './SupplierDetailView';
+import ProjectSubcontractors from './ProjectSubcontractors';
+import SubcontractorDetailView from './SubcontractorDetailView';
 import StaffMovementConfirmationDialog from './StaffMovementConfirmationDialog';
 import { 
   Plus, 
@@ -191,8 +193,10 @@ export default function ProjectManager() {
     | 'clientFeedback'
     | 'commercial'
     | 'suppliers'
+    | 'subcontractors'
   >('overview');
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
+  const [selectedSubcontractorId, setSelectedSubcontractorId] = useState<number | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
   const [projectContacts, setProjectContacts] = useState<any[]>([]);
   const [pendingContacts, setPendingContacts] = useState<{contactId: number, entityType: string, entityId: number, consultantType?: string, isPrimary: boolean}[]>([]);
@@ -2100,6 +2104,38 @@ export default function ProjectManager() {
                 <span>Suppliers</span>
               </div>
             </button>
+            <button
+              onClick={() => setActiveTab('subcontractors')}
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
+                activeTab === 'subcontractors'
+                  ? 'border-current active'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'subcontractors') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'subcontractors') {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'subcontractors' ? colors.primary : colors.textSecondary,
+                borderColor: activeTab === 'subcontractors' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'subcontractors' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'subcontractors' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'subcontractors' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
+            >
+              <div className="flex items-center space-x-2">
+                <HardHat className="w-4 h-4" />
+                <span>Subcontractors</span>
+              </div>
+            </button>
           </div>
 
           {/* Tab Content */}
@@ -2690,6 +2726,23 @@ export default function ProjectManager() {
                   projectId={selectedProject.id}
                   projectName={selectedProject.projectName}
                   onViewSupplierDetails={(supplierId) => setSelectedSupplierId(supplierId)}
+                />
+              ) : null}
+            </div>
+          ) : activeTab === 'subcontractors' ? (
+            <div>
+              {selectedProject && selectedSubcontractorId ? (
+                <SubcontractorDetailView
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  subcontractorId={selectedSubcontractorId}
+                  onBack={() => setSelectedSubcontractorId(null)}
+                />
+              ) : selectedProject ? (
+                <ProjectSubcontractors
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  onViewSubcontractorDetails={(subcontractorId) => setSelectedSubcontractorId(subcontractorId)}
                 />
               ) : null}
             </div>

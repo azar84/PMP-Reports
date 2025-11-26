@@ -4,19 +4,21 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { Radio } from '@/components/ui/Radio';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet } from 'lucide-react';
+import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet, Upload, File, Loader2 } from 'lucide-react';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
 
-interface ProjectSuppliersProps {
+interface ProjectSubcontractorsProps {
   projectId: number;
   projectName: string;
-  onViewSupplierDetails?: (supplierId: number) => void;
+  onViewSubcontractorDetails?: (subcontractorId: number) => void;
 }
 
-interface SupplierOption {
+interface SubcontractorOption {
   id: number;
   name: string;
   vendorCode: string | null;
@@ -32,34 +34,50 @@ interface SupplierOption {
   }>;
 }
 
-interface ProjectSupplier {
+interface ProjectSubcontractor {
   id: number;
   projectId: number;
-  supplierId: number;
-  notes: string | null;
+  subcontractorId: number;
+  scopeOfWork: string | null;
+  subcontractAgreement: boolean;
+  subcontractAgreementDocumentUrl: string | null;
   createdAt: string;
   updatedAt: string;
-  supplier: SupplierOption;
+  subcontractor: SubcontractorOption;
 }
 
-interface SuppliersResponse {
+interface SubcontractorsResponse {
   success: boolean;
   data: {
-    suppliers: SupplierOption[];
+    subcontractors: SubcontractorOption[];
   };
   error?: string;
 }
 
-interface ProjectSuppliersResponse {
+interface ProjectSubcontractorsResponse {
   success: boolean;
-  data?: ProjectSupplier[];
+  data?: ProjectSubcontractor[];
   error?: string;
+}
+
+interface ChangeOrder {
+  id: number;
+  projectId: number;
+  projectSubcontractorId: number;
+  purchaseOrderId: number;
+  chRefNo: string;
+  chDate: string;
+  type: 'addition' | 'omission';
+  amount: number;
+  description: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface PurchaseOrder {
   id: number;
   projectId: number;
-  projectSupplierId: number;
+  projectSubcontractorId: number;
   lpoNumber: string;
   lpoDate: string;
   lpoValue: number;
@@ -68,6 +86,7 @@ interface PurchaseOrder {
   notes: string | null;
   createdAt: string;
   updatedAt: string;
+  changeOrders?: ChangeOrder[];
 }
 
 interface PurchaseOrdersResponse {
@@ -76,28 +95,10 @@ interface PurchaseOrdersResponse {
   error?: string;
 }
 
-interface GRN {
-  id: number;
-  projectId: number;
-  projectSupplierId: number;
-  purchaseOrderId: number;
-  grnRefNo: string;
-  grnDate: string;
-  deliveredAmount: number;
-  createdAt: string;
-  updatedAt: string;
-}
-
-interface GRNsResponse {
-  success: boolean;
-  data?: GRN[];
-  error?: string;
-}
-
 interface Invoice {
   id: number;
   projectId: number;
-  projectSupplierId: number;
+  projectSubcontractorId: number;
   purchaseOrderId: number | null;
   invoiceNumber: string;
   invoiceDate: string;
@@ -128,7 +129,7 @@ interface InvoicesResponse {
 interface Payment {
   id: number;
   projectId: number;
-  projectSupplierId: number;
+  projectSubcontractorId: number;
   totalPaymentAmount: number;
   totalVatAmount: number;
   paymentMethod: string;
@@ -147,7 +148,7 @@ interface PaymentsResponse {
   error?: string;
 }
 
-export default function ProjectSuppliers({ projectId, projectName, onViewSupplierDetails }: ProjectSuppliersProps) {
+export default function ProjectSubcontractors({ projectId, projectName, onViewSubcontractorDetails }: ProjectSubcontractorsProps) {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, delete: del } = useAdminApi();
@@ -155,23 +156,25 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [projectSuppliers, setProjectSuppliers] = useState<ProjectSupplier[]>([]);
-  const [allSuppliers, setAllSuppliers] = useState<SupplierOption[]>([]);
+  const [projectSubcontractors, setProjectSubcontractors] = useState<ProjectSubcontractor[]>([]);
+  const [allSubcontractors, setAllSubcontractors] = useState<SubcontractorOption[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [supplierFilterTerm, setSupplierFilterTerm] = useState('');
+  const [subcontractorFilterTerm, setSubcontractorFilterTerm] = useState('');
   const [showAddForm, setShowAddForm] = useState(false);
-  const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
-  const [notes, setNotes] = useState('');
+  const [selectedSubcontractorId, setSelectedSubcontractorId] = useState<string>('');
+  const [scopeOfWork, setScopeOfWork] = useState('');
+  const [subcontractAgreement, setSubcontractAgreement] = useState<boolean | null>(null);
+  const [agreementDocumentFile, setAgreementDocumentFile] = useState<File | null>(null);
+  const [uploadingDocument, setUploadingDocument] = useState(false);
+  const [documentUrl, setDocumentUrl] = useState<string | null>(null);
   const [showDropdown, setShowDropdown] = useState(false);
   const { siteSettings } = useSiteSettings();
   const [summaryData, setSummaryData] = useState<{
     purchaseOrders: PurchaseOrder[];
-    grns: GRN[];
     invoices: Invoice[];
     payments: Payment[];
   }>({
     purchaseOrders: [],
-    grns: [],
     invoices: [],
     payments: [],
   });
@@ -182,24 +185,33 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
     setError(null);
 
     try {
-      const [projectSuppliersRes, suppliersRes] = await Promise.all([
-        get<ProjectSuppliersResponse>(`/api/admin/project-suppliers?projectId=${projectId}`),
-        get<SuppliersResponse>('/api/admin/suppliers'),
+      const [projectSubcontractorsRes, subcontractorsRes] = await Promise.all([
+        get<ProjectSubcontractorsResponse>(`/api/admin/project-subcontractors?projectId=${projectId}`),
+        get<SubcontractorsResponse>('/api/admin/subcontractors'),
       ]);
 
-      if (!projectSuppliersRes?.success) {
-        throw new Error(projectSuppliersRes?.error || 'Failed to load project suppliers');
+      if (!projectSubcontractorsRes?.success) {
+        throw new Error(projectSubcontractorsRes?.error || 'Failed to load project subcontractors');
       }
 
-      if (!suppliersRes?.success) {
-        throw new Error(suppliersRes?.error || 'Failed to load suppliers list');
+      if (!subcontractorsRes?.success) {
+        throw new Error(subcontractorsRes?.error || 'Failed to load subcontractors list');
       }
 
-      setProjectSuppliers(projectSuppliersRes.data || []);
-      setAllSuppliers(suppliersRes.data?.suppliers || []);
+      setProjectSubcontractors(projectSubcontractorsRes.data || []);
+      setAllSubcontractors(subcontractorsRes.data?.subcontractors || []);
+      
+      // Debug: Log subcontractor data to check document URLs
+      if (projectSubcontractorsRes.data && projectSubcontractorsRes.data.length > 0) {
+        console.log('Loaded subcontractors:', projectSubcontractorsRes.data.map(ps => ({
+          id: ps.id,
+          subcontractAgreement: ps.subcontractAgreement,
+          subcontractAgreementDocumentUrl: ps.subcontractAgreementDocumentUrl
+        })));
+      }
     } catch (fetchError: any) {
-      console.error('Failed to load project suppliers:', fetchError);
-      setError(fetchError?.message || 'Failed to load supplier information.');
+      console.error('Failed to load project subcontractors:', fetchError);
+      setError(fetchError?.message || 'Failed to load subcontractor information.');
     } finally {
       setIsLoading(false);
     }
@@ -209,53 +221,53 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
     loadData();
   }, [loadData]);
 
-  // Load summary data for all suppliers
+  // Load summary data for all subcontractors
   const loadSummaryData = useCallback(async () => {
-    if (projectSuppliers.length === 0) {
-      setSummaryData({ purchaseOrders: [], grns: [], invoices: [], payments: [] });
+    if (projectSubcontractors.length === 0) {
+      setSummaryData({ purchaseOrders: [], invoices: [], payments: [] });
       return;
     }
 
     setIsLoadingSummary(true);
     try {
-      const supplierIds = projectSuppliers.map(ps => ps.id);
+      const subcontractorIds = projectSubcontractors.map(ps => ps.id);
       
-      // Fetch POs, Invoices, and Payments for all suppliers
+      // Fetch POs, Invoices, and Payments for all subcontractors
       const allPOs: PurchaseOrder[] = [];
       const allInvoices: Invoice[] = [];
       const allPayments: Payment[] = [];
 
-      // Fetch data for each supplier, handling errors gracefully
-      for (const id of supplierIds) {
+      // Fetch data for each subcontractor, handling errors gracefully
+      for (const id of subcontractorIds) {
         try {
-          // Fetch POs
+          // Fetch POs (which now include changeOrders)
           try {
-            const posRes = await get<PurchaseOrdersResponse>(`/api/admin/project-suppliers/${id}/purchase-orders`);
+            const posRes = await get<PurchaseOrdersResponse>(`/api/admin/project-subcontractors/${id}/purchase-orders`);
             if (posRes.success && posRes.data) {
               allPOs.push(...posRes.data);
             }
           } catch (error: any) {
-            // Ignore 404s - supplier might not have POs yet
+            // Ignore 404s - subcontractor might not have POs yet
             if (error.message?.includes('404')) {
-              console.log(`No POs found for supplier ${id}`);
+              console.log(`No POs found for subcontractor ${id}`);
             }
           }
 
           // Fetch Invoices
           try {
-            const invoicesRes = await get<InvoicesResponse>(`/api/admin/project-suppliers/${id}/invoices`);
+            const invoicesRes = await get<InvoicesResponse>(`/api/admin/project-subcontractors/${id}/invoices`);
             if (invoicesRes.success && invoicesRes.data) {
               allInvoices.push(...invoicesRes.data);
             }
           } catch (error: any) {
             if (error.message?.includes('404')) {
-              console.log(`No invoices found for supplier ${id}`);
+              console.log(`No invoices found for subcontractor ${id}`);
             }
           }
 
           // Fetch Payments
           try {
-            const paymentsRes = await get<PaymentsResponse>(`/api/admin/project-suppliers/${id}/payments`);
+            const paymentsRes = await get<PaymentsResponse>(`/api/admin/project-subcontractors/${id}/payments`);
             if (paymentsRes.success && paymentsRes.data) {
               // Ensure liquidated field is properly set (default to false if null/undefined)
               const paymentsWithLiquidated = paymentsRes.data.map(payment => ({
@@ -266,46 +278,29 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
             }
           } catch (error: any) {
             if (error.message?.includes('404')) {
-              console.log(`No payments found for supplier ${id}`);
+              console.log(`No payments found for subcontractor ${id}`);
             } else {
-              console.error(`Error loading payments for supplier ${id}:`, error);
+              console.error(`Error loading payments for subcontractor ${id}:`, error);
             }
           }
         } catch (error) {
-          console.error(`Failed to load data for supplier ${id}:`, error);
-        }
-      }
-
-      // Fetch GRNs for each purchase order
-      const allGRNs: GRN[] = [];
-      for (const po of allPOs) {
-        try {
-          const grnsRes = await get<GRNsResponse>(`/api/admin/purchase-orders/${po.id}/grns`);
-          if (grnsRes.success && grnsRes.data) {
-            allGRNs.push(...grnsRes.data);
-          }
-        } catch (error: any) {
-          // Silently ignore 404s - PO might not have GRNs yet
-          if (error.message?.includes('404')) {
-            console.log(`No GRNs found for PO ${po.id}`);
-          }
+          console.error(`Failed to load data for subcontractor ${id}:`, error);
         }
       }
 
       setSummaryData({
         purchaseOrders: allPOs,
-        grns: allGRNs,
         invoices: allInvoices,
         payments: allPayments,
       });
     } catch (error) {
       console.error('Failed to load summary data:', error);
       // Set empty data on error to avoid breaking the UI
-      setSummaryData({ purchaseOrders: [], grns: [], invoices: [], payments: [] });
+      setSummaryData({ purchaseOrders: [], invoices: [], payments: [] });
     } finally {
       setIsLoadingSummary(false);
     }
-  }, [get, projectSuppliers]);
+  }, [get, projectSubcontractors]);
 
   useEffect(() => {
     loadSummaryData();
@@ -315,7 +310,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       const target = event.target as HTMLElement;
-      if (showDropdown && !target.closest('.supplier-search-dropdown')) {
+      if (showDropdown && !target.closest('.subcontractor-search-dropdown')) {
         setShowDropdown(false);
       }
     };
@@ -328,30 +323,30 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
     }
   }, [showDropdown]);
 
-  const availableSuppliers = useMemo(() => {
-    const usedSupplierIds = new Set(projectSuppliers.map((ps) => ps.supplierId));
+  const availableSubcontractors = useMemo(() => {
+    const usedSubcontractorIds = new Set(projectSubcontractors.map((ps) => ps.subcontractorId));
     const term = searchTerm.toLowerCase();
     
-    return allSuppliers.filter((supplier) => {
-      if (usedSupplierIds.has(supplier.id)) return false;
+    return allSubcontractors.filter((subcontractor) => {
+      if (usedSubcontractorIds.has(subcontractor.id)) return false;
       if (!term) return true;
       
       const searchFields = [
-        supplier.name,
-        supplier.vendorCode || '',
-        supplier.type,
-        supplier.contactPerson || '',
-        supplier.contactNumber || '',
-        supplier.email || '',
+        subcontractor.name,
+        subcontractor.vendorCode || '',
+        subcontractor.type,
+        subcontractor.contactPerson || '',
+        subcontractor.contactNumber || '',
+        subcontractor.email || '',
       ];
       
       return searchFields.some((field) => field.toLowerCase().includes(term));
     });
-  }, [allSuppliers, projectSuppliers, searchTerm]);
+  }, [allSubcontractors, projectSubcontractors, searchTerm]);
 
-  const handleAddSupplier = useCallback(async () => {
-    if (!selectedSupplierId) {
-      setError('Please select a supplier.');
+  const handleAddSubcontractor = useCallback(async () => {
+    if (!selectedSubcontractorId) {
+      setError('Please select a subcontractor.');
       return;
     }
 
@@ -359,46 +354,65 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
     setError(null);
 
     try {
-      const response = await post<{ success: boolean; data?: ProjectSupplier; error?: string }>(
-        '/api/admin/project-suppliers',
+      // Log what we're sending
+      console.log('Submitting subcontractor with document URL:', {
+        subcontractAgreement,
+        documentUrl,
+        subcontractAgreementDocumentUrl: documentUrl || null
+      });
+
+      const response = await post<{ success: boolean; data?: ProjectSubcontractor; error?: string }>(
+        '/api/admin/project-subcontractors',
         {
           projectId,
-          supplierId: parseInt(selectedSupplierId, 10),
-          notes: notes.trim() || null,
+          subcontractorId: parseInt(selectedSubcontractorId, 10),
+          scopeOfWork: scopeOfWork.trim() || null,
+          subcontractAgreement: subcontractAgreement ?? false,
+          subcontractAgreementDocumentUrl: documentUrl || null,
         }
       );
 
+      console.log('Response from API:', response);
+      console.log('Created subcontractor data:', response.data);
+      if (response.data) {
+        console.log('Document URL in response:', response.data.subcontractAgreementDocumentUrl);
+      }
+
       if (!response?.success) {
-        throw new Error(response?.error || 'Failed to add supplier to project');
+        throw new Error(response?.error || 'Failed to add subcontractor to project');
       }
 
       await loadData();
-      setSelectedSupplierId('');
-      setNotes('');
+      // Reset form state
+      setSelectedSubcontractorId('');
+      setScopeOfWork('');
+      setSubcontractAgreement(null);
+      setAgreementDocumentFile(null);
+      setDocumentUrl(null);
       setSearchTerm('');
       setShowDropdown(false);
       setShowAddForm(false);
     } catch (submitError: any) {
-      console.error('Failed to add supplier:', submitError);
-      setError(submitError?.message || 'Failed to add supplier to project.');
+      console.error('Failed to add subcontractor:', submitError);
+      setError(submitError?.message || 'Failed to add subcontractor to project.');
     } finally {
       setIsSaving(false);
     }
-  }, [selectedSupplierId, notes, projectId, post, loadData]);
+    }, [selectedSubcontractorId, scopeOfWork, subcontractAgreement, documentUrl, projectId, post, loadData]);
 
-  const handleRemoveSupplier = useCallback(
-    async (projectSupplierId: number, supplierName: string) => {
-      if (!confirm(`Remove ${supplierName} from this project?`)) {
+  const handleRemoveSubcontractor = useCallback(
+    async (projectSubcontractorId: number, subcontractorName: string) => {
+      if (!confirm(`Remove ${subcontractorName} from this project?`)) {
         return;
       }
 
       try {
         setError(null);
-        await del(`/api/admin/project-suppliers/${projectSupplierId}`);
+        await del(`/api/admin/project-subcontractors/${projectSubcontractorId}`);
         await loadData();
       } catch (deleteError: any) {
-        console.error('Failed to remove supplier:', deleteError);
-        setError(deleteError?.message || 'Failed to remove supplier from project.');
+        console.error('Failed to remove subcontractor:', deleteError);
+        setError(deleteError?.message || 'Failed to remove subcontractor from project.');
       }
     },
     [del, loadData]
@@ -415,7 +429,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           className="h-10 w-10 animate-spin rounded-full border-2 border-current border-t-transparent"
           style={{ color: colors.primary }}
         />
-        <p style={{ color: colors.textSecondary }}>Loading project suppliers…</p>
+        <p style={{ color: colors.textSecondary }}>Loading project subcontractors…</p>
       </div>
     );
   }
@@ -424,10 +438,10 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
     <div className="space-y-6">
       <div>
         <h2 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
-          Project Suppliers
+          Project Subcontractors
         </h2>
         <p className="text-sm" style={{ color: colors.textSecondary }}>
-          Manage suppliers assigned to project <span className="font-medium">{projectName}</span>.
+          Manage subcontractors assigned to project <span className="font-medium">{projectName}</span>.
         </p>
       </div>
 
@@ -444,7 +458,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
         </div>
       )}
 
-      {/* Aggregated Summary Cards for All Suppliers */}
+      {/* Aggregated Summary Cards for All Subcontractors */}
       {(() => {
         const vatPercent = siteSettings?.vatPercent ?? 5;
         const vatMultiplier = 1 + (vatPercent / 100);
@@ -542,24 +556,38 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           return sum + (remaining > 0 ? remaining : 0);
         }, 0);
 
-        // Calculate Total Delivered (sum of all GRN deliveredAmount) with VAT
-        const totalDeliveredBase = summaryData.grns.reduce((sum, grn) => {
-          return sum + Number(grn.deliveredAmount || 0);
-        }, 0);
-        const totalDelivered = totalDeliveredBase * vatMultiplier; // Add VAT
-
-        // Calculate Total PO Amounts (with VAT)
-        const totalPOAmountsWithVat = summaryData.purchaseOrders.reduce((sum, po) => {
-          return sum + Number(po.lpoValueWithVat || 0);
-        }, 0);
-
-        // Calculate LPO Balance: (Total PO amount - Delivered amount) * VAT multiplier (with VAT)
-        const totalPOAmount = summaryData.purchaseOrders.reduce((sum, po) => {
-          return sum + Number(po.lpoValue || 0); // Use base LPO value without VAT
+        // Calculate Total PO Amounts including Change Orders
+        // For each PO: base amount + additions - omissions, then apply VAT
+        const totalPOAmountBase = summaryData.purchaseOrders.reduce((sum, po) => {
+          let poAmount = Number(po.lpoValue || 0);
+          
+          // Add Change Orders to the PO amount
+          if (po.changeOrders && po.changeOrders.length > 0) {
+            po.changeOrders.forEach((co) => {
+              if (co.type === 'addition') {
+                poAmount += Number(co.amount || 0);
+              } else if (co.type === 'omission') {
+                poAmount -= Number(co.amount || 0);
+              }
+            });
+          }
+          
+          return sum + poAmount;
         }, 0);
         
-        const lpoBalanceBeforeVat = totalPOAmount - totalDeliveredBase;
-        const lpoBalance = lpoBalanceBeforeVat * vatMultiplier; // Add VAT
+        // Apply VAT to the total (using average VAT from POs)
+        const avgVatPercent = summaryData.purchaseOrders.length > 0
+          ? summaryData.purchaseOrders.reduce((sum, po) => sum + Number(po.vatPercent || 5.0), 0) / summaryData.purchaseOrders.length
+          : 5.0;
+        const vatMultiplierForPO = 1 + (avgVatPercent / 100);
+        const totalPOAmountsWithVat = totalPOAmountBase * vatMultiplierForPO;
+        
+        // Calculate LPO Balance: Total PO amount (with COs and VAT) - Total Invoiced (with VAT)
+        // This represents the remaining PO amount that hasn't been invoiced yet
+        const totalInvoicedForBalance = summaryData.invoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.totalAmount || 0); // totalAmount includes VAT
+        }, 0);
+        const lpoBalance = totalPOAmountsWithVat - totalInvoicedForBalance;
 
         // Calculate Due Amount (invoices past due date)
         // Use invoice data directly from DB, not payments state
@@ -591,8 +619,8 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
 
         if (isLoadingSummary) {
           return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
-              {[...Array(8)].map((_, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
+              {[...Array(7)].map((_, i) => (
                 <Card key={i} className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                   <div className="animate-pulse">
                     <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" style={{ backgroundColor: colors.borderLight }}></div>
@@ -605,7 +633,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
         }
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
             <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
               <div className="flex items-center justify-between">
                 <div>
@@ -615,19 +643,6 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                 </div>
                 <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.primary}20` }}>
                   <FileText className="h-6 w-6" style={{ color: colors.primary }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Delivered</p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalDelivered)}</p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>With VAT</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.info}20` }}>
-                  <Package className="h-6 w-6" style={{ color: colors.info }} />
                 </div>
               </div>
             </Card>
@@ -718,7 +733,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
       >
         <div className="flex items-center justify-between mb-6">
           <h3 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-            Add Supplier
+            Add Subcontractor
           </h3>
           {!showAddForm && (
             <Button
@@ -726,7 +741,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
               leftIcon={<Plus className="h-4 w-4" />}
               onClick={() => setShowAddForm(true)}
             >
-              Add Supplier
+              Add Subcontractor
             </Button>
           )}
         </div>
@@ -735,15 +750,18 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           <div className="space-y-4 p-4 rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
             <div className="flex items-center justify-between">
               <p className="text-sm" style={{ color: colors.textSecondary }}>
-                Select a supplier from your company vendors
+                Select a subcontractor from your company vendors
               </p>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => {
                   setShowAddForm(false);
-                  setSelectedSupplierId('');
-                  setNotes('');
+                  setSelectedSubcontractorId('');
+                  setScopeOfWork('');
+                  setSubcontractAgreement(null);
+                  setAgreementDocumentFile(null);
+                  setDocumentUrl(null);
                   setSearchTerm('');
                   setShowDropdown(false);
                   setError(null);
@@ -756,18 +774,18 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Search & Select Supplier *
+                  Search & Select Subcontractor *
                 </label>
-                <div className="relative supplier-search-dropdown">
+                <div className="relative subcontractor-search-dropdown">
                   <div className="relative">
                     <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 z-10" style={{ color: colors.textSecondary }} />
                     <Input
                       type="text"
                       placeholder="Search by name, code, type, or contact..."
-                      value={selectedSupplierId ? availableSuppliers.find(s => s.id.toString() === selectedSupplierId)?.name || searchTerm : searchTerm}
+                      value={selectedSubcontractorId ? availableSubcontractors.find(s => s.id.toString() === selectedSubcontractorId)?.name || searchTerm : searchTerm}
                       onChange={(e) => {
                         setSearchTerm(e.target.value);
-                        setSelectedSupplierId('');
+                        setSelectedSubcontractorId('');
                         setShowDropdown(true);
                       }}
                       onFocus={() => setShowDropdown(true)}
@@ -779,12 +797,12 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                       }}
                       disabled={isSaving}
                     />
-                    {selectedSupplierId && (
+                    {selectedSubcontractorId && (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
-                          setSelectedSupplierId('');
+                          setSelectedSubcontractorId('');
                           setSearchTerm('');
                           setShowDropdown(true);
                         }}
@@ -798,7 +816,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                   
                   {showDropdown && (
                     <>
-                      {availableSuppliers.length > 0 ? (
+                      {availableSubcontractors.length > 0 ? (
                         <div
                           className="absolute z-20 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border shadow-lg"
                           style={{
@@ -806,17 +824,17 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                             borderColor: colors.borderLight,
                           }}
                         >
-                          {availableSuppliers.map((supplier) => (
+                          {availableSubcontractors.map((subcontractor) => (
                             <div
-                              key={supplier.id}
+                              key={subcontractor.id}
                               onClick={() => {
-                                setSelectedSupplierId(supplier.id.toString());
-                                setSearchTerm(supplier.name);
+                                setSelectedSubcontractorId(subcontractor.id.toString());
+                                setSearchTerm(subcontractor.name);
                                 setShowDropdown(false);
                               }}
                               className="px-4 py-3 cursor-pointer hover:opacity-75 border-b last:border-b-0"
                               style={{
-                                backgroundColor: selectedSupplierId === supplier.id.toString() 
+                                backgroundColor: selectedSubcontractorId === subcontractor.id.toString() 
                                   ? `${colors.primary}15` 
                                   : colors.backgroundPrimary,
                                 borderColor: colors.borderLight,
@@ -825,11 +843,11 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                             >
                               <div className="flex items-center justify-between">
                                 <div>
-                                  <div className="font-medium">{supplier.name}</div>
+                                  <div className="font-medium">{subcontractor.name}</div>
                                   <div className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                    {supplier.vendorCode && `Code: ${supplier.vendorCode} • `}
-                                    Type: {supplier.type}
-                                    {supplier.contactPerson && ` • Contact: ${supplier.contactPerson}`}
+                                    {subcontractor.vendorCode && `Code: ${subcontractor.vendorCode} • `}
+                                    Type: {subcontractor.type}
+                                    {subcontractor.contactPerson && ` • Contact: ${subcontractor.contactPerson}`}
                                   </div>
                                 </div>
                               </div>
@@ -845,7 +863,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                             color: colors.textSecondary,
                           }}
                         >
-                          No suppliers found matching "{searchTerm}"
+                          No subcontractors found matching "{searchTerm}"
                         </div>
                       ) : null}
                     </>
@@ -855,11 +873,11 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Notes (Optional)
+                  Scope of Work
                 </label>
                 <textarea
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
+                  value={scopeOfWork}
+                  onChange={(e) => setScopeOfWork(e.target.value)}
                   rows={3}
                   className="w-full resize-none rounded-lg border px-4 py-2.5 text-sm focus:outline-none focus:ring-2"
                   style={{
@@ -867,9 +885,182 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                     borderColor: colors.borderLight,
                     color: colors.textPrimary,
                   }}
-                  placeholder="Add any notes about this supplier for this project"
+                  placeholder="Describe the scope of work for this subcontractor"
                   disabled={isSaving}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Subcontract Agreement
+                </label>
+                <div className="flex items-center gap-6">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Radio
+                      name="subcontractAgreement"
+                      checked={subcontractAgreement === true}
+                      onChange={() => setSubcontractAgreement(true)}
+                      disabled={isSaving || uploadingDocument}
+                      colors={colors}
+                      size="md"
+                    />
+                    <span className="text-sm" style={{ color: colors.textPrimary }}>Yes</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Radio
+                      name="subcontractAgreement"
+                      checked={subcontractAgreement === false}
+                      onChange={() => setSubcontractAgreement(false)}
+                      disabled={isSaving || uploadingDocument}
+                      colors={colors}
+                      size="md"
+                    />
+                    <span className="text-sm" style={{ color: colors.textPrimary }}>No</span>
+                  </label>
+                </div>
+                {subcontractAgreement === true && (
+                  <div className="mt-4 p-4 rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
+                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Upload Subcontract Agreement Document
+                    </label>
+                    <p className="text-xs mb-3" style={{ color: colors.textSecondary }}>
+                      Upload PDF or Word document (max 50MB)
+                    </p>
+                    {documentUrl ? (
+                      <div className="flex items-center justify-between p-3 rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                        <div className="flex items-center gap-2">
+                          <File className="h-5 w-5" style={{ color: colors.primary }} />
+                          <a
+                            href={documentUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium hover:underline"
+                            style={{ color: colors.primary }}
+                          >
+                            View Document
+                          </a>
+                        </div>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            setDocumentUrl(null);
+                            setAgreementDocumentFile(null);
+                          }}
+                          disabled={isSaving || uploadingDocument}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div>
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (file) {
+                              // Validate file type
+                              const validTypes = ['application/pdf', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+                              if (!validTypes.includes(file.type)) {
+                                setError('Please upload a PDF or Word document');
+                                return;
+                              }
+                              // Validate file size (50MB)
+                              if (file.size > 50 * 1024 * 1024) {
+                                setError('File size must be less than 50MB');
+                                return;
+                              }
+                              setAgreementDocumentFile(file);
+                              setError(null);
+                            }
+                          }}
+                          disabled={isSaving || uploadingDocument}
+                          className="hidden"
+                          id="agreement-document-upload"
+                        />
+                        <label
+                          htmlFor="agreement-document-upload"
+                          className="flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed rounded-lg cursor-pointer hover:opacity-75 transition-opacity"
+                          style={{
+                            borderColor: colors.borderLight,
+                            backgroundColor: colors.backgroundSecondary,
+                            color: colors.textSecondary,
+                          }}
+                        >
+                          <Upload className="h-5 w-5" />
+                          <span className="text-sm">
+                            {agreementDocumentFile ? agreementDocumentFile.name : 'Choose file or drag and drop'}
+                          </span>
+                        </label>
+                        {agreementDocumentFile && !documentUrl && (
+                          <div className="mt-2 flex items-center gap-2">
+                            <Button
+                              variant="primary"
+                              size="sm"
+                              onClick={async () => {
+                                if (!agreementDocumentFile) return;
+                                
+                                setUploadingDocument(true);
+                                setError(null);
+                                
+                                try {
+                                  const formData = new FormData();
+                                  formData.append('file', agreementDocumentFile);
+                                  formData.append('folder', 'pmp-reports/subcontract-agreements');
+                                  
+                                  const response = await fetch('/api/admin/media-library', {
+                                    method: 'POST',
+                                    body: formData,
+                                  });
+                                  
+                                  const result = await response.json();
+                                  console.log('Upload response:', result);
+                                  
+                                  if (result.success && result.data) {
+                                    const url = result.data.publicUrl;
+                                    console.log('Document uploaded successfully. URL:', url);
+                                    if (!url) {
+                                      console.error('No publicUrl in response data:', result.data);
+                                      setError('Document uploaded but URL is missing. Please try again.');
+                                      return;
+                                    }
+                                    setDocumentUrl(url);
+                                    setError(null);
+                                  } else {
+                                    const errorMsg = result.message || result.error || 'Failed to upload document';
+                                    console.error('Upload failed:', errorMsg);
+                                    setError(errorMsg);
+                                  }
+                                } catch (uploadError: any) {
+                                  console.error('Upload error:', uploadError);
+                                  setError(uploadError.message || 'Failed to upload document');
+                                } finally {
+                                  setUploadingDocument(false);
+                                }
+                              }}
+                              disabled={isSaving || uploadingDocument}
+                              isLoading={uploadingDocument}
+                            >
+                              {uploadingDocument ? 'Uploading...' : 'Upload Document'}
+                            </Button>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setAgreementDocumentFile(null);
+                                setError(null);
+                              }}
+                              disabled={isSaving || uploadingDocument}
+                            >
+                              Cancel
+                            </Button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
 
               <div className="flex items-center justify-end gap-3">
@@ -877,8 +1068,9 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                   variant="ghost"
                   onClick={() => {
                     setShowAddForm(false);
-                    setSelectedSupplierId('');
-                    setNotes('');
+                    setSelectedSubcontractorId('');
+                    setScopeOfWork('');
+                    setSubcontractAgreement(false);
                     setSearchTerm('');
                     setShowDropdown(false);
                     setError(null);
@@ -891,11 +1083,11 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                   type="button"
                   variant="primary"
                   leftIcon={<Save className="h-4 w-4" />}
-                  onClick={handleAddSupplier}
+                  onClick={handleAddSubcontractor}
                   isLoading={isSaving}
-                  disabled={isSaving || !selectedSupplierId}
+                  disabled={isSaving || !selectedSubcontractorId}
                 >
-                  Add Supplier
+                  Add Subcontractor
                 </Button>
               </div>
             </div>
@@ -913,57 +1105,57 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
       >
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
-            Assigned Suppliers
+            Assigned Subcontractors
           </h3>
           <span className="text-xs" style={{ color: colors.textSecondary }}>
-            {projectSuppliers.length} supplier{projectSuppliers.length === 1 ? '' : 's'}
+            {projectSubcontractors.length} subcontractor{projectSubcontractors.length === 1 ? '' : 's'}
           </span>
         </div>
 
-        {/* Supplier Name Filter */}
-        {projectSuppliers.length > 0 && (
+        {/* Subcontractor Name Filter */}
+        {projectSubcontractors.length > 0 && (
           <Card
             className="p-4 mb-4 shadow-sm"
             style={{
               backgroundColor: colors.backgroundPrimary,
-              borderColor: supplierFilterTerm ? colors.primary : colors.borderLight,
-              borderWidth: supplierFilterTerm ? '2px' : '1px',
+              borderColor: subcontractorFilterTerm ? colors.primary : colors.borderLight,
+              borderWidth: subcontractorFilterTerm ? '2px' : '1px',
               transition: 'all 0.2s ease',
             }}
           >
             <div className="flex items-center gap-3">
               <div className="flex items-center justify-center w-10 h-10 rounded-lg" style={{
-                backgroundColor: supplierFilterTerm ? colors.primary : `${colors.primary}15`,
-                color: supplierFilterTerm ? colors.secondary : colors.primary,
+                backgroundColor: subcontractorFilterTerm ? colors.primary : `${colors.primary}15`,
+                color: subcontractorFilterTerm ? colors.secondary : colors.primary,
               }}>
                 <Search className="h-5 w-5" />
               </div>
               <div className="flex-1">
                 <label className="block text-xs font-semibold mb-1" style={{ color: colors.textPrimary }}>
-                  Filter by Supplier Name
+                  Filter by Subcontractor Name
                 </label>
                 <Input
                   type="text"
-                  value={supplierFilterTerm}
-                  onChange={(e) => setSupplierFilterTerm(e.target.value)}
-                  placeholder="Search by supplier name..."
+                  value={subcontractorFilterTerm}
+                  onChange={(e) => setSubcontractorFilterTerm(e.target.value)}
+                  placeholder="Search by subcontractor name..."
                   className="w-full rounded-lg border px-4 py-2 text-sm focus:outline-none focus:ring-2 transition-all"
                   style={{
                     backgroundColor: colors.backgroundSecondary,
-                    borderColor: supplierFilterTerm ? colors.primary : colors.borderLight,
-                    borderWidth: supplierFilterTerm ? '2px' : '1px',
+                    borderColor: subcontractorFilterTerm ? colors.primary : colors.borderLight,
+                    borderWidth: subcontractorFilterTerm ? '2px' : '1px',
                     color: colors.textPrimary,
                     outline: 'none',
-                    boxShadow: supplierFilterTerm ? `0 0 0 3px ${colors.primary}20` : 'none',
+                    boxShadow: subcontractorFilterTerm ? `0 0 0 3px ${colors.primary}20` : 'none',
                   }}
                   leftIcon={<Search className="h-4 w-4" />}
                 />
               </div>
-              {supplierFilterTerm && (
+              {subcontractorFilterTerm && (
                 <Button
                   variant="ghost"
                   size="icon"
-                  onClick={() => setSupplierFilterTerm('')}
+                  onClick={() => setSubcontractorFilterTerm('')}
                   className="h-10 w-10 hover:bg-opacity-20 transition-all"
                   style={{ 
                     color: colors.primary,
@@ -975,9 +1167,9 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                 </Button>
               )}
             </div>
-            {supplierFilterTerm && (() => {
-              const filteredCount = projectSuppliers.filter((ps) => 
-                ps.supplier.name.toLowerCase().includes(supplierFilterTerm.toLowerCase())
+            {subcontractorFilterTerm && (() => {
+              const filteredCount = projectSubcontractors.filter((ps) => 
+                ps.subcontractor.name.toLowerCase().includes(subcontractorFilterTerm.toLowerCase())
               ).length;
               return (
                 <div className="mt-3 pt-3 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
@@ -989,11 +1181,11 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                       backgroundColor: `${colors.primary}15`,
                       color: colors.primary,
                     }}>
-                      "{supplierFilterTerm}"
+                      "{subcontractorFilterTerm}"
                     </span>
                   </div>
                   <div className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                    {filteredCount} {filteredCount === 1 ? 'supplier' : 'suppliers'} found
+                    {filteredCount} {filteredCount === 1 ? 'subcontractor' : 'subcontractors'} found
                   </div>
                 </div>
               );
@@ -1002,34 +1194,34 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
         )}
 
         {(() => {
-          // Filter suppliers by name if filter term is set
-          const filteredSuppliers = supplierFilterTerm
-            ? projectSuppliers.filter((ps) => 
-                ps.supplier.name.toLowerCase().includes(supplierFilterTerm.toLowerCase())
+          // Filter subcontractors by name if filter term is set
+          const filteredSubcontractors = subcontractorFilterTerm
+            ? projectSubcontractors.filter((ps) => 
+                ps.subcontractor.name.toLowerCase().includes(subcontractorFilterTerm.toLowerCase())
               )
-            : projectSuppliers;
+            : projectSubcontractors;
 
-          if (filteredSuppliers.length === 0) {
+          if (filteredSubcontractors.length === 0) {
             return (
-          <div
-            className="rounded-lg border px-4 py-6 text-center text-sm"
-            style={{ borderColor: colors.borderLight, color: colors.textSecondary }}
-          >
-                {supplierFilterTerm 
-                  ? `No suppliers found matching "${supplierFilterTerm}".`
-                  : 'No suppliers assigned to this project yet.'
+              <div
+                className="rounded-lg border px-4 py-6 text-center text-sm"
+                style={{ borderColor: colors.borderLight, color: colors.textSecondary }}
+              >
+                {subcontractorFilterTerm 
+                  ? `No subcontractors found matching "${subcontractorFilterTerm}".`
+                  : 'No subcontractors assigned to this project yet.'
                 }
-          </div>
+              </div>
             );
           }
 
           return (
-          <div className="space-y-4">
-              {filteredSuppliers.map((projectSupplier) => {
-              const supplier = projectSupplier.supplier;
+            <div className="space-y-4">
+              {filteredSubcontractors.map((projectSubcontractor) => {
+              const subcontractor = projectSubcontractor.subcontractor;
               return (
                 <Card
-                  key={projectSupplier.id}
+                  key={projectSubcontractor.id}
                   className="p-5 transition-all hover:shadow-md"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
@@ -1040,9 +1232,9 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                     <div className="flex-1 space-y-4">
                       <div className="flex flex-wrap items-center gap-3">
                         <h4 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
-                          {supplier.name}
+                          {subcontractor.name}
                         </h4>
-                        {supplier.vendorCode && (
+                        {subcontractor.vendorCode && (
                           <span
                             className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-medium"
                             style={{
@@ -1052,7 +1244,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                             }}
                           >
                             <Tag className="h-3 w-3" style={{ color: colors.info }} />
-                            {supplier.vendorCode}
+                            {subcontractor.vendorCode}
                           </span>
                         )}
                         <span
@@ -1064,13 +1256,13 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                           }}
                         >
                           <Building2 className="h-3 w-3" style={{ color: colors.primary }} />
-                          {supplier.type}
+                          {subcontractor.type}
                         </span>
                       </div>
 
-                      {(supplier.contactPerson || supplier.contactNumber || supplier.email) && (
+                      {(subcontractor.contactPerson || subcontractor.contactNumber || subcontractor.email) && (
                         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {supplier.contactPerson && (
+                          {subcontractor.contactPerson && (
                             <div className="flex items-center gap-2.5 text-sm">
                               <div
                                 className="flex h-8 w-8 items-center justify-center rounded-lg"
@@ -1082,11 +1274,11 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                                 <UserIcon className="h-4 w-4" style={{ color: colors.primary }} />
                               </div>
                               <span style={{ color: colors.textSecondary }}>
-                                {supplier.contactPerson}
+                                {subcontractor.contactPerson}
                               </span>
                             </div>
                           )}
-                          {supplier.contactNumber && (
+                          {subcontractor.contactNumber && (
                             <div className="flex items-center gap-2.5 text-sm">
                               <div
                                 className="flex h-8 w-8 items-center justify-center rounded-lg"
@@ -1098,11 +1290,11 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                                 <Phone className="h-4 w-4" style={{ color: colors.success }} />
                               </div>
                               <span style={{ color: colors.textSecondary }}>
-                                {supplier.contactNumber}
+                                {subcontractor.contactNumber}
                               </span>
                             </div>
                           )}
-                          {supplier.email && (
+                          {subcontractor.email && (
                             <div className="flex items-center gap-2.5 text-sm">
                               <div
                                 className="flex h-8 w-8 items-center justify-center rounded-lg"
@@ -1113,13 +1305,13 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                               >
                                 <Mail className="h-4 w-4" style={{ color: colors.info }} />
                               </div>
-                              <span style={{ color: colors.textSecondary }}>{supplier.email}</span>
+                              <span style={{ color: colors.textSecondary }}>{subcontractor.email}</span>
                             </div>
                           )}
                         </div>
                       )}
 
-                      {supplier.typeOfWorks && supplier.typeOfWorks.length > 0 && (
+                      {subcontractor.typeOfWorks && subcontractor.typeOfWorks.length > 0 && (
                         <div>
                           <p
                             className="mb-2 text-xs font-medium uppercase tracking-wide"
@@ -1128,7 +1320,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                             Type of Works
                           </p>
                           <div className="flex flex-wrap gap-2">
-                            {supplier.typeOfWorks.map((link) => (
+                            {subcontractor.typeOfWorks.map((link) => (
                               <span
                                 key={link.typeOfWork.id}
                                 className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium"
@@ -1146,19 +1338,32 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                         </div>
                       )}
 
-                      {projectSupplier.notes && (
+                      {projectSubcontractor.scopeOfWork && (
                         <div>
                           <p
                             className="mb-1 text-xs font-medium uppercase tracking-wide"
                             style={{ color: colors.textSecondary }}
                           >
-                            Notes
+                            Scope of Work
                           </p>
                           <p className="text-sm" style={{ color: colors.textPrimary }}>
-                            {projectSupplier.notes}
+                            {projectSubcontractor.scopeOfWork}
                           </p>
                         </div>
                       )}
+                      <div>
+                        <p
+                          className="mb-2 text-xs font-medium uppercase tracking-wide"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          Subcontract Agreement
+                        </p>
+                        <div className="flex items-center gap-3">
+                          <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                            {projectSubcontractor.subcontractAgreement ? 'Yes' : 'No'}
+                          </span>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="flex flex-row items-center gap-2 md:flex-col md:items-end">
@@ -1166,7 +1371,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                         variant="ghost"
                         size="sm"
                         leftIcon={<Eye className="h-4 w-4" />}
-                        onClick={() => onViewSupplierDetails?.(projectSupplier.id)}
+                        onClick={() => onViewSubcontractorDetails?.(projectSubcontractor.id)}
                         style={{ color: colors.info }}
                       >
                         View Details
@@ -1174,8 +1379,8 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                       <Button
                         variant="ghost"
                         size="icon"
-                        onClick={() => handleRemoveSupplier(projectSupplier.id, supplier.name)}
-                        aria-label={`Remove ${supplier.name}`}
+                        onClick={() => handleRemoveSubcontractor(projectSubcontractor.id, subcontractor.name)}
+                        aria-label={`Remove ${subcontractor.name}`}
                         className="h-9 w-9"
                         style={{
                           color: colors.error,
@@ -1192,6 +1397,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           );
         })()}
       </Card>
+
     </div>
   );
 }
