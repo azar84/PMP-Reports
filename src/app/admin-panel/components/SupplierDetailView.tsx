@@ -288,6 +288,22 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         setInvoices(invoicesRes.data);
       }
 
+      // Load payments for this supplier (needed for summary cards calculations)
+      try {
+        const paymentsRes = await get<PaymentsResponse>(`/api/admin/project-suppliers/${supplierId}/payments`);
+        if (paymentsRes.success && paymentsRes.data) {
+          // Ensure liquidated field is properly set (default to false if null/undefined)
+          const paymentsWithLiquidated = paymentsRes.data.map(payment => ({
+            ...payment,
+            liquidated: payment.liquidated ?? false,
+          }));
+          setPayments(paymentsWithLiquidated);
+        }
+      } catch (error) {
+        console.error('Failed to load payments on initial load:', error);
+        // Don't throw - payments might not exist yet
+      }
+
       // Check if a down payment exists for this project (across all suppliers)
       // We'll check this by loading all invoices for the project
       try {
@@ -360,7 +376,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     try {
       const response = await get<PaymentsResponse>(`/api/admin/project-suppliers/${supplierId}/payments`);
       if (response.success && response.data) {
-        setPayments(response.data);
+        // Ensure liquidated field is properly set (default to false if null/undefined)
+        const paymentsWithLiquidated = response.data.map(payment => ({
+          ...payment,
+          liquidated: payment.liquidated ?? false,
+        }));
+        setPayments(paymentsWithLiquidated);
       }
     } catch (error: any) {
       console.error('Failed to load payments:', error);
@@ -1390,29 +1411,40 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           return sum + Number(invoice.totalAmount || 0);
         }, 0);
 
-        // Calculate Total Paid - only count liquidated payments
-        // Current Dated payments are always considered liquidated
-        // Post Dated payments must be liquidated to count
-        const totalPaid = payments.reduce((sum, payment) => {
-          const isLiquidated = payment.paymentMethod === 'Current Dated' || 
-                               (payment.paymentMethod === 'Post Dated' && payment.liquidated);
-          
-          if (isLiquidated) {
-            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+        // Calculate Total Paid - sum of payments for invoices with status "paid"
+        const totalPaid = invoices.reduce((sum, invoice) => {
+          const invoiceStatus = getInvoiceStatus(invoice);
+          // Only count payments for invoices with status "paid"
+          if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            const paidForInvoice = invoice.paymentInvoices.reduce((invoiceSum, pi) => {
+              return invoiceSum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+            return sum + paidForInvoice;
           }
           return sum;
         }, 0);
 
-        // Calculate Committed Payments - non-liquidated Post Dated payments
+        // Calculate Committed Payments - Post Dated payments that are not yet liquidated (from DB)
         const committedPayments = payments.reduce((sum, payment) => {
-          if (payment.paymentMethod === 'Post Dated' && !payment.liquidated) {
+          // Only count Post Dated payments where liquidated is explicitly false or null (not yet liquidated)
+          // Handle both false and null cases (null means not set/not liquidated yet)
+          const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
+          if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
             return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
           }
           return sum;
         }, 0);
 
-        // Calculate Balance to be Paid
-        const balanceToBePaid = totalInvoiced - totalPaid;
+        // Calculate Balance to be Paid - only from invoices that are not fully paid
+        const paidAmountsFromDBForBalance = calculatePaidAmountsFromInvoices(invoices);
+        const balanceToBePaid = invoices.reduce((sum, invoice) => {
+          const paid = paidAmountsFromDBForBalance[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+          const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const remaining = invoiceTotal - totalPaidForInvoice;
+          // Only add if there's still a balance to be paid (not fully paid)
+          return sum + (remaining > 0 ? remaining : 0);
+        }, 0);
 
         // Calculate Total Delivered (sum of all GRN deliveredAmount) with VAT
         const totalDeliveredBase = Object.values(grns).reduce((sum, poGrns) => {
@@ -1607,7 +1639,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 backgroundColor: colors.backgroundPrimary,
                 borderColor: colors.borderLight,
               }}
-              title="Total paid amounts (liquidated payments only - Current Dated or liquidated Post Dated)"
+              title="Total paid amounts - sum of payments for invoices with status 'paid'"
             >
               <div className="flex items-center justify-between">
                 <div>

@@ -6,7 +6,9 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
-import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye } from 'lucide-react';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet } from 'lucide-react';
+import { formatCurrencyWithDecimals } from '@/lib/currency';
 
 interface ProjectSuppliersProps {
   projectId: number;
@@ -74,6 +76,77 @@ interface PurchaseOrdersResponse {
   error?: string;
 }
 
+interface GRN {
+  id: number;
+  projectId: number;
+  projectSupplierId: number;
+  purchaseOrderId: number;
+  grnRefNo: string;
+  grnDate: string;
+  deliveredAmount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface GRNsResponse {
+  success: boolean;
+  data?: GRN[];
+  error?: string;
+}
+
+interface Invoice {
+  id: number;
+  projectId: number;
+  projectSupplierId: number;
+  purchaseOrderId: number | null;
+  invoiceNumber: string;
+  invoiceDate: string;
+  dueDate: string | null;
+  paymentType: string;
+  downPayment: number | null;
+  invoiceAmount: number;
+  vatAmount: number;
+  downPaymentRecovery: number | null;
+  totalAmount: number;
+  status: string;
+  paymentInvoices?: Array<{
+    paymentAmount: number;
+    vatAmount: number;
+    payment?: {
+      paymentDate: string;
+      paymentMethod: string;
+    };
+  }>;
+}
+
+interface InvoicesResponse {
+  success: boolean;
+  data?: Invoice[];
+  error?: string;
+}
+
+interface Payment {
+  id: number;
+  projectId: number;
+  projectSupplierId: number;
+  totalPaymentAmount: number;
+  totalVatAmount: number;
+  paymentMethod: string;
+  paymentType: string | null;
+  paymentDate: string;
+  dueDate: string | null;
+  liquidated: boolean | null;
+  notes: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface PaymentsResponse {
+  success: boolean;
+  data?: Payment[];
+  error?: string;
+}
+
 export default function ProjectSuppliers({ projectId, projectName, onViewSupplierDetails }: ProjectSuppliersProps) {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
@@ -90,6 +163,19 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
   const [selectedSupplierId, setSelectedSupplierId] = useState<string>('');
   const [notes, setNotes] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
+  const { siteSettings } = useSiteSettings();
+  const [summaryData, setSummaryData] = useState<{
+    purchaseOrders: PurchaseOrder[];
+    grns: GRN[];
+    invoices: Invoice[];
+    payments: Payment[];
+  }>({
+    purchaseOrders: [],
+    grns: [],
+    invoices: [],
+    payments: [],
+  });
+  const [isLoadingSummary, setIsLoadingSummary] = useState(false);
 
   const loadData = useCallback(async () => {
     setIsLoading(true);
@@ -122,6 +208,108 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
   useEffect(() => {
     loadData();
   }, [loadData]);
+
+  // Load summary data for all suppliers
+  const loadSummaryData = useCallback(async () => {
+    if (projectSuppliers.length === 0) {
+      setSummaryData({ purchaseOrders: [], grns: [], invoices: [], payments: [] });
+      return;
+    }
+
+    setIsLoadingSummary(true);
+    try {
+      const supplierIds = projectSuppliers.map(ps => ps.id);
+      
+      // Fetch POs, Invoices, and Payments for all suppliers
+      const allPOs: PurchaseOrder[] = [];
+      const allInvoices: Invoice[] = [];
+      const allPayments: Payment[] = [];
+
+      // Fetch data for each supplier, handling errors gracefully
+      for (const id of supplierIds) {
+        try {
+          // Fetch POs
+          try {
+            const posRes = await get<PurchaseOrdersResponse>(`/api/admin/project-suppliers/${id}/purchase-orders`);
+            if (posRes.success && posRes.data) {
+              allPOs.push(...posRes.data);
+            }
+          } catch (error: any) {
+            // Ignore 404s - supplier might not have POs yet
+            if (error.message?.includes('404')) {
+              console.log(`No POs found for supplier ${id}`);
+            }
+          }
+
+          // Fetch Invoices
+          try {
+            const invoicesRes = await get<InvoicesResponse>(`/api/admin/project-suppliers/${id}/invoices`);
+            if (invoicesRes.success && invoicesRes.data) {
+              allInvoices.push(...invoicesRes.data);
+            }
+          } catch (error: any) {
+            if (error.message?.includes('404')) {
+              console.log(`No invoices found for supplier ${id}`);
+            }
+          }
+
+          // Fetch Payments
+          try {
+            const paymentsRes = await get<PaymentsResponse>(`/api/admin/project-suppliers/${id}/payments`);
+            if (paymentsRes.success && paymentsRes.data) {
+              // Ensure liquidated field is properly set (default to false if null/undefined)
+              const paymentsWithLiquidated = paymentsRes.data.map(payment => ({
+                ...payment,
+                liquidated: payment.liquidated ?? false,
+              }));
+              allPayments.push(...paymentsWithLiquidated);
+            }
+          } catch (error: any) {
+            if (error.message?.includes('404')) {
+              console.log(`No payments found for supplier ${id}`);
+            } else {
+              console.error(`Error loading payments for supplier ${id}:`, error);
+            }
+          }
+        } catch (error) {
+          console.error(`Failed to load data for supplier ${id}:`, error);
+        }
+      }
+
+      // Fetch GRNs for each purchase order
+      const allGRNs: GRN[] = [];
+      for (const po of allPOs) {
+        try {
+          const grnsRes = await get<GRNsResponse>(`/api/admin/purchase-orders/${po.id}/grns`);
+          if (grnsRes.success && grnsRes.data) {
+            allGRNs.push(...grnsRes.data);
+          }
+        } catch (error: any) {
+          // Silently ignore 404s - PO might not have GRNs yet
+          if (error.message?.includes('404')) {
+            console.log(`No GRNs found for PO ${po.id}`);
+          }
+        }
+      }
+
+      setSummaryData({
+        purchaseOrders: allPOs,
+        grns: allGRNs,
+        invoices: allInvoices,
+        payments: allPayments,
+      });
+    } catch (error) {
+      console.error('Failed to load summary data:', error);
+      // Set empty data on error to avoid breaking the UI
+      setSummaryData({ purchaseOrders: [], grns: [], invoices: [], payments: [] });
+    } finally {
+      setIsLoadingSummary(false);
+    }
+  }, [get, projectSuppliers]);
+
+  useEffect(() => {
+    loadSummaryData();
+  }, [loadSummaryData]);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -255,6 +443,270 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           {error}
         </div>
       )}
+
+      {/* Aggregated Summary Cards for All Suppliers */}
+      {(() => {
+        const vatPercent = siteSettings?.vatPercent ?? 5;
+        const vatMultiplier = 1 + (vatPercent / 100);
+
+        // Helper to calculate paid amounts from invoices
+        const calculatePaidAmountsFromInvoices = (invoiceList: Invoice[]) => {
+          const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+          invoiceList.forEach(invoice => {
+            if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+              const totalPaid = invoice.paymentInvoices.reduce(
+                (sum, pi) => ({
+                  paymentAmount: sum.paymentAmount + Number(pi.paymentAmount || 0),
+                  vatAmount: sum.vatAmount + Number(pi.vatAmount || 0),
+                }),
+                { paymentAmount: 0, vatAmount: 0 }
+              );
+              paidAmounts[invoice.id] = totalPaid;
+            } else {
+              paidAmounts[invoice.id] = { paymentAmount: 0, vatAmount: 0 };
+            }
+          });
+          return paidAmounts;
+        };
+
+        // Helper function to get invoice status from database or calculate if not available
+        const getInvoiceStatus = (invoice: Invoice): 'paid' | 'partially_paid' | 'unpaid' => {
+          // Use status from database if available
+          if (invoice.status && ['paid', 'partially_paid', 'unpaid'].includes(invoice.status)) {
+            return invoice.status as 'paid' | 'partially_paid' | 'unpaid';
+          }
+          
+          // Fallback calculation if status not in database
+          // Use paymentInvoices from invoice data (from DB) instead of payments state
+          let totalPaid = 0;
+          if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            totalPaid = invoice.paymentInvoices.reduce((sum, pi) => {
+              return sum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+          }
+          
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const tolerance = 0.01;
+          
+          // If fully paid, return 'paid'
+          if (totalPaid >= invoiceTotal - tolerance) {
+            return 'paid';
+          }
+          
+          // If partially paid, return 'partially_paid'
+          if (totalPaid > tolerance) {
+            return 'partially_paid';
+          }
+          
+          // Not paid
+          return 'unpaid';
+        };
+
+        // Calculate Total Invoiced (sum of all invoice totalAmount)
+        const totalInvoiced = summaryData.invoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.totalAmount || 0);
+        }, 0);
+
+        // Calculate Total Paid - sum of payments for invoices with status "paid"
+        const totalPaid = summaryData.invoices.reduce((sum, invoice) => {
+          const invoiceStatus = getInvoiceStatus(invoice);
+          // Only count payments for invoices with status "paid"
+          if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            const paidForInvoice = invoice.paymentInvoices.reduce((invoiceSum, pi) => {
+              return invoiceSum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+            return sum + paidForInvoice;
+          }
+          return sum;
+        }, 0);
+
+        // Calculate Committed Payments - Post Dated payments that are not yet liquidated (from DB)
+        const committedPayments = summaryData.payments.reduce((sum, payment) => {
+          // Only count Post Dated payments where liquidated is explicitly false or null (not yet liquidated)
+          // Handle both false and null cases (null means not set/not liquidated yet)
+          const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
+          if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
+            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          }
+          return sum;
+        }, 0);
+
+        // Calculate Balance to be Paid - only from invoices that are not fully paid
+        const paidAmountsFromDBForBalance = calculatePaidAmountsFromInvoices(summaryData.invoices);
+        const balanceToBePaid = summaryData.invoices.reduce((sum, invoice) => {
+          const paid = paidAmountsFromDBForBalance[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+          const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const remaining = invoiceTotal - totalPaidForInvoice;
+          // Only add if there's still a balance to be paid (not fully paid)
+          return sum + (remaining > 0 ? remaining : 0);
+        }, 0);
+
+        // Calculate Total Delivered (sum of all GRN deliveredAmount) with VAT
+        const totalDeliveredBase = summaryData.grns.reduce((sum, grn) => {
+          return sum + Number(grn.deliveredAmount || 0);
+        }, 0);
+        const totalDelivered = totalDeliveredBase * vatMultiplier; // Add VAT
+
+        // Calculate Total PO Amounts (with VAT)
+        const totalPOAmountsWithVat = summaryData.purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValueWithVat || 0);
+        }, 0);
+
+        // Calculate LPO Balance: (Total PO amount - Delivered amount) * VAT multiplier (with VAT)
+        const totalPOAmount = summaryData.purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0); // Use base LPO value without VAT
+        }, 0);
+        
+        const lpoBalanceBeforeVat = totalPOAmount - totalDeliveredBase;
+        const lpoBalance = lpoBalanceBeforeVat * vatMultiplier; // Add VAT
+
+        // Calculate Due Amount (invoices past due date)
+        // Use invoice data directly from DB, not payments state
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        // Calculate paid amounts from invoice data (from DB)
+        const paidAmountsFromDB = calculatePaidAmountsFromInvoices(summaryData.invoices);
+        
+        const dueAmount = summaryData.invoices.reduce((sum, invoice) => {
+          if (!invoice.dueDate) return sum;
+          
+          const dueDate = new Date(invoice.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          // Check if invoice is past due date
+          if (dueDate < today) {
+            // Calculate remaining balance for this invoice using DB data
+            const paid = paidAmountsFromDB[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+            const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+            
+            // Only add if there's still a balance to be paid
+            return sum + (remaining > 0 ? remaining : 0);
+          }
+          
+          return sum;
+        }, 0);
+
+        if (isLoadingSummary) {
+          return (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
+              {[...Array(8)].map((_, i) => (
+                <Card key={i} className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+                  <div className="animate-pulse">
+                    <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" style={{ backgroundColor: colors.borderLight }}></div>
+                    <div className="h-6 bg-gray-200 rounded w-1/2" style={{ backgroundColor: colors.borderLight }}></div>
+                  </div>
+                </Card>
+              ))}
+            </div>
+          );
+        }
+
+        return (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total PO Amounts</p>
+                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalPOAmountsWithVat)}</p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>With VAT</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.primary}20` }}>
+                  <FileText className="h-6 w-6" style={{ color: colors.primary }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Delivered</p>
+                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalDelivered)}</p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>With VAT</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.info}20` }}>
+                  <Package className="h-6 w-6" style={{ color: colors.info }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>LPO Balance</p>
+                  <p className="text-xl font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>{formatCurrencyWithDecimals(lpoBalance)}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${lpoBalance > 0 ? colors.warning : colors.success}20` }}>
+                  <ShoppingCart className="h-6 w-6" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Invoiced</p>
+                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalInvoiced)}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.info}20` }}>
+                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Due Amount</p>
+                  <p className="text-xl font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>{formatCurrencyWithDecimals(dueAmount)}</p>
+                  {dueAmount > 0 && <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Past due date</p>}
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${dueAmount > 0 ? colors.error : colors.success}20` }}>
+                  <AlertCircle className="h-6 w-6" style={{ color: dueAmount > 0 ? colors.error : colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }} title="Total paid amounts - sum of payments for invoices with status 'paid'">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Paid</p>
+                  <p className="text-xl font-bold" style={{ color: colors.success }}>{formatCurrencyWithDecimals(totalPaid)}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.success}20` }}>
+                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }} title="Committed payments (Post Dated payments that are not yet liquidated)">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Committed Payments</p>
+                  <p className="text-xl font-bold" style={{ color: colors.warning }}>{formatCurrencyWithDecimals(committedPayments)}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.warning}20` }}>
+                  <Clock className="h-6 w-6" style={{ color: colors.warning }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Balance to be Paid</p>
+                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>{formatCurrencyWithDecimals(balanceToBePaid)}</p>
+                </div>
+                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}>
+                  <Wallet className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
+                </div>
+              </div>
+            </Card>
+          </div>
+        );
+      })()}
 
       <Card
         className="p-6"
