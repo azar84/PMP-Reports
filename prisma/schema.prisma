@@ -1400,6 +1400,7 @@ model ProjectSubcontractorChangeOrder {
   projectSubcontractor ProjectSubcontractor                     @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
   project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   invoiceChangeOrders  ProjectSubcontractorInvoiceChangeOrder[]
+  advancePaymentInvoices ProjectSubcontractorInvoice[]          @relation("ChangeOrderAdvancePayment")
 
   @@index([projectId])
   @@index([projectSubcontractorId])
@@ -1411,16 +1412,19 @@ model ProjectSubcontractorInvoice {
   id                     Int       @id @default(autoincrement())
   projectId              Int
   projectSubcontractorId Int
-  purchaseOrderId        Int? // For Down Payment invoices - links to PO
+  purchaseOrderId        Int? // For Advance Payment invoices - links to PO
+  changeOrderId          Int? // For Advance Payment invoices - links to CO (only one of purchaseOrderId or changeOrderId should be set)
   invoiceNumber          String
   invoiceDate            DateTime
   dueDate                DateTime? // Due date for the invoice
-  paymentType            String // "Down Payment" or "Progress Payment"
-  downPayment            Decimal? // Down Payment amount (only for Down Payment type)
+  paymentType            String // "Advance Payment", "Progress Payment", or "Retention Release Payment"
+  downPayment            Decimal? // Down Payment amount (only for Advance Payment type)
   invoiceAmount          Decimal // Invoice amount before VAT (A)
   vatAmount              Decimal // VAT amount at 5% (B)
   downPaymentRecovery    Decimal? // Down Payment Recovery (for Progress Payment) - deducted from total
-  totalAmount            Decimal // Total amount with VAT (C) = A + B - Down Payment Recovery
+  advanceRecovery        Decimal? // Advance Payment Recovery (for Progress Payment) - default 10% of amount, deducted from total
+  retention              Decimal? // Retention amount (for Progress Payment) - default 10% of payment, deducted from total
+  totalAmount            Decimal // Total amount with VAT (C) = A + B - Down Payment Recovery - Advance Recovery - Retention
   status                 String    @default("unpaid") // "paid", "partially_paid", or "unpaid"
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt
@@ -1428,6 +1432,7 @@ model ProjectSubcontractorInvoice {
   projectSubcontractor ProjectSubcontractor                     @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
   project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   purchaseOrder        ProjectSubcontractorPurchaseOrder?       @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  changeOrder          ProjectSubcontractorChangeOrder?         @relation("ChangeOrderAdvancePayment", fields: [changeOrderId], references: [id], onDelete: Cascade)
   invoiceChangeOrders  ProjectSubcontractorInvoiceChangeOrder[]
   paymentInvoices      ProjectSubcontractorPaymentInvoice[]
 
@@ -1435,6 +1440,7 @@ model ProjectSubcontractorInvoice {
   @@index([projectId])
   @@index([projectSubcontractorId])
   @@index([purchaseOrderId])
+  @@index([changeOrderId])
   @@map("project_subcontractor_invoices")
 }
 
