@@ -6,6 +6,8 @@ const updateProjectSubcontractorSchema = z.object({
   scopeOfWork: z.string().optional().nullable(),
   subcontractAgreement: z.boolean().optional(),
   subcontractAgreementDocumentUrl: z.string().optional().nullable(),
+  performanceRating: z.number().int().min(1).max(5).optional().nullable(),
+  performanceReview: z.string().optional().nullable(),
 });
 
 // PUT - Update project subcontractor relationship
@@ -49,6 +51,12 @@ export async function PUT(
     }
     if (validatedData.subcontractAgreementDocumentUrl !== undefined) {
       updateData.subcontractAgreementDocumentUrl = validatedData.subcontractAgreementDocumentUrl;
+    }
+    if (validatedData.performanceRating !== undefined) {
+      updateData.performanceRating = validatedData.performanceRating;
+    }
+    if (validatedData.performanceReview !== undefined) {
+      updateData.performanceReview = validatedData.performanceReview;
     }
 
     const updated = await prisma.projectSubcontractor.update({

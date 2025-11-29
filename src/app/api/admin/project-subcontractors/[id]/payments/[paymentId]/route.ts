@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
-import { updateMultipleInvoiceStatuses } from '@/lib/invoiceStatus';
+import { updateMultipleSubcontractorInvoiceStatuses } from '@/lib/invoiceStatus';
 
 // PUT - Update a payment with multiple invoices
 export async function PUT(
@@ -180,7 +180,7 @@ export async function PUT(
 
     // Update status for all affected invoices (both old and new)
     const allAffectedInvoiceIds = [...new Set([...oldInvoiceIds, ...invoiceIds])];
-    await updateMultipleInvoiceStatuses(allAffectedInvoiceIds);
+    await updateMultipleSubcontractorInvoiceStatuses(allAffectedInvoiceIds);
 
     return NextResponse.json({ success: true, data: payment });
   } catch (error: any) {
@@ -238,7 +238,7 @@ export async function DELETE(
     });
 
     // Update status for all affected invoices
-    await updateMultipleInvoiceStatuses(invoiceIds);
+    await updateMultipleSubcontractorInvoiceStatuses(invoiceIds);
 
     return NextResponse.json({ success: true });
   } catch (error) {

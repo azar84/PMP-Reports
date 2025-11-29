@@ -9,7 +9,7 @@ import { Radio } from '@/components/ui/Radio';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet, Upload, File, Loader2 } from 'lucide-react';
+import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet, Upload, File, Loader2, ChevronRight } from 'lucide-react';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
 
 interface ProjectSubcontractorsProps {
@@ -69,6 +69,9 @@ interface ChangeOrder {
   chDate: string;
   type: 'addition' | 'omission';
   amount: number;
+  vatPercent?: number;
+  vatAmount?: number;
+  amountWithVat?: number;
   description: string | null;
   createdAt: string;
   updatedAt: string;
@@ -108,6 +111,8 @@ interface Invoice {
   invoiceAmount: number;
   vatAmount: number;
   downPaymentRecovery: number | null;
+  advanceRecovery?: number | null;
+  retention?: number | null;
   totalAmount: number;
   status: string;
   paymentInvoices?: Array<{
@@ -556,38 +561,68 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
           return sum + (remaining > 0 ? remaining : 0);
         }, 0);
 
-        // Calculate Total PO Amounts including Change Orders
-        // For each PO: base amount + additions - omissions, then apply VAT
-        const totalPOAmountBase = summaryData.purchaseOrders.reduce((sum, po) => {
-          let poAmount = Number(po.lpoValue || 0);
-          
-          // Add Change Orders to the PO amount
+        // Calculate PO Amounts without VAT
+        const totalPOAmountsWithoutVat = summaryData.purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0);
+        }, 0);
+
+        // Calculate CO Amounts without VAT
+        const totalCOAmountsWithoutVat = summaryData.purchaseOrders.reduce((sum, po) => {
           if (po.changeOrders && po.changeOrders.length > 0) {
             po.changeOrders.forEach((co) => {
               if (co.type === 'addition') {
-                poAmount += Number(co.amount || 0);
+                sum += Number(co.amount || 0);
               } else if (co.type === 'omission') {
-                poAmount -= Number(co.amount || 0);
+                sum -= Number(co.amount || 0);
               }
             });
           }
-          
-          return sum + poAmount;
+          return sum;
         }, 0);
+
+        // Calculate Total without VAT (PO + CO before VAT)
+        const totalAmountWithoutVat = totalPOAmountsWithoutVat + totalCOAmountsWithoutVat;
+
+        // Calculate PO Amounts with VAT
+        const totalPOAmountsWithVat = summaryData.purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValueWithVat || 0);
+        }, 0);
+
+        // Calculate CO Amounts with VAT
+        const totalCOAmountsWithVat = summaryData.purchaseOrders.reduce((sum, po) => {
+          if (po.changeOrders && po.changeOrders.length > 0) {
+            po.changeOrders.forEach((co) => {
+              if (co.type === 'addition') {
+                sum += Number(co.amountWithVat || (co.amount + (co.vatAmount || 0)) || 0);
+              } else if (co.type === 'omission') {
+                sum -= Number(co.amountWithVat || (co.amount + (co.vatAmount || 0)) || 0);
+              }
+            });
+          }
+          return sum;
+        }, 0);
+
+        // Calculate Total Contract Amount (PO + CO with VAT)
+        const totalContractAmount = totalPOAmountsWithVat + totalCOAmountsWithVat;
         
-        // Apply VAT to the total (using average VAT from POs)
-        const avgVatPercent = summaryData.purchaseOrders.length > 0
-          ? summaryData.purchaseOrders.reduce((sum, po) => sum + Number(po.vatPercent || 5.0), 0) / summaryData.purchaseOrders.length
-          : 5.0;
-        const vatMultiplierForPO = 1 + (avgVatPercent / 100);
-        const totalPOAmountsWithVat = totalPOAmountBase * vatMultiplierForPO;
+        // Calculate VAT Amount = Total with VAT - Total without VAT
+        const totalVatAmount = totalContractAmount - totalAmountWithoutVat;
         
-        // Calculate LPO Balance: Total PO amount (with COs and VAT) - Total Invoiced (with VAT)
-        // This represents the remaining PO amount that hasn't been invoiced yet
+        // Calculate LPO Balance: Total Contract amount (PO + CO with VAT) - Total Invoiced (with VAT) - Contra Charges with VAT
         const totalInvoicedForBalance = summaryData.invoices.reduce((sum, invoice) => {
           return sum + Number(invoice.totalAmount || 0); // totalAmount includes VAT
         }, 0);
-        const lpoBalance = totalPOAmountsWithVat - totalInvoicedForBalance;
+        
+        // Calculate total contra charges from all invoices
+        const totalContraCharges = summaryData.invoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.contraChargesAmount || 0);
+        }, 0);
+        
+        // Calculate contra charges with VAT
+        const contraChargesWithVat = totalContraCharges * vatMultiplier;
+        
+        // LPO Balance = Total Contract Amount - Total Invoiced - Contra Charges with VAT
+        const lpoBalance = totalContractAmount - totalInvoicedForBalance - contraChargesWithVat;
 
         // Calculate Due Amount (invoices past due date)
         // Use invoice data directly from DB, not payments state
@@ -617,10 +652,60 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
           return sum;
         }, 0);
 
+        // Calculate Certified Amount - total of Progress Payment invoices only (excluding VAT, so invoiceAmount)
+        const certifiedAmount = summaryData.invoices
+          .filter(invoice => invoice.paymentType === 'Progress Payment')
+          .reduce((sum, invoice) => sum + Number(invoice.invoiceAmount || 0), 0);
+
+        // Calculate Total PO + CO amounts before VAT
+        const totalPOAndCOAmountsBeforeVat = summaryData.purchaseOrders.reduce((sum, po) => {
+          // Start with PO amount before VAT (lpoValue)
+          let poAmount = Number(po.lpoValue || 0);
+          
+          // Add Change Orders amounts before VAT
+          if (po.changeOrders && po.changeOrders.length > 0) {
+            po.changeOrders.forEach((co) => {
+              if (co.type === 'addition') {
+                poAmount += Number(co.amount || 0);
+              } else if (co.type === 'omission') {
+                poAmount -= Number(co.amount || 0);
+              }
+            });
+          }
+          
+          return sum + poAmount;
+        }, 0);
+
+        // Calculate Balance to Certify = (PO + COs before VAT) - Certified Amount
+        const balanceToCertify = totalPOAndCOAmountsBeforeVat - certifiedAmount;
+
+        // Calculate Total Advance Payments (for all subcontractors)
+        const totalAdvancePayments = summaryData.invoices
+          .filter(invoice => invoice.paymentType === 'Advance Payment')
+          .reduce((sum, invoice) => sum + Number(invoice.invoiceAmount || 0), 0);
+
+        // Calculate Total Advance Recoveries from Progress Payment invoices (for all subcontractors)
+        const totalAdvanceRecoveries = summaryData.invoices
+          .filter(invoice => invoice.paymentType === 'Progress Payment')
+          .reduce((sum, invoice) => sum + Number(invoice.advanceRecovery || 0), 0);
+
+        // Calculate Remaining AP Recovery = Total Advance Payments - Total Advance Recoveries
+        const remainingAPRecovery = totalAdvancePayments - totalAdvanceRecoveries;
+
+        // Calculate Total Retention Held from Progress Payment invoices (for all subcontractors)
+        const totalRetentionHeld = summaryData.invoices
+          .filter(invoice => invoice.paymentType === 'Progress Payment')
+          .reduce((sum, invoice) => sum + Number(invoice.retention || 0), 0);
+
+        // Calculate Total Contra Charges from Progress Payment invoices (for all subcontractors)
+        const totalContraChargesForCertified = summaryData.invoices
+          .filter(invoice => invoice.paymentType === 'Progress Payment')
+          .reduce((sum, invoice) => sum + Number(invoice.contraChargesAmount || 0), 0);
+
         if (isLoadingSummary) {
           return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
-              {[...Array(7)].map((_, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+              {[...Array(4)].map((_, i) => (
                 <Card key={i} className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                   <div className="animate-pulse">
                     <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" style={{ backgroundColor: colors.borderLight }}></div>
@@ -633,89 +718,180 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
         }
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-7 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total PO Amounts</p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalPOAmountsWithVat)}</p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>With VAT</p>
+              <div className="space-y-3">
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    PO Amounts
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalPOAmountsWithoutVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    Without VAT
+                  </p>
                 </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.primary}20` }}>
-                  <FileText className="h-6 w-6" style={{ color: colors.primary }} />
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    CO Amounts
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalCOAmountsWithoutVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    Without VAT
+                  </p>
                 </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>LPO Balance</p>
-                  <p className="text-xl font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>{formatCurrencyWithDecimals(lpoBalance)}</p>
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalAmountWithoutVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    PO + CO (Without VAT)
+                  </p>
                 </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${lpoBalance > 0 ? colors.warning : colors.success}20` }}>
-                  <ShoppingCart className="h-6 w-6" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }} />
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    VAT Amount
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
+                    {formatCurrencyWithDecimals(totalVatAmount)}
+                  </p>
                 </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Invoiced</p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalInvoiced)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.info}20` }}>
-                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Due Amount</p>
-                  <p className="text-xl font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>{formatCurrencyWithDecimals(dueAmount)}</p>
-                  {dueAmount > 0 && <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Past due date</p>}
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${dueAmount > 0 ? colors.error : colors.success}20` }}>
-                  <AlertCircle className="h-6 w-6" style={{ color: dueAmount > 0 ? colors.error : colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }} title="Total paid amounts - sum of payments for invoices with status 'paid'">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Paid</p>
-                  <p className="text-xl font-bold" style={{ color: colors.success }}>{formatCurrencyWithDecimals(totalPaid)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.success}20` }}>
-                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }} title="Committed payments (Post Dated payments that are not yet liquidated)">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Committed Payments</p>
-                  <p className="text-xl font-bold" style={{ color: colors.warning }}>{formatCurrencyWithDecimals(committedPayments)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.warning}20` }}>
-                  <Clock className="h-6 w-6" style={{ color: colors.warning }} />
+                
+                <div className="pt-1">
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Contract Amount
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
+                    {formatCurrencyWithDecimals(totalContractAmount)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    With VAT
+                  </p>
                 </div>
               </div>
             </Card>
 
             <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Balance to be Paid</p>
-                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>{formatCurrencyWithDecimals(balanceToBePaid)}</p>
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Invoiced
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalInvoiced)}
+                  </p>
                 </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}>
-                  <Wallet className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Due Amount
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>
+                    {formatCurrencyWithDecimals(dueAmount)}
+                  </p>
+                  {dueAmount > 0 && (
+                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                      Past due date
+                    </p>
+                  )}
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    LPO Balance
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(lpoBalance)}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Paid
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.success }}>
+                    {formatCurrencyWithDecimals(totalPaid)}
+                  </p>
+                </div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Committed Payments
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.warning }}>
+                    {formatCurrencyWithDecimals(committedPayments)}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance to be Paid
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(balanceToBePaid)}
+                  </p>
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
+              <div className="space-y-3">
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Certified Amount
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(certifiedAmount)}
+                  </p>
+                </div>
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance to Certify
+                  </p>
+                  <p className="text-base font-bold" style={{ color: balanceToCertify > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(balanceToCertify)}
+                  </p>
+                </div>
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance AP Recovery
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(remainingAPRecovery)}
+                  </p>
+                </div>
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Retention Held
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalRetentionHeld)}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Contra Charges
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalContraChargesForCertified)}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -1219,16 +1395,119 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
             <div className="space-y-4">
               {filteredSubcontractors.map((projectSubcontractor) => {
               const subcontractor = projectSubcontractor.subcontractor;
+              
+              // Calculate totals for this specific subcontractor
+              const subcontractorPOs = summaryData.purchaseOrders.filter(po => po.projectSubcontractorId === projectSubcontractor.id);
+              const subcontractorInvoices = summaryData.invoices.filter(inv => inv.projectSubcontractorId === projectSubcontractor.id);
+              
+              // Calculate Total Order Amount (PO + CO amounts with VAT)
+              // First, get all POs and their associated Change Orders
+              const totalOrderAmount = subcontractorPOs.reduce((sum, po) => {
+                // Add PO amount with VAT
+                let poAmount = Number(po.lpoValueWithVat || 0);
+                
+                // Add Change Orders amounts with VAT for this PO (changeOrders are included in PO object)
+                if (po.changeOrders && po.changeOrders.length > 0) {
+                  po.changeOrders.forEach((co) => {
+                    if (co.type === 'addition') {
+                      // Add CO amount with VAT (amount + vatAmount or amountWithVat)
+                      poAmount += Number(co.amountWithVat || (Number(co.amount || 0) + Number(co.vatAmount || 0)));
+                    } else if (co.type === 'omission') {
+                      // Subtract CO amount with VAT for omissions
+                      poAmount -= Number(co.amountWithVat || (Number(co.amount || 0) + Number(co.vatAmount || 0)));
+                    }
+                  });
+                }
+                
+                return sum + poAmount;
+              }, 0);
+              
+              // Calculate Total Due Amount (invoices past due date)
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              // Helper to calculate paid amounts from invoices
+              const calculatePaidAmountsFromInvoices = (invoiceList: Invoice[]) => {
+                const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+                invoiceList.forEach(invoice => {
+                  if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+                    const totalPaid = invoice.paymentInvoices.reduce(
+                      (sum, pi) => ({
+                        paymentAmount: sum.paymentAmount + Number(pi.paymentAmount || 0),
+                        vatAmount: sum.vatAmount + Number(pi.vatAmount || 0),
+                      }),
+                      { paymentAmount: 0, vatAmount: 0 }
+                    );
+                    paidAmounts[invoice.id] = totalPaid;
+                  } else {
+                    paidAmounts[invoice.id] = { paymentAmount: 0, vatAmount: 0 };
+                  }
+                });
+                return paidAmounts;
+              };
+              
+              const paidAmountsFromDB = calculatePaidAmountsFromInvoices(subcontractorInvoices);
+              
+              const totalDueAmount = subcontractorInvoices.reduce((sum, invoice) => {
+                if (!invoice.dueDate) return sum;
+                
+                const dueDate = new Date(invoice.dueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                
+                // Check if invoice is past due date
+                if (dueDate < today) {
+                  // Calculate remaining balance for this invoice using DB data
+                  const paid = paidAmountsFromDB[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+                  const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+                  const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+                  
+                  // Only add if there's still a balance to be paid
+                  return sum + (remaining > 0 ? remaining : 0);
+                }
+                
+                return sum;
+              }, 0);
+              
               return (
                 <Card
                   key={projectSubcontractor.id}
-                  className="p-5 transition-all hover:shadow-md"
+                  className="p-5 transition-all duration-200 cursor-pointer group relative"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
                     borderColor: colors.borderLight,
                   }}
+                  onClick={() => onViewSubcontractorDetails?.(projectSubcontractor.id)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = colors.primary;
+                    e.currentTarget.style.boxShadow = `0 4px 12px ${colors.primary}15`;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = colors.borderLight;
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
                 >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  {/* Action buttons - positioned absolutely to avoid interfering with card click */}
+                  <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSubcontractor(projectSubcontractor.id, subcontractor.name);
+                      }}
+                      aria-label={`Remove ${subcontractor.name}`}
+                      className="h-8 w-8 hover:bg-red-50 transition-colors"
+                      style={{
+                        color: colors.error,
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between pr-10">
                     <div className="flex-1 space-y-4">
                       <div className="flex flex-wrap items-center gap-3">
                         <h4 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
@@ -1364,31 +1643,33 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
                           </span>
                         </div>
                       </div>
-                    </div>
 
-                    <div className="flex flex-row items-center gap-2 md:flex-col md:items-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Eye className="h-4 w-4" />}
-                        onClick={() => onViewSubcontractorDetails?.(projectSubcontractor.id)}
-                        style={{ color: colors.info }}
-                      >
-                        View Details
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveSubcontractor(projectSubcontractor.id, subcontractor.name)}
-                        aria-label={`Remove ${subcontractor.name}`}
-                        className="h-9 w-9"
-                        style={{
-                          color: colors.error,
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" style={{ color: colors.error }} />
-                      </Button>
+                      {/* Total Order Amount and Total Due Amount */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t" style={{ borderColor: colors.borderLight }}>
+                        <div>
+                          <p className="text-xs font-medium mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                            Total Order Amount
+                          </p>
+                          <p className="text-base font-semibold" style={{ color: colors.textPrimary }}>
+                            {formatCurrencyWithDecimals(totalOrderAmount)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                            Total Due Amount
+                          </p>
+                          <p className="text-base font-semibold" style={{ color: totalDueAmount > 0 ? colors.error : colors.success }}>
+                            {formatCurrencyWithDecimals(totalDueAmount)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Subtle hint that card is clickable */}
+                  <div className="absolute bottom-4 right-4 flex items-center gap-1.5 text-xs opacity-60 group-hover:opacity-100 transition-opacity duration-200" style={{ color: colors.primary }}>
+                    <span className="font-medium">View Details</span>
+                    <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
                   </div>
                 </Card>
               );

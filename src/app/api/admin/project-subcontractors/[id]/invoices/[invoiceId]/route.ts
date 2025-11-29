@@ -27,7 +27,7 @@ export async function PUT(
     }
 
     const body = await request.json();
-    const { invoiceNumber, invoiceDate, dueDate, purchaseOrderId, changeOrderId, changeOrderIds, paymentType, downPayment, invoiceAmount, vatAmount, downPaymentRecovery, advanceRecovery, retention, totalAmount } = body;
+    const { invoiceNumber, invoiceDate, dueDate, purchaseOrderId, changeOrderId, changeOrderIds, paymentType, downPayment, invoiceAmount, vatAmount, downPaymentRecovery, advanceRecovery, retention, contraChargesAmount, contraChargesDescription, totalAmount } = body;
 
     // Get the existing invoice to get projectId
     const existingInvoice = await prisma.projectSubcontractorInvoice.findUnique({
@@ -226,8 +226,9 @@ export async function PUT(
         const recovery = downPaymentRecovery ? parseFloat(downPaymentRecovery) : 0;
         const advRecovery = advanceRecovery ? parseFloat(advanceRecovery) : (paymentType === 'Progress Payment' ? baseAmount * 0.10 : 0);
         const ret = retention ? parseFloat(retention) : (paymentType === 'Progress Payment' ? baseAmount * 0.10 : 0);
+        const contraCharges = contraChargesAmount ? parseFloat(contraChargesAmount) : 0;
         
-        const amountAfterDeductions = baseAmount - recovery - advRecovery - ret;
+        const amountAfterDeductions = baseAmount - recovery - advRecovery - ret - contraCharges;
         
         // Invoice Amount is the base amount (before deductions)
         finalInvoiceAmount = baseAmount;
@@ -250,6 +251,12 @@ export async function PUT(
       : (paymentType === 'Progress Payment' && invoiceAmount) 
         ? parseFloat(invoiceAmount) * 0.10 
         : null;
+    const finalContraChargesAmount = (paymentType === 'Progress Payment' && contraChargesAmount) 
+      ? parseFloat(contraChargesAmount) 
+      : null;
+    const finalContraChargesDescription = (paymentType === 'Progress Payment' && contraChargesDescription) 
+      ? contraChargesDescription 
+      : null;
 
     // Update invoice and its relationships
     // First, delete existing Change Order relationships (if any)
@@ -271,6 +278,8 @@ export async function PUT(
       downPaymentRecovery: finalDownPaymentRecovery ? parseFloat(finalDownPaymentRecovery.toFixed(2)) : null,
       advanceRecovery: finalAdvanceRecovery ? parseFloat(finalAdvanceRecovery.toFixed(2)) : null,
       retention: finalRetention ? parseFloat(finalRetention.toFixed(2)) : null,
+      contraChargesAmount: finalContraChargesAmount ? parseFloat(finalContraChargesAmount.toFixed(2)) : null,
+      contraChargesDescription: finalContraChargesDescription,
       totalAmount: parseFloat(finalTotalAmount.toFixed(2)),
     };
 

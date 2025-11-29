@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState, Fragment } from 'react';
+import { useCallback, useEffect, useState, Fragment, useMemo } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -9,7 +9,7 @@ import { Toggle } from '@/components/ui/Toggle';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet, Star } from 'lucide-react';
 import { formatDateForInput } from '@/lib/dateUtils';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
 
@@ -34,6 +34,8 @@ interface ProjectSupplier {
   projectId: number;
   supplierId: number;
   notes: string | null;
+  performanceRating: number | null; // 1-5 stars
+  performanceReview: string | null;
   createdAt: string;
   updatedAt: string;
   supplier: SupplierOption;
@@ -197,7 +199,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     downPaymentRecovery: '', // Down Payment Recovery (for Progress Payment)
   });
   const [hasDownPayment, setHasDownPayment] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pos' | 'grns' | 'invoices' | 'payments'>('pos');
+  const [activeTab, setActiveTab] = useState<'pos' | 'grns' | 'invoices' | 'payments' | 'performance'>('pos');
+  const [poFilterId, setPoFilterId] = useState<number | null>(null); // Global PO filter for all tabs and cards
   const [grnFilterPOId, setGrnFilterPOId] = useState<number | null>(null);
   const [invoiceFilterPOId, setInvoiceFilterPOId] = useState<number | null>(null);
   const [paymentFilterPOId, setPaymentFilterPOId] = useState<number | null>(null);
@@ -230,6 +233,11 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     vatPercent: vatPercent.toString(),
     notes: '',
   });
+  const [performanceFormData, setPerformanceFormData] = useState({
+    performanceRating: null as number | null,
+    performanceReview: '',
+  });
+  const [isEditingPerformance, setIsEditingPerformance] = useState(false);
 
   const loadData = useCallback(async () => {
     if (isNaN(projectId) || isNaN(supplierId)) {
@@ -261,6 +269,15 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
       }
 
       setProjectSupplier(supplier);
+      
+      // Load performance data if available
+      if (supplier.performanceRating || supplier.performanceReview) {
+        setPerformanceFormData({
+          performanceRating: supplier.performanceRating || null,
+          performanceReview: supplier.performanceReview || '',
+        });
+      }
+      
       const pos = purchaseOrdersRes.data || [];
       setPurchaseOrders(pos);
 
@@ -559,6 +576,17 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     // Load payments when switching to Payments tab
     if (activeTab === 'payments') {
       loadPayments();
+    }
+    
+    // Load performance data when switching to Performance tab
+    if (activeTab === 'performance' && projectSupplier) {
+      const hasPerformanceData = projectSupplier.performanceRating || projectSupplier.performanceReview;
+      setPerformanceFormData({
+        performanceRating: projectSupplier.performanceRating || null,
+        performanceReview: projectSupplier.performanceReview || '',
+      });
+      // Only show form if there's no existing data, otherwise show saved view
+      setIsEditingPerformance(!hasPerformanceData);
     }
     
     // Reset filters when switching tabs
@@ -1219,6 +1247,62 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
     [del, supplierId, loadPayments, loadInvoices]
   );
 
+  // Filtered data calculated once for use throughout component - MUST be before any conditional returns
+  const filteredPurchaseOrders = useMemo(() => {
+    return poFilterId 
+      ? purchaseOrders.filter(po => po.id === poFilterId)
+      : purchaseOrders;
+  }, [poFilterId, purchaseOrders]);
+
+  const filteredInvoices = useMemo(() => {
+    return poFilterId
+      ? invoices.filter(invoice => {
+          // For Down Payment invoices, check purchaseOrderId
+          if (invoice.paymentType === 'Down Payment') {
+            return invoice.purchaseOrderId === poFilterId;
+          }
+          // For Progress Payment invoices, check if any GRN belongs to the selected PO
+          if (invoice.paymentType === 'Progress Payment') {
+            return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === poFilterId);
+          }
+          return false;
+        })
+      : invoices;
+  }, [poFilterId, invoices]);
+
+  const filteredPayments = useMemo(() => {
+    return poFilterId
+      ? payments.filter(payment => {
+          // Check if any invoice in this payment has GRNs that belong to the selected PO
+          return payment.paymentInvoices?.some(pi => {
+            const invoice = pi.invoice;
+            if (!invoice) return false;
+            
+            // For Down Payment invoices, check purchaseOrderId
+            if (invoice.paymentType === 'Down Payment') {
+              return invoice.purchaseOrderId === poFilterId;
+            }
+            
+            // For Progress Payment invoices, check if any GRN belongs to the selected PO
+            if (invoice.paymentType === 'Progress Payment') {
+              return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === poFilterId);
+            }
+            
+            return false;
+          });
+        })
+      : payments;
+  }, [poFilterId, payments]);
+
+  const filteredGRNs = useMemo(() => {
+    return poFilterId
+      ? Object.entries(grns).filter(([poId]) => Number(poId) === poFilterId).reduce((acc, [poId, poGrns]) => {
+          acc[poId] = poGrns;
+          return acc;
+        }, {} as Record<number, GRN[]>)
+      : grns;
+  }, [poFilterId, grns]);
+
   if (isLoading) {
     return (
       <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
@@ -1404,15 +1488,98 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         )}
       </Card>
 
+      {/* PO Filter - Above Summary Cards */}
+      <Card
+        className="p-4 mb-6 transition-all duration-200"
+        style={{
+          backgroundColor: poFilterId ? `${colors.primary}08` : colors.backgroundSecondary,
+          borderColor: poFilterId ? `${colors.primary}30` : colors.borderLight,
+          borderWidth: poFilterId ? '1.5px' : '1px',
+        }}
+      >
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Filter className="h-5 w-5 transition-colors" style={{ color: poFilterId ? colors.primary : colors.textSecondary }} />
+            <h3 className="text-base font-semibold transition-colors" style={{ color: poFilterId ? colors.primary : colors.textPrimary }}>
+              Filter by Purchase Order
+            </h3>
+            {poFilterId && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                backgroundColor: `${colors.primary}20`,
+                color: colors.primary,
+              }}>
+                Active
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-3 flex-wrap">
+            <select
+              value={poFilterId || ''}
+              onChange={(e) => setPoFilterId(e.target.value ? parseInt(e.target.value) : null)}
+              className="rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                borderColor: poFilterId ? `${colors.primary}40` : colors.borderLight,
+                color: colors.textPrimary,
+                outline: 'none',
+                minWidth: '250px',
+                boxShadow: poFilterId ? `0 0 0 3px ${colors.primary}15` : 'none',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = `${colors.primary}60`;
+                e.target.style.boxShadow = `0 0 0 3px ${colors.primary}15`;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = poFilterId ? `${colors.primary}40` : colors.borderLight;
+                e.target.style.boxShadow = poFilterId ? `0 0 0 3px ${colors.primary}15` : 'none';
+              }}
+            >
+              <option value="">All Purchase Orders</option>
+              {purchaseOrders.map((po) => (
+                <option key={po.id} value={po.id}>
+                  {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                </option>
+              ))}
+            </select>
+            {poFilterId && (() => {
+              const selectedPO = purchaseOrders.find(po => po.id === poFilterId);
+              return (
+                <div 
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
+                  style={{
+                    backgroundColor: `${colors.primary}12`,
+                    color: colors.primary,
+                    border: `1px solid ${colors.primary}25`,
+                  }}
+                >
+                  <ShoppingCart className="h-4 w-4" />
+                  <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
+                  <button
+                    onClick={() => setPoFilterId(null)}
+                    className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
+                    style={{ color: colors.primary }}
+                    title="Clear filter"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+              );
+            })()}
+          </div>
+        </div>
+      </Card>
+
       {/* Payment Summary Cards - Available for all tabs */}
       {(() => {
-        // Calculate Total Invoiced (sum of all invoice totalAmount)
-        const totalInvoiced = invoices.reduce((sum, invoice) => {
+        // Use filtered data calculated at component level
+
+        // Calculate Total Invoiced (sum of all invoice totalAmount) - filtered
+        const totalInvoiced = filteredInvoices.reduce((sum, invoice) => {
           return sum + Number(invoice.totalAmount || 0);
         }, 0);
 
-        // Calculate Total Paid - sum of payments for invoices with status "paid"
-        const totalPaid = invoices.reduce((sum, invoice) => {
+        // Calculate Total Paid - sum of payments for invoices with status "paid" - filtered
+        const totalPaid = filteredInvoices.reduce((sum, invoice) => {
           const invoiceStatus = getInvoiceStatus(invoice);
           // Only count payments for invoices with status "paid"
           if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
@@ -1424,8 +1591,8 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           return sum;
         }, 0);
 
-        // Calculate Committed Payments - Post Dated payments that are not yet liquidated (from DB)
-        const committedPayments = payments.reduce((sum, payment) => {
+        // Calculate Committed Payments - Post Dated payments that are not yet liquidated (from DB) - filtered
+        const committedPayments = filteredPayments.reduce((sum, payment) => {
           // Only count Post Dated payments where liquidated is explicitly false or null (not yet liquidated)
           // Handle both false and null cases (null means not set/not liquidated yet)
           const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
@@ -1435,9 +1602,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           return sum;
         }, 0);
 
-        // Calculate Balance to be Paid - only from invoices that are not fully paid
-        const paidAmountsFromDBForBalance = calculatePaidAmountsFromInvoices(invoices);
-        const balanceToBePaid = invoices.reduce((sum, invoice) => {
+        // Calculate Balance to be Paid - only from invoices that are not fully paid - filtered
+        const paidAmountsFromDBForBalance = calculatePaidAmountsFromInvoices(filteredInvoices);
+        const balanceToBePaid = filteredInvoices.reduce((sum, invoice) => {
           const paid = paidAmountsFromDBForBalance[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
           const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
           const invoiceTotal = Number(invoice.totalAmount || 0);
@@ -1446,36 +1613,44 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           return sum + (remaining > 0 ? remaining : 0);
         }, 0);
 
-        // Calculate Total Delivered (sum of all GRN deliveredAmount) with VAT
-        const totalDeliveredBase = Object.values(grns).reduce((sum, poGrns) => {
+        // Calculate Total Delivered (sum of all GRN deliveredAmount) with VAT - filtered
+        const totalDeliveredBase = Object.values(filteredGRNs).reduce((sum, poGrns) => {
           return sum + poGrns.reduce((poSum, grn) => {
             return poSum + Number(grn.deliveredAmount || 0);
           }, 0);
         }, 0);
         const totalDelivered = totalDeliveredBase * vatMultiplier; // Add VAT
 
-        // Calculate Total PO Amounts (with VAT)
-        const totalPOAmountsWithVat = purchaseOrders.reduce((sum, po) => {
+        // Calculate Total PO Amounts without VAT - filtered
+        const totalPOAmountsWithoutVat = filteredPurchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0);
+        }, 0);
+
+        // Calculate Total PO Amounts (with VAT) - filtered
+        const totalPOAmountsWithVat = filteredPurchaseOrders.reduce((sum, po) => {
           return sum + Number(po.lpoValueWithVat || 0);
         }, 0);
 
-        // Calculate LPO Balance: (Total PO amount - Delivered amount) * VAT multiplier (with VAT)
-        const totalPOAmount = purchaseOrders.reduce((sum, po) => {
+        // Calculate VAT Amount = Total with VAT - Total without VAT
+        const totalPOVatAmount = totalPOAmountsWithVat - totalPOAmountsWithoutVat;
+
+        // Calculate LPO Balance: (Total PO amount - Delivered amount) * VAT multiplier (with VAT) - filtered
+        const totalPOAmount = filteredPurchaseOrders.reduce((sum, po) => {
           return sum + Number(po.lpoValue || 0); // Use base LPO value without VAT
         }, 0);
         
         const lpoBalanceBeforeVat = totalPOAmount - totalDeliveredBase;
         const lpoBalance = lpoBalanceBeforeVat * vatMultiplier; // Add VAT
 
-        // Calculate Due Amount (invoices past due date)
+        // Calculate Due Amount (invoices past due date) - filtered
         // Use invoice data directly from DB, not payments state
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         
         // Calculate paid amounts from invoice data (from DB)
-        const paidAmountsFromDB = calculatePaidAmountsFromInvoices(invoices);
+        const paidAmountsFromDB = calculatePaidAmountsFromInvoices(filteredInvoices);
         
-        const dueAmount = invoices.reduce((sum, invoice) => {
+        const dueAmount = filteredInvoices.reduce((sum, invoice) => {
           if (!invoice.dueDate) return sum;
           
           const dueDate = new Date(invoice.dueDate);
@@ -1496,7 +1671,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         }, 0);
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <Card
               className="p-4"
               style={{
@@ -1504,23 +1679,38 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 borderColor: colors.borderLight,
               }}
             >
-              <div className="flex items-center justify-between">
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    PO Amounts
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalPOAmountsWithoutVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    Without VAT
+                  </p>
+                </div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    VAT Amount
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
+                    {formatCurrencyWithDecimals(totalPOVatAmount)}
+                  </p>
+                </div>
+                
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Total PO Amounts
                   </p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
                     {formatCurrencyWithDecimals(totalPOAmountsWithVat)}
                   </p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
                     With VAT
                   </p>
-                </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.primary}20` }}
-                >
-                  <FileText className="h-6 w-6" style={{ color: colors.primary }} />
                 </div>
               </div>
             </Card>
@@ -1532,90 +1722,42 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 borderColor: colors.borderLight,
               }}
             >
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Total Delivered
                   </p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                  <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
                     {formatCurrencyWithDecimals(totalDelivered)}
                   </p>
                   <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
                     With VAT
                   </p>
                 </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.info}20` }}
-                >
-                  <Package className="h-6 w-6" style={{ color: colors.info }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     LPO Balance
                   </p>
-                  <p className="text-xl font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
+                  <p className="text-lg font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
                     {formatCurrencyWithDecimals(lpoBalance)}
                   </p>
                 </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${lpoBalance > 0 ? colors.warning : colors.success}20` }}
-                >
-                  <ShoppingCart className="h-6 w-6" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-            >
-              <div className="flex items-center justify-between">
-                <div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Total Invoiced
                   </p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>
+                  <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
                     {formatCurrencyWithDecimals(totalInvoiced)}
                   </p>
                 </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.info}20` }}
-                >
-                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-            >
-              <div className="flex items-center justify-between">
+                
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Due Amount
                   </p>
-                  <p className="text-xl font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>
+                  <p className="text-lg font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>
                     {formatCurrencyWithDecimals(dueAmount)}
                   </p>
                   {dueAmount > 0 && (
@@ -1624,12 +1766,6 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     </p>
                   )}
                 </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${dueAmount > 0 ? colors.error : colors.success}20` }}
-                >
-                  <AlertCircle className="h-6 w-6" style={{ color: dueAmount > 0 ? colors.error : colors.success }} />
-                </div>
               </div>
             </Card>
 
@@ -1639,73 +1775,33 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 backgroundColor: colors.backgroundPrimary,
                 borderColor: colors.borderLight,
               }}
-              title="Total paid amounts - sum of payments for invoices with status 'paid'"
             >
-              <div className="flex items-center justify-between">
-                <div>
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Total Paid
                   </p>
-                  <p className="text-xl font-bold" style={{ color: colors.success }}>
+                  <p className="text-lg font-bold" style={{ color: colors.success }}>
                     {formatCurrencyWithDecimals(totalPaid)}
                   </p>
                 </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.success}20` }}
-                >
-                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-              title="Committed payments (Post Dated payments that are not yet liquidated)"
-            >
-              <div className="flex items-center justify-between">
-                <div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Committed Payments
                   </p>
-                  <p className="text-xl font-bold" style={{ color: colors.warning }}>
+                  <p className="text-lg font-bold" style={{ color: colors.warning }}>
                     {formatCurrencyWithDecimals(committedPayments)}
                   </p>
                 </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${colors.warning}20` }}
-                >
-                  <Clock className="h-6 w-6" style={{ color: colors.warning }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card
-              className="p-4"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
-              }}
-            >
-              <div className="flex items-center justify-between">
+                
                 <div>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Balance to be Paid
                   </p>
-                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
+                  <p className="text-lg font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
                     {formatCurrencyWithDecimals(balanceToBePaid)}
                   </p>
-                </div>
-                <div
-                  className="w-12 h-12 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}
-                >
-                  <Wallet className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
                 </div>
               </div>
             </Card>
@@ -1847,6 +1943,19 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 color: activeTab === 'payments' ? colors.primary : colors.textSecondary,
               }} />
               Payments
+            </button>
+            <button
+              onClick={() => setActiveTab('performance')}
+              className="inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+              style={{
+                borderColor: activeTab === 'performance' ? colors.primary : 'transparent',
+                color: activeTab === 'performance' ? colors.primary : colors.textSecondary,
+              }}
+            >
+              <Star className="w-4 h-4 mr-2" style={{
+                color: activeTab === 'performance' ? colors.primary : colors.textSecondary,
+              }} />
+              Performance
             </button>
           </nav>
         </div>
@@ -2029,9 +2138,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
               </tr>
             </thead>
             <tbody>
-              {purchaseOrders.length > 0 ? (
-                purchaseOrders.map((po) => {
-                  const poGrns = grns[po.id] || [];
+              {filteredPurchaseOrders.length > 0 ? (
+                filteredPurchaseOrders.map((po) => {
+                  const poGrns = filteredGRNs[po.id] || [];
                   return (
                       <tr key={po.id} style={{ backgroundColor: `${colors.success}08` }}>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
@@ -2077,7 +2186,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
               ) : (
                 <tr>
                   <td colSpan={6} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
-                    No purchase orders yet. Click "Add PO" to add one.
+                    {poFilterId ? 'No purchase orders found for the selected filter.' : 'No purchase orders yet. Click "Add PO" to add one.'}
                   </td>
                 </tr>
               )}
@@ -2230,92 +2339,89 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
 
                               {/* PO Filter for GRNs */}
                                 <Card
-                                className="p-4 mb-4 shadow-sm"
+                                className="p-4 mb-4 transition-all duration-200"
                                 style={{
-                                  backgroundColor: grnFilterPOId ? `${colors.primary}05` : colors.backgroundPrimary,
-                                  borderColor: grnFilterPOId ? colors.primary : colors.borderLight,
-                                  borderWidth: grnFilterPOId ? '2px' : '1px',
-                                  transition: 'all 0.2s ease',
+                                  backgroundColor: grnFilterPOId ? `${colors.primary}08` : colors.backgroundPrimary,
+                                  borderColor: grnFilterPOId ? `${colors.primary}30` : colors.borderLight,
+                                  borderWidth: grnFilterPOId ? '1.5px' : '1px',
                                 }}
                               >
-                                <div className="flex items-center justify-between gap-4">
-                                  <div className="flex items-center gap-4 flex-1">
-                                    <div 
-                                      className="flex items-center justify-center w-12 h-12 rounded-lg transition-all"
-                                      style={{
-                                        backgroundColor: grnFilterPOId ? colors.primary : `${colors.primary}15`,
-                                        color: grnFilterPOId ? colors.secondary : colors.primary,
-                                      }}
-                                    >
-                                      <Filter className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <label className="block text-xs font-semibold mb-2" style={{ color: colors.textPrimary }}>
-                                        Filter by Purchase Order
-                                      </label>
-                                      <select
-                                        value={grnFilterPOId || ''}
-                                        onChange={(e) => setGrnFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
-                                        className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer hover:border-opacity-80"
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <Filter className="h-5 w-5 transition-colors" style={{ color: grnFilterPOId ? colors.primary : colors.textSecondary }} />
+                                    <h3 className="text-base font-semibold transition-colors" style={{ color: grnFilterPOId ? colors.primary : colors.textPrimary }}>
+                                      Filter by Purchase Order
+                                    </h3>
+                                    {grnFilterPOId && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                                        backgroundColor: `${colors.primary}20`,
+                                        color: colors.primary,
+                                      }}>
+                                        Active
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <select
+                                      value={grnFilterPOId || ''}
+                                      onChange={(e) => setGrnFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                                      className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
                                   style={{
                                     backgroundColor: colors.backgroundSecondary,
-                                          borderColor: grnFilterPOId ? colors.primary : colors.borderLight,
-                                          borderWidth: grnFilterPOId ? '2px' : '1px',
-                                          color: colors.textPrimary,
-                                          outline: 'none',
-                                          boxShadow: grnFilterPOId ? `0 0 0 3px ${colors.primary}20` : 'none',
-                                        }}
-                                      >
-                                        <option value="">All Purchase Orders</option>
-                                        {purchaseOrders.map((po) => (
-                                          <option key={po.id} value={po.id}>
-                                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  </div>
-                                  {grnFilterPOId && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setGrnFilterPOId(null)}
-                                      className="h-10 w-10 hover:bg-opacity-20 transition-all"
-                                      style={{ 
-                                        color: colors.primary,
-                                        backgroundColor: `${colors.primary}10`,
+                                        borderColor: grnFilterPOId ? `${colors.primary}40` : colors.borderLight,
+                                        color: colors.textPrimary,
+                                        outline: 'none',
+                                        minWidth: '250px',
+                                        boxShadow: grnFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none',
                                       }}
-                                      title="Clear filter"
+                                      onFocus={(e) => {
+                                        e.target.style.borderColor = `${colors.primary}60`;
+                                        e.target.style.boxShadow = `0 0 0 3px ${colors.primary}15`;
+                                      }}
+                                      onBlur={(e) => {
+                                        e.target.style.borderColor = grnFilterPOId ? `${colors.primary}40` : colors.borderLight;
+                                        e.target.style.boxShadow = grnFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none';
+                                      }}
                                     >
-                                      <XCircle className="h-5 w-5" />
-                                    </Button>
-                                  )}
+                                      <option value="">All Purchase Orders</option>
+                                      {purchaseOrders.map((po) => (
+                                        <option key={po.id} value={po.id}>
+                                          {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {grnFilterPOId && (() => {
+                                      const filteredCount = Object.entries(grns).reduce((count, [poId, poGrns]) => {
+                                        return Number(poId) === grnFilterPOId ? count + poGrns.length : count;
+                                      }, 0);
+                                      const selectedPO = purchaseOrders.find(po => po.id === grnFilterPOId);
+                                      return (
+                                        <div 
+                                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
+                                          style={{
+                                            backgroundColor: `${colors.primary}12`,
+                                            color: colors.primary,
+                                            border: `1px solid ${colors.primary}25`,
+                                          }}
+                                        >
+                                          <ShoppingCart className="h-4 w-4" />
+                                          <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
+                                          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${colors.primary}20` }}>
+                                            {filteredCount} {filteredCount === 1 ? 'GRN' : 'GRNs'}
+                                          </span>
+                                          <button
+                                            onClick={() => setGrnFilterPOId(null)}
+                                            className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
+                                            style={{ color: colors.primary }}
+                                            title="Clear filter"
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
-                                {grnFilterPOId && (() => {
-                                  const filteredCount = Object.entries(grns).reduce((count, [poId, poGrns]) => {
-                                    return Number(poId) === grnFilterPOId ? count + poGrns.length : count;
-                                  }, 0);
-                                  const selectedPO = purchaseOrders.find(po => po.id === grnFilterPOId);
-                                  return (
-                                    <div className="mt-4 pt-4 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                          Active filter:
-                                        </span>
-                                        <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-2" style={{
-                                          backgroundColor: colors.primary,
-                                          color: colors.secondary,
-                                        }}>
-                                          <ShoppingCart className="h-3 w-3" />
-                                          {selectedPO?.lpoNumber || 'Unknown PO'}
-                                        </span>
-                                      </div>
-                                      <div className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                        {filteredCount} {filteredCount === 1 ? 'GRN' : 'GRNs'} found
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
                               </Card>
 
                               <div className="overflow-x-auto">
@@ -2341,9 +2447,10 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                   </thead>
                                   <tbody>
                   {Object.keys(grns).length > 0 ? (() => {
-                    // Filter GRNs by selected PO if filter is set
-                    const filteredEntries = grnFilterPOId 
-                      ? Object.entries(grns).filter(([poId]) => Number(poId) === grnFilterPOId)
+                    // Filter GRNs by selected PO if filter is set (use global filter if set, otherwise use tab filter)
+                    const activeFilterPOId = poFilterId || grnFilterPOId;
+                    const filteredEntries = activeFilterPOId 
+                      ? Object.entries(grns).filter(([poId]) => Number(poId) === activeFilterPOId)
                       : Object.entries(grns);
                     
                     if (filteredEntries.length === 0) {
@@ -2914,98 +3021,95 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
 
                               {/* PO Filter for Invoices */}
                               <Card
-                                className="p-4 mb-4 shadow-sm"
+                                className="p-4 mb-4 transition-all duration-200"
                                 style={{
-                                  backgroundColor: invoiceFilterPOId ? `${colors.primary}05` : colors.backgroundPrimary,
-                                  borderColor: invoiceFilterPOId ? colors.primary : colors.borderLight,
-                                  borderWidth: invoiceFilterPOId ? '2px' : '1px',
-                                  transition: 'all 0.2s ease',
+                                  backgroundColor: invoiceFilterPOId ? `${colors.primary}08` : colors.backgroundPrimary,
+                                  borderColor: invoiceFilterPOId ? `${colors.primary}30` : colors.borderLight,
+                                  borderWidth: invoiceFilterPOId ? '1.5px' : '1px',
                                 }}
                               >
-                                <div className="flex items-center justify-between gap-4">
-                                  <div className="flex items-center gap-4 flex-1">
-                                    <div 
-                                      className="flex items-center justify-center w-12 h-12 rounded-lg transition-all"
-                                      style={{
-                                        backgroundColor: invoiceFilterPOId ? colors.primary : `${colors.primary}15`,
-                                        color: invoiceFilterPOId ? colors.secondary : colors.primary,
-                                      }}
-                                    >
-                                      <Filter className="h-5 w-5" />
-                                    </div>
-                                    <div className="flex-1">
-                                      <label className="block text-xs font-semibold mb-2" style={{ color: colors.textPrimary }}>
-                                        Filter by Purchase Order
-                                      </label>
-                                      <select
-                                        value={invoiceFilterPOId || ''}
-                                        onChange={(e) => setInvoiceFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
-                                        className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer hover:border-opacity-80"
-                                        style={{
-                                          backgroundColor: colors.backgroundSecondary,
-                                          borderColor: invoiceFilterPOId ? colors.primary : colors.borderLight,
-                                          borderWidth: invoiceFilterPOId ? '2px' : '1px',
-                                          color: colors.textPrimary,
-                                          outline: 'none',
-                                          boxShadow: invoiceFilterPOId ? `0 0 0 3px ${colors.primary}20` : 'none',
-                                        }}
-                                      >
-                                        <option value="">All Purchase Orders</option>
-                                        {purchaseOrders.map((po) => (
-                                          <option key={po.id} value={po.id}>
-                                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </div>
-                                  </div>
-                                  {invoiceFilterPOId && (
-                                    <Button
-                                      variant="ghost"
-                                      size="icon"
-                                      onClick={() => setInvoiceFilterPOId(null)}
-                                      className="h-10 w-10 hover:bg-opacity-20 transition-all"
-                                      style={{ 
+                                <div className="space-y-3">
+                                  <div className="flex items-center gap-2">
+                                    <Filter className="h-5 w-5 transition-colors" style={{ color: invoiceFilterPOId ? colors.primary : colors.textSecondary }} />
+                                    <h3 className="text-base font-semibold transition-colors" style={{ color: invoiceFilterPOId ? colors.primary : colors.textPrimary }}>
+                                      Filter by Purchase Order
+                                    </h3>
+                                    {invoiceFilterPOId && (
+                                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                                        backgroundColor: `${colors.primary}20`,
                                         color: colors.primary,
-                                        backgroundColor: `${colors.primary}10`,
+                                      }}>
+                                        Active
+                                      </span>
+                                    )}
+                                  </div>
+                                  <div className="flex items-center gap-3 flex-wrap">
+                                    <select
+                                      value={invoiceFilterPOId || ''}
+                                      onChange={(e) => setInvoiceFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                                      className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
+                                      style={{
+                                        backgroundColor: colors.backgroundSecondary,
+                                        borderColor: invoiceFilterPOId ? `${colors.primary}40` : colors.borderLight,
+                                        color: colors.textPrimary,
+                                        outline: 'none',
+                                        minWidth: '250px',
+                                        boxShadow: invoiceFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none',
                                       }}
-                                      title="Clear filter"
+                                      onFocus={(e) => {
+                                        e.target.style.borderColor = `${colors.primary}60`;
+                                        e.target.style.boxShadow = `0 0 0 3px ${colors.primary}15`;
+                                      }}
+                                      onBlur={(e) => {
+                                        e.target.style.borderColor = invoiceFilterPOId ? `${colors.primary}40` : colors.borderLight;
+                                        e.target.style.boxShadow = invoiceFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none';
+                                      }}
                                     >
-                                      <XCircle className="h-5 w-5" />
-                                    </Button>
-                                  )}
+                                      <option value="">All Purchase Orders</option>
+                                      {purchaseOrders.map((po) => (
+                                        <option key={po.id} value={po.id}>
+                                          {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    {invoiceFilterPOId && (() => {
+                                      const filteredInvoices = invoices.filter((invoice) => {
+                                        if (invoice.paymentType === 'Down Payment') {
+                                          return invoice.purchaseOrderId === invoiceFilterPOId;
+                                        }
+                                        if (invoice.paymentType === 'Progress Payment') {
+                                          return invoice.invoiceGRNs.some(ig => ig.grn.purchaseOrderId === invoiceFilterPOId);
+                                        }
+                                        return false;
+                                      });
+                                      const selectedPO = purchaseOrders.find(po => po.id === invoiceFilterPOId);
+                                      return (
+                                        <div 
+                                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
+                                          style={{
+                                            backgroundColor: `${colors.primary}12`,
+                                            color: colors.primary,
+                                            border: `1px solid ${colors.primary}25`,
+                                          }}
+                                        >
+                                          <ShoppingCart className="h-4 w-4" />
+                                          <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
+                                          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${colors.primary}20` }}>
+                                            {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'}
+                                          </span>
+                                          <button
+                                            onClick={() => setInvoiceFilterPOId(null)}
+                                            className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
+                                            style={{ color: colors.primary }}
+                                            title="Clear filter"
+                                          >
+                                            <X className="h-4 w-4" />
+                                          </button>
+                                        </div>
+                                      );
+                                    })()}
+                                  </div>
                                 </div>
-                                {invoiceFilterPOId && (() => {
-                                  const filteredInvoices = invoices.filter((invoice) => {
-                                    if (invoice.paymentType === 'Down Payment') {
-                                      return invoice.purchaseOrderId === invoiceFilterPOId;
-                                    }
-                                    if (invoice.paymentType === 'Progress Payment') {
-                                      return invoice.invoiceGRNs.some(ig => ig.grn.purchaseOrderId === invoiceFilterPOId);
-                                    }
-                                    return false;
-                                  });
-                                  const selectedPO = purchaseOrders.find(po => po.id === invoiceFilterPOId);
-                                  return (
-                                    <div className="mt-4 pt-4 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                                      <div className="flex items-center gap-3">
-                                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                          Active filter:
-                                        </span>
-                                        <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-2" style={{
-                                          backgroundColor: colors.primary,
-                                          color: colors.secondary,
-                                        }}>
-                                          <ShoppingCart className="h-3 w-3" />
-                                          {selectedPO?.lpoNumber || 'Unknown PO'}
-                                        </span>
-                                      </div>
-                                      <div className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                                        {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'} found
-                                      </div>
-                                    </div>
-                                  );
-                                })()}
                               </Card>
 
                               <div className="overflow-x-auto">
@@ -3049,18 +3153,19 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                   </thead>
                                   <tbody>
                   {(() => {
-                    // Filter invoices by selected PO
+                    // Use global filter if set, otherwise use tab-specific filter
+                    const activeInvoiceFilterPOId = poFilterId || invoiceFilterPOId;
                     let filteredInvoices = invoices;
                     
-                    if (invoiceFilterPOId) {
+                    if (activeInvoiceFilterPOId) {
                       filteredInvoices = invoices.filter((invoice) => {
                         // For Down Payment: check if invoice's PO matches
                         if (invoice.paymentType === 'Down Payment') {
-                          return invoice.purchaseOrderId === invoiceFilterPOId;
+                          return invoice.purchaseOrderId === activeInvoiceFilterPOId;
                         }
                         // For Progress Payment: check if any GRN belongs to the selected PO
                         if (invoice.paymentType === 'Progress Payment') {
-                          return invoice.invoiceGRNs.some(ig => ig.grn.purchaseOrderId === invoiceFilterPOId);
+                          return invoice.invoiceGRNs.some(ig => ig.grn.purchaseOrderId === activeInvoiceFilterPOId);
                         }
                         return false;
                       });
@@ -3793,108 +3898,105 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
             {/* PO Filter for Payments */}
             {activeTab === 'payments' && (
               <Card
-                className="p-4 mb-4 shadow-sm"
+                className="p-4 mb-4 transition-all duration-200"
                 style={{
-                  backgroundColor: paymentFilterPOId ? `${colors.primary}05` : colors.backgroundPrimary,
-                  borderColor: paymentFilterPOId ? colors.primary : colors.borderLight,
-                  borderWidth: paymentFilterPOId ? '2px' : '1px',
-                  transition: 'all 0.2s ease',
+                  backgroundColor: paymentFilterPOId ? `${colors.primary}08` : colors.backgroundPrimary,
+                  borderColor: paymentFilterPOId ? `${colors.primary}30` : colors.borderLight,
+                  borderWidth: paymentFilterPOId ? '1.5px' : '1px',
                 }}
               >
-                <div className="flex items-center justify-between gap-4">
-                  <div className="flex items-center gap-4 flex-1">
-                    <div 
-                      className="flex items-center justify-center w-12 h-12 rounded-lg transition-all"
-                      style={{
-                        backgroundColor: paymentFilterPOId ? colors.primary : `${colors.primary}15`,
-                        color: paymentFilterPOId ? colors.secondary : colors.primary,
-                      }}
-                    >
-                      <Filter className="h-5 w-5" />
-                    </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-semibold mb-2" style={{ color: colors.textPrimary }}>
-                        Filter by Purchase Order
-                      </label>
-                      <select
-                        value={paymentFilterPOId || ''}
-                        onChange={(e) => setPaymentFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
-                        className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer hover:border-opacity-80"
-                        style={{
-                          backgroundColor: colors.backgroundSecondary,
-                          borderColor: paymentFilterPOId ? colors.primary : colors.borderLight,
-                          borderWidth: paymentFilterPOId ? '2px' : '1px',
-                          color: colors.textPrimary,
-                          outline: 'none',
-                          boxShadow: paymentFilterPOId ? `0 0 0 3px ${colors.primary}20` : 'none',
-                        }}
-                      >
-                        <option value="">All Purchase Orders</option>
-                        {purchaseOrders.map((po) => (
-                          <option key={po.id} value={po.id}>
-                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                  {paymentFilterPOId && (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => setPaymentFilterPOId(null)}
-                      className="h-10 w-10 hover:bg-opacity-20 transition-all"
-                      style={{ 
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Filter className="h-5 w-5 transition-colors" style={{ color: paymentFilterPOId ? colors.primary : colors.textSecondary }} />
+                    <h3 className="text-base font-semibold transition-colors" style={{ color: paymentFilterPOId ? colors.primary : colors.textPrimary }}>
+                      Filter by Purchase Order
+                    </h3>
+                    {paymentFilterPOId && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                        backgroundColor: `${colors.primary}20`,
                         color: colors.primary,
-                        backgroundColor: `${colors.primary}10`,
+                      }}>
+                        Active
+                      </span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <select
+                      value={paymentFilterPOId || ''}
+                      onChange={(e) => setPaymentFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                      className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
+                      style={{
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: paymentFilterPOId ? `${colors.primary}40` : colors.borderLight,
+                        color: colors.textPrimary,
+                        outline: 'none',
+                        minWidth: '250px',
+                        boxShadow: paymentFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none',
                       }}
-                      title="Clear filter"
+                      onFocus={(e) => {
+                        e.target.style.borderColor = `${colors.primary}60`;
+                        e.target.style.boxShadow = `0 0 0 3px ${colors.primary}15`;
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = paymentFilterPOId ? `${colors.primary}40` : colors.borderLight;
+                        e.target.style.boxShadow = paymentFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none';
+                      }}
                     >
-                      <XCircle className="h-5 w-5" />
-                    </Button>
-                  )}
+                      <option value="">All Purchase Orders</option>
+                      {purchaseOrders.map((po) => (
+                        <option key={po.id} value={po.id}>
+                          {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                        </option>
+                      ))}
+                    </select>
+                    {paymentFilterPOId && (() => {
+                      const filteredPayments = payments.filter((payment) => {
+                        // Check if any invoice in this payment has GRNs that belong to the selected PO
+                        return payment.paymentInvoices?.some(pi => {
+                          const invoice = pi.invoice;
+                          if (!invoice) return false;
+                          
+                          // For Down Payment invoices, check purchaseOrderId
+                          if (invoice.paymentType === 'Down Payment') {
+                            return invoice.purchaseOrderId === paymentFilterPOId;
+                          }
+                          
+                          // For Progress Payment invoices, check if any GRN belongs to the selected PO
+                          if (invoice.paymentType === 'Progress Payment') {
+                            return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
+                          }
+                          
+                          return false;
+                        });
+                      });
+                      const selectedPO = purchaseOrders.find(po => po.id === paymentFilterPOId);
+                      return (
+                        <div 
+                          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
+                          style={{
+                            backgroundColor: `${colors.primary}12`,
+                            color: colors.primary,
+                            border: `1px solid ${colors.primary}25`,
+                          }}
+                        >
+                          <ShoppingCart className="h-4 w-4" />
+                          <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
+                          <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${colors.primary}20` }}>
+                            {filteredPayments.length} of {payments.length} payment{payments.length !== 1 ? 's' : ''}
+                          </span>
+                          <button
+                            onClick={() => setPaymentFilterPOId(null)}
+                            className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
+                            style={{ color: colors.primary }}
+                            title="Clear filter"
+                          >
+                            <X className="h-4 w-4" />
+                          </button>
+                        </div>
+                      );
+                    })()}
+                  </div>
                 </div>
-                {paymentFilterPOId && (() => {
-                  const filteredPayments = payments.filter((payment) => {
-                    // Check if any invoice in this payment has GRNs that belong to the selected PO
-                    return payment.paymentInvoices?.some(pi => {
-                      const invoice = pi.invoice;
-                      if (!invoice) return false;
-                      
-                      // For Down Payment invoices, check purchaseOrderId
-                      if (invoice.paymentType === 'Down Payment') {
-                        return invoice.purchaseOrderId === paymentFilterPOId;
-                      }
-                      
-                      // For Progress Payment invoices, check if any GRN belongs to the selected PO
-                      if (invoice.paymentType === 'Progress Payment') {
-                        return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
-                      }
-                      
-                      return false;
-                    });
-                  });
-                  const selectedPO = purchaseOrders.find(po => po.id === paymentFilterPOId);
-                  return (
-                    <div className="mt-4 pt-4 border-t flex items-center justify-between" style={{ borderColor: colors.borderLight }}>
-                      <div className="flex items-center gap-3">
-                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                          Active filter:
-                        </span>
-                        <span className="text-xs font-bold px-3 py-1.5 rounded-full flex items-center gap-2" style={{
-                          backgroundColor: colors.primary,
-                          color: colors.secondary,
-                        }}>
-                          <ShoppingCart className="h-3 w-3" />
-                          {selectedPO?.lpoNumber || 'Unknown PO'}
-                        </span>
-                      </div>
-                      <div className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-                        Showing {filteredPayments.length} of {payments.length} payment{payments.length !== 1 ? 's' : ''}
-                      </div>
-                    </div>
-                  );
-                })()}
               </Card>
             )}
 
@@ -3936,8 +4038,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 </thead>
                 <tbody>
                   {(() => {
-                    // Filter payments by selected PO if filter is set
-                    const filteredPayments = paymentFilterPOId 
+                    // Use global filter if set, otherwise use tab-specific filter
+                    const activePaymentFilterPOId = poFilterId || paymentFilterPOId;
+                    const filteredPayments = activePaymentFilterPOId 
                       ? payments.filter((payment) => {
                           // Check if any invoice in this payment has GRNs that belong to the selected PO
                           return payment.paymentInvoices?.some(pi => {
@@ -3946,12 +4049,12 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             
                             // For Down Payment invoices, check purchaseOrderId
                             if (invoice.paymentType === 'Down Payment') {
-                              return invoice.purchaseOrderId === paymentFilterPOId;
+                              return invoice.purchaseOrderId === activePaymentFilterPOId;
                             }
                             
                             // For Progress Payment invoices, check if any GRN belongs to the selected PO
                             if (invoice.paymentType === 'Progress Payment') {
-                              return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
+                              return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === activePaymentFilterPOId);
                             }
                             
                             return false;
@@ -3963,7 +4066,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                       return (
                         <tr>
                           <td colSpan={10} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
-                            {paymentFilterPOId ? 'No payments found for the selected Purchase Order.' : 'No payments recorded yet. Click "Add Payment" to add one.'}
+                            {(poFilterId || paymentFilterPOId) ? 'No payments found for the selected Purchase Order.' : 'No payments recorded yet. Click "Add Payment" to add one.'}
                   </td>
                 </tr>
                       );
@@ -4055,6 +4158,249 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
             </tbody>
           </table>
         </div>
+          </div>
+        )}
+
+        {activeTab === 'performance' && (
+          <div className="space-y-6">
+            {!isEditingPerformance && projectSupplier && (projectSupplier.performanceRating || projectSupplier.performanceReview) ? (
+              <Card
+                className="p-4"
+                style={{
+                  backgroundColor: colors.backgroundPrimary,
+                  borderColor: colors.borderLight,
+                }}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Performance Review
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Edit className="h-4 w-4" />}
+                      onClick={() => {
+                        setIsEditingPerformance(true);
+                        setPerformanceFormData({
+                          performanceRating: projectSupplier.performanceRating || null,
+                          performanceReview: projectSupplier.performanceReview || '',
+                        });
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                      Performance Rating
+                    </label>
+                    <div className="p-3 rounded-lg border" style={{
+                      backgroundColor: colors.backgroundSecondary,
+                      borderColor: colors.borderLight,
+                    }}>
+                      {projectSupplier.performanceRating ? (
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-5 w-5 ${
+                                star <= projectSupplier.performanceRating!
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          ))}
+                          <span className="ml-2 text-sm font-medium" style={{ color: colors.textPrimary }}>
+                            ({projectSupplier.performanceRating}/5)
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>Not rated</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {projectSupplier.performanceReview && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                        Review Description
+                      </label>
+                      <div className="p-3 rounded-lg border min-h-[100px] whitespace-pre-wrap" style={{
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.borderLight,
+                        color: colors.textPrimary,
+                      }}>
+                        {projectSupplier.performanceReview}
+                      </div>
+                    </div>
+                  )}
+        </div>
+      </Card>
+            ) : (
+              <Card
+                className="p-4"
+                style={{
+                  backgroundColor: colors.backgroundPrimary,
+                  borderColor: colors.borderLight,
+                }}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Performance Review
+                    </h3>
+                    {isEditingPerformance && projectSupplier && (projectSupplier.performanceRating || projectSupplier.performanceReview) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingPerformance(false);
+                          setPerformanceFormData({
+                            performanceRating: projectSupplier?.performanceRating || null,
+                            performanceReview: projectSupplier?.performanceReview || '',
+                          });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+    </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Performance Rating *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setPerformanceFormData({
+                            ...performanceFormData,
+                            performanceRating: star,
+                          })}
+                          className="transition-transform hover:scale-110 active:scale-95"
+                        >
+                          <Star
+                            className={`h-8 w-8 ${
+                              performanceFormData.performanceRating && star <= performanceFormData.performanceRating
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'text-gray-300 hover:text-yellow-300'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                      {performanceFormData.performanceRating && (
+                        <span className="ml-2 text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          ({performanceFormData.performanceRating}/5)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                      Click on a star to rate (1 = Poor, 5 = Excellent)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                      Review Description
+                    </label>
+                    <textarea
+                      value={performanceFormData.performanceReview}
+                      onChange={(e) => setPerformanceFormData({
+                        ...performanceFormData,
+                        performanceReview: e.target.value,
+                      })}
+                      rows={6}
+                      className="w-full resize-none rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.borderLight,
+                        color: colors.textPrimary,
+                      }}
+                      placeholder="Enter performance review description..."
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    {isEditingPerformance && projectSupplier && (projectSupplier.performanceRating || projectSupplier.performanceReview) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingPerformance(false);
+                          setPerformanceFormData({
+                            performanceRating: projectSupplier.performanceRating || null,
+                            performanceReview: projectSupplier.performanceReview || '',
+                          });
+                        }}
+                        disabled={isSaving}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<Save className="h-4 w-4" />}
+                      onClick={async () => {
+                        if (!performanceFormData.performanceRating) {
+                          setError('Please select a performance rating (1-5 stars).');
+                          return;
+                        }
+
+                        setIsSaving(true);
+                        setError(null);
+
+                        try {
+                          const response = await put<{ success: boolean; data?: ProjectSupplier; error?: string }>(
+                            `/api/admin/project-suppliers/${supplierId}`,
+                            {
+                              performanceRating: performanceFormData.performanceRating || null,
+                              performanceReview: performanceFormData.performanceReview || null,
+                            }
+                          );
+
+                          if (!response.success) {
+                            throw new Error(response.error || 'Failed to save performance review');
+                          }
+
+                          // Update local state
+                          if (response.data) {
+                            setProjectSupplier({
+                              ...projectSupplier!,
+                              ...response.data,
+                            });
+                            // Update form data with saved values
+                            setPerformanceFormData({
+                              performanceRating: response.data.performanceRating || null,
+                              performanceReview: response.data.performanceReview || '',
+                            });
+                          }
+
+                          // Close the form and show saved view
+                          setIsEditingPerformance(false);
+                          setError(null);
+                        } catch (submitError: any) {
+                          console.error('Failed to save performance review:', submitError);
+                          const errorMessage = submitError?.message || 'Failed to save performance review. Please try again.';
+                          setError(errorMessage);
+                          alert(errorMessage);
+                        } finally {
+                          setIsSaving(false);
+                        }
+                      }}
+                      isLoading={isSaving}
+                      disabled={isSaving || !performanceFormData.performanceRating}
+                    >
+                      Save Performance Review
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
           </div>
         )}
       </Card>

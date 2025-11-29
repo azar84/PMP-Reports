@@ -9,9 +9,9 @@ import { Toggle } from '@/components/ui/Toggle';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet, File, Upload, Loader2, CheckCircle } from 'lucide-react';
+import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet, File, Upload, Loader2, CheckCircle, Star } from 'lucide-react';
 import { formatDateForInput } from '@/lib/dateUtils';
-import { formatCurrencyWithDecimals } from '@/lib/currency';
+import { formatCurrency, formatCurrencyWithDecimals } from '@/lib/currency';
 
 interface SubcontractorOption {
   id: number;
@@ -36,6 +36,8 @@ interface ProjectSubcontractor {
   scopeOfWork: string | null;
   subcontractAgreement: boolean;
   subcontractAgreementDocumentUrl: string | null;
+  performanceRating: number | null; // 1-5 stars
+  performanceReview: string | null;
   createdAt: string;
   updatedAt: string;
   subcontractor: SubcontractorOption;
@@ -109,7 +111,9 @@ interface Invoice {
   downPaymentRecovery: number | null; // Down Payment Recovery (for Progress Payment)
   advanceRecovery: number | null; // Advance Payment Recovery (for Progress Payment) - default 10% of amount
   retention: number | null; // Retention amount (for Progress Payment) - default 10% of payment
-  totalAmount: number; // Total amount with VAT - Down Payment Recovery - Advance Recovery - Retention
+  contraChargesAmount: number | null; // Contra Charges amount (for Progress Payment) - deducted from total
+  contraChargesDescription: string | null; // Contra Charges description (for Progress Payment)
+  totalAmount: number; // Total amount with VAT - Down Payment Recovery - Advance Recovery - Retention - Contra Charges
   status?: string; // "paid", "partially_paid", or "unpaid"
   createdAt: string;
   updatedAt: string;
@@ -212,9 +216,11 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
     downPaymentRecovery: '', // Down Payment Recovery (for Progress Payment)
     advanceRecovery: '', // Advance Payment Recovery (for Progress Payment) - default 10% of amount
     retention: '', // Retention amount (for Progress Payment) - default 10% of payment
+    contraChargesAmount: '', // Contra Charges amount (for Progress Payment)
+    contraChargesDescription: '', // Contra Charges description (for Progress Payment)
   });
   const [hasDownPayment, setHasDownPayment] = useState(false);
-  const [activeTab, setActiveTab] = useState<'pos' | 'changeOrders' | 'invoices' | 'payments'>('pos');
+  const [activeTab, setActiveTab] = useState<'pos' | 'changeOrders' | 'invoices' | 'payments' | 'performance'>('pos');
   const [poFilterId, setPoFilterId] = useState<number | null>(null); // Single PO filter for all tabs and cards
   const [payments, setPayments] = useState<Payment[]>([]);
   const [showPaymentForm, setShowPaymentForm] = useState(false);
@@ -251,6 +257,11 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
   const [editingAgreementFile, setEditingAgreementFile] = useState<File | null>(null);
   const [uploadingAgreementDocument, setUploadingAgreementDocument] = useState(false);
   const [tempAgreementDocumentUrl, setTempAgreementDocumentUrl] = useState<string | null>(null);
+  const [performanceFormData, setPerformanceFormData] = useState({
+    performanceRating: null as number | null,
+    performanceReview: '',
+  });
+  const [isEditingPerformance, setIsEditingPerformance] = useState(false);
 
   const loadData = useCallback(async () => {
     if (isNaN(projectId) || isNaN(subcontractorId)) {
@@ -282,6 +293,15 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
       }
 
       setProjectSubcontractor(subcontractor);
+      
+      // Load performance data if available
+      if (subcontractor.performanceRating || subcontractor.performanceReview) {
+        setPerformanceFormData({
+          performanceRating: subcontractor.performanceRating || null,
+          performanceReview: subcontractor.performanceReview || '',
+        });
+      }
+      
       const pos = purchaseOrdersRes.data || [];
       setPurchaseOrders(pos);
 
@@ -582,8 +602,19 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
       loadPayments();
     }
     
+    // Load performance data when switching to Performance tab
+    if (activeTab === 'performance' && projectSubcontractor) {
+      const hasPerformanceData = projectSubcontractor.performanceRating || projectSubcontractor.performanceReview;
+      setPerformanceFormData({
+        performanceRating: projectSubcontractor.performanceRating || null,
+        performanceReview: projectSubcontractor.performanceReview || '',
+      });
+      // Only show form if there's no existing data, otherwise show saved view
+      setIsEditingPerformance(!hasPerformanceData);
+    }
+    
     // Don't reset PO filter when switching tabs - it's global
-  }, [activeTab, purchaseOrders, changeOrders, loadChangeOrders, loadInvoices, loadPayments]);
+  }, [activeTab, purchaseOrders, changeOrders, loadChangeOrders, loadInvoices, loadPayments, projectSubcontractor]);
 
   const loadPurchaseOrders = useCallback(async () => {
     try {
@@ -811,8 +842,13 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
       ? (invoiceFormData.retention ? parseFloat(invoiceFormData.retention) : (invoiceAmount * 0.10))
       : 0;
     
+    // Contra Charges (only for Progress Payment) - deducted BEFORE VAT
+    const contraChargesAmount = invoiceFormData.paymentType === 'Progress Payment'
+      ? (parseFloat(invoiceFormData.contraChargesAmount) || 0)
+      : 0;
+    
     // Amount after deductions (before VAT)
-    const amountAfterDeductions = invoiceAmount - downPaymentRecovery - advanceRecovery - retention;
+    const amountAfterDeductions = invoiceAmount - downPaymentRecovery - advanceRecovery - retention - contraChargesAmount;
     
     // Use editable VAT amount if provided, otherwise calculate VAT of amount after deductions
     const vatAmount = invoiceFormData.vatAmount ? parseFloat(invoiceFormData.vatAmount) : (amountAfterDeductions * vatDecimal);
@@ -825,6 +861,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
       downPaymentRecovery: Number(downPaymentRecovery.toFixed(2)),
       advanceRecovery: Number(advanceRecovery.toFixed(2)),
       retention: Number(retention.toFixed(2)),
+      contraChargesAmount: Number(contraChargesAmount.toFixed(2)),
       amountAfterDeductions: Number(amountAfterDeductions.toFixed(2)),
       vatAmount: Number(vatAmount.toFixed(2)),
       totalAmount: Number(totalAmount.toFixed(2)),
@@ -858,65 +895,64 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
         errors.push(`Please enter an invoice amount for ${invoiceFormData.paymentType} type.`);
       }
       
-      // Validate that invoice amount doesn't exceed balance to certify
       if (invoiceFormData.selectedProgressPOId && invoiceFormData.progressInvoiceAmount) {
         const selectedPO = purchaseOrders.find(po => po.id === invoiceFormData.selectedProgressPOId);
         const poCOs = changeOrders[invoiceFormData.selectedProgressPOId || 0] || [];
         
-        // Calculate Previously Certified for Progress Payments only (excluding advance payments)
-        // This is used for Balance to Certify calculation
-        const previouslyCertifiedProgress = invoices
-          .filter(inv => 
-            inv.paymentType !== 'Advance Payment' &&
-            (!editingInvoice || inv.id !== editingInvoice.id) &&
-            inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
-          )
-          .reduce((sum, inv) => sum + Number(inv.invoiceAmount || 0), 0);
-        
-        // Calculate Balance to Certify
-        const poAmount = selectedPO ? Number(selectedPO.lpoValue || 0) : 0;
-        const coAmounts = poCOs.reduce((sum, co) => sum + Number(co.amount || 0), 0);
-        const totalPOAndCOAmount = poAmount + coAmounts;
-        const balanceToCertify = totalPOAndCOAmount - previouslyCertifiedProgress;
-        
-        // Calculate net invoice amount (after recovery and retention, before VAT)
-        const invoiceAmount = parseFloat(invoiceFormData.progressInvoiceAmount || '0');
-        const advanceRecovery = parseFloat(invoiceFormData.advanceRecovery || '0');
-        const retention = parseFloat(invoiceFormData.retention || '0');
-        const netInvoiceAmount = invoiceAmount - advanceRecovery - retention;
-        
-        if (netInvoiceAmount > balanceToCertify) {
-          errors.push(`Invoice amount (after recovery & retention: ${formatCurrencyWithDecimals(netInvoiceAmount)}) exceeds Balance to Certify (${formatCurrencyWithDecimals(balanceToCertify)}). Please adjust the invoice amount.`);
-        }
-        
-        // Check if certifying 100% of balance to certify - if so, advance recovery must recover all remaining AP
-        const isCertifying100Percent = balanceToCertify > 0 && Math.abs(netInvoiceAmount - balanceToCertify) < 0.01; // Allow small tolerance for floating point
-        
-        if (isCertifying100Percent) {
-          // Calculate remaining AP recovery
-          const advancePayments = invoices
-            .filter(inv => 
-              inv.paymentType === 'Advance Payment' &&
-              (inv.purchaseOrderId === invoiceFormData.selectedProgressPOId ||
-               (inv.changeOrderId && poCOs.some(co => co.id === inv.changeOrderId)))
-            )
-            .reduce((sum, inv) => sum + Number(inv.invoiceAmount || 0), 0);
-          
-          const totalPreviousAdvanceRecoveries = invoices
+        if (invoiceFormData.paymentType === 'Progress Payment') {
+          // Validate that invoice amount doesn't exceed balance to certify (only for Progress Payment)
+          // Calculate Previously Certified for Progress Payments only (excluding advance payments and retention release payments)
+          const previouslyCertifiedProgress = invoices
             .filter(inv => 
               inv.paymentType === 'Progress Payment' &&
               (!editingInvoice || inv.id !== editingInvoice.id) &&
               inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
             )
-            .reduce((sum, inv) => sum + Number(inv.advanceRecovery || 0), 0);
+            .reduce((sum, inv) => sum + Number(inv.invoiceAmount || 0), 0);
           
-          const remainingToRecover = advancePayments - totalPreviousAdvanceRecoveries;
+          // Calculate Balance to Certify
+          const poAmount = selectedPO ? Number(selectedPO.lpoValue || 0) : 0;
+          const coAmounts = poCOs.reduce((sum, co) => sum + Number(co.amount || 0), 0);
+          const totalPOAndCOAmount = poAmount + coAmounts;
+          const balanceToCertify = totalPOAndCOAmount - previouslyCertifiedProgress;
           
-          if (remainingToRecover > 0) {
-            // Check if advance recovery equals remaining to recover (allow small tolerance)
-            if (Math.abs(advanceRecovery - remainingToRecover) >= 0.01) {
-              errors.push(`You are certifying 100% of the remaining balance. You must recover all remaining AP (${formatCurrencyWithDecimals(remainingToRecover)}) before saving this invoice. Current Advance Recovery: ${formatCurrencyWithDecimals(advanceRecovery)}.`);
-            }
+          // Calculate net invoice amount (after recovery, retention, and contra charges, before VAT)
+          const invoiceAmount = parseFloat(invoiceFormData.progressInvoiceAmount || '0');
+          const advanceRecovery = parseFloat(invoiceFormData.advanceRecovery || '0');
+          const retention = parseFloat(invoiceFormData.retention || '0');
+          const contraChargesAmount = parseFloat(invoiceFormData.contraChargesAmount || '0');
+          const netInvoiceAmount = invoiceAmount - advanceRecovery - retention - contraChargesAmount;
+          
+          if (netInvoiceAmount > balanceToCertify) {
+            errors.push(`Invoice amount (after recovery & retention: ${formatCurrencyWithDecimals(netInvoiceAmount)}) exceeds Balance to Certify (${formatCurrencyWithDecimals(balanceToCertify)}). Please adjust the invoice amount.`);
+          }
+        } else if (invoiceFormData.paymentType === 'Retention Release Payment') {
+          // For Retention Release Payment: validate that amount doesn't exceed total retention held
+          // Calculate total retention held so far from previous Progress Payment invoices (exclude current if editing)
+          const totalRetentionHeld = invoices
+            .filter(inv => 
+              inv.paymentType === 'Progress Payment' &&
+              (!editingInvoice || inv.id !== editingInvoice.id) &&
+              inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
+            )
+            .reduce((sum, inv) => sum + Number(inv.retention || 0), 0);
+          
+          // Calculate total retention already released from previous Retention Release Payment invoices (exclude current if editing)
+          const totalRetentionReleased = invoices
+            .filter(inv => 
+              inv.paymentType === 'Retention Release Payment' &&
+              (!editingInvoice || inv.id !== editingInvoice.id) &&
+              inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
+            )
+            .reduce((sum, inv) => sum + Number(inv.invoiceAmount || 0), 0);
+          
+          // Available retention to release = Total retention held - Total already released
+          const availableRetentionToRelease = totalRetentionHeld - totalRetentionReleased;
+          
+          const releaseAmount = parseFloat(invoiceFormData.progressInvoiceAmount || '0');
+          
+          if (releaseAmount > availableRetentionToRelease) {
+            errors.push(`Retention release amount (${formatCurrencyWithDecimals(releaseAmount)}) exceeds available retention held (${formatCurrencyWithDecimals(availableRetentionToRelease)}). Please adjust the release amount.`);
           }
         }
       }
@@ -969,6 +1005,16 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
         ? amounts.retention
         : 0;
       
+      // Contra Charges (only for Progress Payment) - deducted BEFORE VAT
+      const finalContraChargesAmount = invoiceFormData.paymentType === 'Progress Payment'
+        ? amounts.contraChargesAmount
+        : 0;
+      
+      // Contra Charges Description (only for Progress Payment)
+      const finalContraChargesDescription = invoiceFormData.paymentType === 'Progress Payment'
+        ? (invoiceFormData.contraChargesDescription || null)
+        : null;
+      
       // Amount after deductions (before VAT) - this is the Invoice Amount (excluding VAT)
       const amountAfterDeductions = amounts.amountAfterDeductions;
       
@@ -994,6 +1040,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
         downPaymentRecovery: invoiceFormData.paymentType === 'Progress Payment' ? Number(finalDownPaymentRecovery.toFixed(2)) : undefined,
         advanceRecovery: invoiceFormData.paymentType === 'Progress Payment' ? Number(finalAdvanceRecovery.toFixed(2)) : undefined,
         retention: invoiceFormData.paymentType === 'Progress Payment' ? Number(finalRetention.toFixed(2)) : undefined,
+        contraChargesAmount: invoiceFormData.paymentType === 'Progress Payment' ? Number(finalContraChargesAmount.toFixed(2)) : undefined,
+        contraChargesDescription: finalContraChargesDescription,
         totalAmount: Number(finalTotalAmount.toFixed(2)),
       };
 
@@ -1049,6 +1097,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
         downPaymentRecovery: '',
         advanceRecovery: '',
         retention: '',
+        contraChargesAmount: '',
+        contraChargesDescription: '',
       });
     } catch (submitError: any) {
       console.error('Failed to save invoice:', submitError);
@@ -1089,6 +1139,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
       downPaymentRecovery: invoice.downPaymentRecovery?.toString() || '',
       advanceRecovery: invoice.advanceRecovery?.toString() || '',
       retention: invoice.retention?.toString() || '',
+      contraChargesAmount: invoice.contraChargesAmount?.toString() || '',
+      contraChargesDescription: invoice.contraChargesDescription || '',
     });
   }, []);
 
@@ -1865,30 +1917,48 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
 
       {/* PO Filter - Above Summary Cards */}
       <Card
-        className="p-4 mb-6"
+        className="p-4 mb-6 transition-all duration-200"
         style={{
-          backgroundColor: colors.backgroundSecondary,
-          borderColor: colors.borderLight,
+          backgroundColor: poFilterId ? `${colors.primary}08` : colors.backgroundSecondary,
+          borderColor: poFilterId ? `${colors.primary}30` : colors.borderLight,
+          borderWidth: poFilterId ? '1.5px' : '1px',
         }}
       >
         <div className="space-y-3">
           <div className="flex items-center gap-2">
-            <Filter className="h-5 w-5" style={{ color: colors.primary }} />
-            <h3 className="text-base font-semibold" style={{ color: colors.textPrimary }}>
+            <Filter className="h-5 w-5 transition-colors" style={{ color: poFilterId ? colors.primary : colors.textSecondary }} />
+            <h3 className="text-base font-semibold transition-colors" style={{ color: poFilterId ? colors.primary : colors.textPrimary }}>
               Filter by Purchase Order
             </h3>
+            {poFilterId && (
+              <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
+                backgroundColor: `${colors.primary}20`,
+                color: colors.primary,
+              }}>
+                Active
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-3 flex-wrap">
             <select
               value={poFilterId || ''}
               onChange={(e) => setPoFilterId(e.target.value ? parseInt(e.target.value) : null)}
-              className="rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none focus:ring-2 transition-all cursor-pointer"
+              className="rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
               style={{
                 backgroundColor: colors.backgroundPrimary,
-                borderColor: colors.borderLight,
+                borderColor: poFilterId ? `${colors.primary}40` : colors.borderLight,
                 color: colors.textPrimary,
                 outline: 'none',
                 minWidth: '250px',
+                boxShadow: poFilterId ? `0 0 0 3px ${colors.primary}15` : 'none',
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = `${colors.primary}60`;
+                e.target.style.boxShadow = `0 0 0 3px ${colors.primary}15`;
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = poFilterId ? `${colors.primary}40` : colors.borderLight;
+                e.target.style.boxShadow = poFilterId ? `0 0 0 3px ${colors.primary}15` : 'none';
               }}
             >
               <option value="">All Purchase Orders</option>
@@ -1901,15 +1971,19 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
             {poFilterId && (() => {
               const selectedPO = purchaseOrders.find(po => po.id === poFilterId);
               return (
-                <div className="flex items-center gap-2 px-4 py-2 rounded-full text-sm font-medium" style={{
-                  backgroundColor: `${colors.primary}15`,
-                  color: colors.primary,
-                }}>
+                <div 
+                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
+                  style={{
+                    backgroundColor: `${colors.primary}12`,
+                    color: colors.primary,
+                    border: `1px solid ${colors.primary}25`,
+                  }}
+                >
                   <ShoppingCart className="h-4 w-4" />
                   <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
                   <button
                     onClick={() => setPoFilterId(null)}
-                    className="ml-1 hover:opacity-70 transition-opacity"
+                    className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
                     style={{ color: colors.primary }}
                     title="Clear filter"
                   >
@@ -1984,11 +2058,29 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
           return sum + (remaining > 0 ? remaining : 0);
         }, 0);
 
+        // Calculate PO Amounts separately (without VAT) - filtered
+        const totalPOAmountsWithoutVat = filteredPurchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0);
+          }, 0);
+
         // Calculate PO Amounts separately (with VAT) - filtered
         const totalPOAmountsWithVat = filteredPurchaseOrders.reduce((sum, po) => {
           return sum + Number(po.lpoValueWithVat || 0);
         }, 0);
 
+        // Calculate CO Amounts separately (without VAT) - filtered
+        const totalCOAmountsWithoutVat = filteredPurchaseOrders.reduce((sum, po) => {
+          const poChangeOrders = changeOrders[po.id] || [];
+          poChangeOrders.forEach((co) => {
+            if (co.type === 'addition') {
+              sum += Number(co.amount || 0);
+            } else if (co.type === 'omission') {
+              sum -= Number(co.amount || 0);
+            }
+          });
+          return sum;
+        }, 0);
+        
         // Calculate CO Amounts separately (with VAT) - filtered
         const totalCOAmountsWithVat = filteredPurchaseOrders.reduce((sum, po) => {
           const poChangeOrders = changeOrders[po.id] || [];
@@ -2002,15 +2094,31 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
           return sum;
         }, 0);
         
+        // Calculate Total without VAT (PO + CO before VAT)
+        const totalAmountWithoutVat = totalPOAmountsWithoutVat + totalCOAmountsWithoutVat;
+        
         // Calculate Total Contract Amount (PO + CO with VAT)
         const totalContractAmount = totalPOAmountsWithVat + totalCOAmountsWithVat;
+        
+        // Calculate VAT Amount = Total with VAT - Total without VAT
+        const totalVatAmount = totalContractAmount - totalAmountWithoutVat;
 
-        // Calculate LPO Balance: Total Contract amount (PO + CO with VAT) - Total Invoiced (with VAT) - filtered
+        // Calculate LPO Balance: Total Contract amount (PO + CO with VAT) - Total Invoiced (with VAT) - Contra Charges with VAT - filtered
         // This represents the remaining contract amount that hasn't been invoiced yet
         const totalInvoicedForBalance = filteredInvoices.reduce((sum, invoice) => {
           return sum + Number(invoice.totalAmount || 0); // totalAmount includes VAT
         }, 0);
-        const lpoBalance = totalContractAmount - totalInvoicedForBalance;
+        
+        // Calculate total contra charges from all invoices (filtered)
+        const totalContraCharges = filteredInvoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.contraChargesAmount || 0);
+        }, 0);
+        
+        // Calculate contra charges with VAT
+        const contraChargesWithVat = totalContraCharges * vatMultiplier;
+        
+        // LPO Balance = Total Contract Amount - Total Invoiced - Contra Charges with VAT
+        const lpoBalance = totalContractAmount - totalInvoicedForBalance - contraChargesWithVat;
 
         // Calculate Due Amount (invoices past due date)
         // Use invoice data directly from DB, not payments state
@@ -2084,6 +2192,11 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
           .filter(invoice => invoice.paymentType === 'Progress Payment')
           .reduce((sum, invoice) => sum + Number(invoice.retention || 0), 0);
 
+        // Calculate Total Contra Charges from Progress Payment invoices (for all filtered POs)
+        const totalContraChargesForCertified = filteredInvoices
+          .filter(invoice => invoice.paymentType === 'Progress Payment')
+          .reduce((sum, invoice) => sum + Number(invoice.contraChargesAmount || 0), 0);
+
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <Card
@@ -2099,10 +2212,10 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     PO Amounts
                   </p>
                   <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
-                    {formatCurrencyWithDecimals(totalPOAmountsWithVat)}
+                    {formatCurrencyWithDecimals(totalPOAmountsWithoutVat)}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                    With VAT
+                    Without VAT
                   </p>
                 </div>
                 
@@ -2111,14 +2224,35 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     CO Amounts
                   </p>
                   <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
-                    {formatCurrencyWithDecimals(totalCOAmountsWithVat)}
+                    {formatCurrencyWithDecimals(totalCOAmountsWithoutVat)}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                    With VAT
+                    Without VAT
                   </p>
                 </div>
                 
                 <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalAmountWithoutVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    PO + CO (Without VAT)
+                  </p>
+                </div>
+                
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    VAT Amount
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
+                    {formatCurrencyWithDecimals(totalVatAmount)}
+                  </p>
+                </div>
+                
+                <div className="pt-1">
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Total Contract Amount
                   </p>
@@ -2126,16 +2260,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     {formatCurrencyWithDecimals(totalContractAmount)}
                   </p>
                   <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
-                    PO + CO (With VAT)
-                  </p>
-                </div>
-                
-                <div className="pt-1">
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
-                    LPO Balance
-                  </p>
-                  <p className="text-base font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
-                    {formatCurrencyWithDecimals(lpoBalance)}
+                    With VAT
                   </p>
                 </div>
               </div>
@@ -2158,7 +2283,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                   </p>
                 </div>
                 
-                <div>
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Due Amount
                   </p>
@@ -2170,6 +2295,15 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                       Past due date
                     </p>
                   )}
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    LPO Balance
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(lpoBalance)}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -2246,12 +2380,21 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                   </p>
                 </div>
                 
-                <div>
+                <div className="pb-2 border-b" style={{ borderColor: colors.borderLight }}>
                   <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
                     Retention Held
                   </p>
                   <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
                     {formatCurrencyWithDecimals(totalRetentionHeld)}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Contra Charges
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalContraChargesForCertified)}
                   </p>
                 </div>
               </div>
@@ -2342,6 +2485,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                   downPaymentRecovery: '',
                   advanceRecovery: '',
                   retention: '',
+                  contraChargesAmount: '',
+                  contraChargesDescription: '',
                 });
               }}
             >
@@ -2404,6 +2549,19 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                 color: activeTab === 'payments' ? colors.primary : colors.textSecondary,
               }} />
               Payments
+            </button>
+            <button
+              onClick={() => setActiveTab('performance')}
+              className="inline-flex items-center py-4 px-1 border-b-2 font-medium text-sm transition-colors"
+              style={{
+                borderColor: activeTab === 'performance' ? colors.primary : 'transparent',
+                color: activeTab === 'performance' ? colors.primary : colors.textSecondary,
+              }}
+            >
+              <Star className="w-4 h-4 mr-2" style={{
+                color: activeTab === 'performance' ? colors.primary : colors.textSecondary,
+              }} />
+              Performance
             </button>
           </nav>
         </div>
@@ -3039,6 +3197,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           downPaymentRecovery: '',
                           advanceRecovery: '',
                           retention: '',
+                          contraChargesAmount: '',
+                          contraChargesDescription: '',
                                           });
                                         }}
                       className="h-7 w-7"
@@ -3138,6 +3298,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             vatAmount: '', // Reset VAT when payment type changes
                             advanceRecovery: newPaymentType !== 'Progress Payment' ? '' : invoiceFormData.advanceRecovery,
                             retention: newPaymentType !== 'Progress Payment' ? '' : invoiceFormData.retention,
+                            contraChargesAmount: newPaymentType !== 'Progress Payment' ? '' : invoiceFormData.contraChargesAmount,
+                            contraChargesDescription: newPaymentType !== 'Progress Payment' ? '' : invoiceFormData.contraChargesDescription,
                           });
                         }}
                         className="w-full rounded-lg border px-3 py-2 text-sm"
@@ -3321,12 +3483,12 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         const selectedPO = purchaseOrders.find(po => po.id === invoiceFormData.selectedProgressPOId);
                         const poCOs = changeOrders[invoiceFormData.selectedProgressPOId || 0] || [];
                         
-                        // Calculate Previously Certified: sum of Progress Payment and Retention Release invoice amounts (before VAT) for this PO
-                        // Exclude Advance Payment invoices
+                        // Calculate Previously Certified: sum of Progress Payment invoice amounts only (before VAT) for this PO
+                        // Exclude Advance Payment and Retention Release Payment invoices
                         // Exclude current invoice if editing
                         const previouslyCertified = invoices
                           .filter(inv => 
-                            inv.paymentType !== 'Advance Payment' &&
+                            inv.paymentType === 'Progress Payment' &&
                             (!editingInvoice || inv.id !== editingInvoice.id) &&
                             inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
                           )
@@ -3376,15 +3538,28 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         const retention = parseFloat(invoiceFormData.retention || '0');
                         const netInvoiceAmount = invoiceAmount - advanceRecovery - retention;
                         
-                        const exceedsBalance = netInvoiceAmount > balanceToCertify;
+                        // For Progress Payment: check if exceeds balance to certify
+                        // For Retention Release Payment: check if exceeds available retention held
+                        let exceedsBalance = false;
+                        let exceedsRetention = false;
+                        let availableRetentionToRelease = 0;
                         
-                        // Check if certifying 100% of balance to certify
-                        const isCertifying100Percent = balanceToCertify > 0 && Math.abs(netInvoiceAmount - balanceToCertify) < 0.01; // Allow small tolerance for floating point
-                        
-                        // If certifying 100%, advance recovery should recover all remaining AP
-                        const needsFullAPRecovery = isCertifying100Percent && remainingToRecover > 0;
-                        const hasFullAPRecovery = Math.abs(advanceRecovery - remainingToRecover) < 0.01; // Allow small tolerance
-                        const apRecoveryIncomplete = needsFullAPRecovery && !hasFullAPRecovery;
+                        if (invoiceFormData.paymentType === 'Progress Payment') {
+                          exceedsBalance = netInvoiceAmount > balanceToCertify;
+                        } else if (invoiceFormData.paymentType === 'Retention Release Payment') {
+                          // Calculate total retention already released from previous Retention Release Payment invoices (exclude current if editing)
+                          const totalRetentionReleased = invoices
+                            .filter(inv => 
+                              inv.paymentType === 'Retention Release Payment' &&
+                              (!editingInvoice || inv.id !== editingInvoice.id) &&
+                              inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
+                            )
+                            .reduce((sum, inv) => sum + Number(inv.invoiceAmount || 0), 0);
+                          
+                          // Available retention to release = Total retention held - Total already released
+                          availableRetentionToRelease = totalRetentionHeld - totalRetentionReleased;
+                          exceedsRetention = invoiceAmount > availableRetentionToRelease;
+                        }
                         
                                     return (
                           <>
@@ -3407,7 +3582,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                       {formatCurrencyWithDecimals(previouslyCertified)}
                                     </p>
                                     <p className="text-xs leading-relaxed" style={{ color: colors.textSecondary }}>
-                                      Progress & Retention Release invoices (before VAT) for this PO
+                                      Progress Payment invoices (before VAT) for this PO
                                     </p>
                                   </div>
                                   <div>
@@ -3464,39 +3639,52 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                         onChange={(e) => {
                                   const newAmount = e.target.value;
                                   const amountValue = parseFloat(newAmount) || 0;
-                                  // Auto-calculate retention and advance recovery (10% of invoice amount each)
-                                  const defaultRetention = amountValue * 0.10;
-                                  const defaultAdvanceRecovery = amountValue * 0.10;
+                                  // Auto-calculate retention and advance recovery (10% of invoice amount each) - only for Progress Payment
+                                  if (invoiceFormData.paymentType === 'Progress Payment') {
+                                    const defaultRetention = amountValue * 0.10;
+                                    const defaultAdvanceRecovery = amountValue * 0.10;
                                             setInvoiceFormData({
                                               ...invoiceFormData,
-                                    progressInvoiceAmount: newAmount,
-                                    retention: amountValue > 0 ? defaultRetention.toFixed(2) : '',
-                                    advanceRecovery: amountValue > 0 ? defaultAdvanceRecovery.toFixed(2) : '',
-                                  });
-                                }}
+                                      progressInvoiceAmount: newAmount,
+                                      retention: amountValue > 0 ? defaultRetention.toFixed(2) : '',
+                                      advanceRecovery: amountValue > 0 ? defaultAdvanceRecovery.toFixed(2) : '',
+                                            });
+                                          } else {
+                                    // For Retention Release Payment, don't auto-calculate retention/advance recovery
+                                            setInvoiceFormData({
+                                              ...invoiceFormData,
+                                      progressInvoiceAmount: newAmount,
+                                            });
+                                          }
+                                        }}
                                 placeholder="0.00"
                                         style={{ 
                                   backgroundColor: colors.backgroundSecondary,
-                                  borderColor: exceedsBalance ? colors.error : colors.borderLight,
+                                  borderColor: (exceedsBalance || exceedsRetention) ? colors.error : colors.borderLight,
                                   color: colors.textPrimary,
                                 }}
                               />
-                              {exceedsBalance && (
+                              {invoiceFormData.paymentType === 'Progress Payment' && exceedsBalance && (
                                 <p className="text-xs mt-1" style={{ color: colors.error }}>
                                   Invoice amount (after recovery & retention: {formatCurrencyWithDecimals(netInvoiceAmount)}) exceeds Balance to Certify ({formatCurrencyWithDecimals(balanceToCertify)})
                                 </p>
                               )}
-                              {apRecoveryIncomplete && (
-                                <p className="text-xs mt-1" style={{ color: colors.error }}>
-                                  You are certifying 100% of the remaining balance. You must recover all remaining AP ({formatCurrencyWithDecimals(remainingToRecover)}) before saving this invoice. Current Advance Recovery: {formatCurrencyWithDecimals(advanceRecovery)}.
-                              </p>
-                            )}
-                              {!exceedsBalance && !apRecoveryIncomplete && netInvoiceAmount > 0 && (
+                              {invoiceFormData.paymentType === 'Progress Payment' && !exceedsBalance && netInvoiceAmount > 0 && (
                                 <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
                                   Net amount after recovery & retention: {formatCurrencyWithDecimals(netInvoiceAmount)} / {formatCurrencyWithDecimals(balanceToCertify)} available
+                              </p>
+                            )}
+                              {invoiceFormData.paymentType === 'Retention Release Payment' && exceedsRetention && (
+                                <p className="text-xs mt-1" style={{ color: colors.error }}>
+                                  Retention release amount ({formatCurrencyWithDecimals(invoiceAmount)}) exceeds available retention held ({formatCurrencyWithDecimals(availableRetentionToRelease)})
                                 </p>
                               )}
-                            </div>
+                              {invoiceFormData.paymentType === 'Retention Release Payment' && !exceedsRetention && invoiceAmount > 0 && (
+                                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                                  Release amount: {formatCurrencyWithDecimals(invoiceAmount)} / {formatCurrencyWithDecimals(availableRetentionToRelease)} available
+                                </p>
+                              )}
+                          </div>
                           </>
                         );
                       })()}
@@ -3523,7 +3711,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         const poCOs = changeOrders[invoiceFormData.selectedProgressPOId || 0] || [];
                         const previouslyCertified = invoices
                           .filter(inv => 
-                            inv.paymentType !== 'Advance Payment' &&
+                            inv.paymentType === 'Progress Payment' &&
                             (!editingInvoice || inv.id !== editingInvoice.id) &&
                             inv.purchaseOrderId === invoiceFormData.selectedProgressPOId
                           )
@@ -3547,14 +3735,6 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           )
                           .reduce((sum, inv) => sum + Number(inv.advanceRecovery || 0), 0);
                         const remainingToRecover = advancePayments - totalPreviousAdvanceRecoveries;
-                        const invoiceAmount = parseFloat(invoiceFormData.progressInvoiceAmount || '0');
-                        const advanceRecovery = parseFloat(invoiceFormData.advanceRecovery || '0');
-                        const retention = parseFloat(invoiceFormData.retention || '0');
-                        const netInvoiceAmount = invoiceAmount - advanceRecovery - retention;
-                        const isCertifying100Percent = balanceToCertify > 0 && Math.abs(netInvoiceAmount - balanceToCertify) < 0.01;
-                        const needsFullAPRecovery = isCertifying100Percent && remainingToRecover > 0;
-                        const hasFullAPRecovery = Math.abs(advanceRecovery - remainingToRecover) < 0.01;
-                        const apRecoveryIncomplete = needsFullAPRecovery && !hasFullAPRecovery;
                         
                         return (
                           <div>
@@ -3569,20 +3749,13 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                               placeholder={invoiceFormData.progressInvoiceAmount ? (parseFloat(invoiceFormData.progressInvoiceAmount) * 0.10).toFixed(2) : '0.00'}
                               style={{
                                 backgroundColor: colors.backgroundSecondary,
-                                borderColor: apRecoveryIncomplete ? colors.error : colors.borderLight,
+                                borderColor: colors.borderLight,
                                 color: colors.textPrimary,
                               }}
                             />
-                            {apRecoveryIncomplete && (
-                              <p className="text-xs mt-1" style={{ color: colors.error }}>
-                                You must recover all remaining AP ({formatCurrencyWithDecimals(remainingToRecover)}) when certifying 100% of the balance.
-                              </p>
-                            )}
-                            {!apRecoveryIncomplete && (
-                              <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
-                                Amount to be deducted from the total invoice amount
-                              </p>
-                            )}
+                            <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                              Amount to be deducted from the total invoice amount
+                            </p>
                           </div>
                         );
                       })()}
@@ -3630,6 +3803,47 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             Amount to be deducted from the total invoice amount
                           </p>
                                       </div>
+                      )}
+                      {/* Contra Charges Fields - only for Progress Payment */}
+                      {invoiceFormData.paymentType === 'Progress Payment' && (
+                        <>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                              Contra Charges Amount
+                            </label>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              value={invoiceFormData.contraChargesAmount || ''}
+                              onChange={(e) => setInvoiceFormData({ ...invoiceFormData, contraChargesAmount: e.target.value })}
+                                          placeholder="0.00"
+                                          style={{
+                              backgroundColor: colors.backgroundSecondary,
+                                            borderColor: colors.borderLight,
+                                            color: colors.textPrimary,
+                                          }}
+                                        />
+                          <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                            Amount to be deducted from the total invoice amount
+                          </p>
+                                      </div>
+                          <div>
+                            <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                              Contra Charges Description
+                            </label>
+                            <Input
+                              type="text"
+                              value={invoiceFormData.contraChargesDescription || ''}
+                              onChange={(e) => setInvoiceFormData({ ...invoiceFormData, contraChargesDescription: e.target.value })}
+                              placeholder="Enter description for contra charges..."
+                              style={{
+                                backgroundColor: colors.backgroundSecondary,
+                                borderColor: colors.borderLight,
+                                color: colors.textPrimary,
+                              }}
+                            />
+                          </div>
+                        </>
                       )}
                       {/* VAT Amount Field - shown for Progress Payment and Retention Release Payment */}
                       <div>
@@ -3702,7 +3916,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                       <h4 className="text-sm font-semibold mb-3" style={{ color: colors.textPrimary }}>
                         Invoice Summary
                       </h4>
-                      <div className={`grid gap-3 ${invoiceFormData.paymentType === 'Progress Payment' ? 'grid-cols-1 md:grid-cols-6' : invoiceFormData.paymentType === 'Retention Release Payment' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
+                      <div className={`grid gap-3 ${invoiceFormData.paymentType === 'Progress Payment' ? 'grid-cols-1 md:grid-cols-7' : invoiceFormData.paymentType === 'Retention Release Payment' ? 'grid-cols-1 md:grid-cols-3' : 'grid-cols-1 md:grid-cols-3'}`}>
                         {invoiceFormData.paymentType === 'Progress Payment' && (
                           <>
                             <div>
@@ -3727,6 +3941,14 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                               </label>
                               <div className="text-lg font-semibold" style={{ color: colors.warning || '#f59e0b' }}>
                                 -{formatCurrencyWithDecimals(calculateInvoiceAmounts().retention)}
+                              </div>
+                            </div>
+                            <div>
+                              <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                                Contra Charges
+                              </label>
+                              <div className="text-lg font-semibold" style={{ color: colors.warning || '#f59e0b' }}>
+                                -{formatCurrencyWithDecimals(calculateInvoiceAmounts().contraChargesAmount)}
                               </div>
                             </div>
                             <div>
@@ -3790,6 +4012,8 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           downPaymentRecovery: '',
                           advanceRecovery: '',
                           retention: '',
+                          contraChargesAmount: '',
+                          contraChargesDescription: '',
                                           });
                                         }}
                                         disabled={isSaving}
@@ -3837,13 +4061,16 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                       Invoice Amount (Excluding VAT)
                                       </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      VAT (5%)
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Recovered from AP
                                       </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Retention Held
+                                      </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Contra Charges
+                                      </th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      VAT (5%)
                                       </th>
                     <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                       Total Amount
@@ -3951,9 +4178,6 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {formatCurrencyWithDecimals(invoice.invoiceAmount)}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.primary }}>
-                          {formatCurrencyWithDecimals(invoice.vatAmount)}
-                                          </td>
                         <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {invoice.paymentType === 'Progress Payment' && invoice.advanceRecovery ? (
                             formatCurrencyWithDecimals(invoice.advanceRecovery)
@@ -3967,6 +4191,16 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           ) : (
                             <span style={{ color: colors.textSecondary }}>-</span>
                           )}
+                                          </td>
+                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {invoice.paymentType === 'Progress Payment' && invoice.contraChargesAmount ? (
+                            formatCurrencyWithDecimals(invoice.contraChargesAmount)
+                          ) : (
+                            <span style={{ color: colors.textSecondary }}>-</span>
+                          )}
+                                          </td>
+                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.primary }}>
+                          {formatCurrencyWithDecimals(invoice.vatAmount)}
                                           </td>
                         <td className="px-4 py-3 text-sm text-right font-semibold border" style={{ borderColor: colors.borderLight, color: colors.success }}>
                           {formatCurrencyWithDecimals(invoice.totalAmount)}
@@ -4115,7 +4349,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             paymentMethod: method,
                             paymentType: method === 'Post Dated' ? null : null,
                             dueDate: method === 'Post Dated' ? paymentFormData.dueDate : '',
-                            liquidated: method === 'Post Dated' ? paymentFormData.liquidated : false,
+                            liquidated: false, // Always default to false when changing payment method
                           });
                         }}
                         className="w-full rounded-lg border px-3 py-2 text-sm"
@@ -4749,6 +4983,249 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
             </tbody>
           </table>
         </div>
+          </div>
+        )}
+
+        {activeTab === 'performance' && (
+          <div className="space-y-6">
+            {!isEditingPerformance && projectSubcontractor && (projectSubcontractor.performanceRating || projectSubcontractor.performanceReview) ? (
+              <Card
+                className="p-4"
+                style={{
+                  backgroundColor: colors.backgroundPrimary,
+                  borderColor: colors.borderLight,
+                }}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Performance Review
+                    </h3>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      leftIcon={<Edit className="h-4 w-4" />}
+                      onClick={() => {
+                        setIsEditingPerformance(true);
+                        setPerformanceFormData({
+                          performanceRating: projectSubcontractor.performanceRating || null,
+                          performanceReview: projectSubcontractor.performanceReview || '',
+                        });
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                      Performance Rating
+                    </label>
+                    <div className="p-3 rounded-lg border" style={{
+                      backgroundColor: colors.backgroundSecondary,
+                      borderColor: colors.borderLight,
+                    }}>
+                      {projectSubcontractor.performanceRating ? (
+                        <div className="flex items-center gap-1">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <Star
+                              key={star}
+                              className={`h-5 w-5 ${
+                                star <= projectSubcontractor.performanceRating!
+                                  ? 'fill-yellow-400 text-yellow-400'
+                                  : 'text-gray-300'
+                              }`}
+                            />
+                          ))}
+                          <span className="ml-2 text-sm font-medium" style={{ color: colors.textPrimary }}>
+                            ({projectSubcontractor.performanceRating}/5)
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>Not rated</span>
+                      )}
+                    </div>
+                  </div>
+
+                  {projectSubcontractor.performanceReview && (
+                    <div>
+                      <label className="block text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                        Review Description
+                      </label>
+                      <div className="p-3 rounded-lg border min-h-[100px] whitespace-pre-wrap" style={{
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.borderLight,
+                        color: colors.textPrimary,
+                      }}>
+                        {projectSubcontractor.performanceReview}
+                      </div>
+                    </div>
+                  )}
+                </div>
+      </Card>
+            ) : (
+              <Card
+                className="p-4"
+                style={{
+                  backgroundColor: colors.backgroundPrimary,
+                  borderColor: colors.borderLight,
+                }}
+              >
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Performance Review
+                    </h3>
+                    {isEditingPerformance && projectSubcontractor && (projectSubcontractor.performanceRating || projectSubcontractor.performanceReview) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingPerformance(false);
+                          setPerformanceFormData({
+                            performanceRating: projectSubcontractor?.performanceRating || null,
+                            performanceReview: projectSubcontractor?.performanceReview || '',
+                          });
+                        }}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+    </div>
+                  
+                  <div>
+                    <label className="block text-xs font-medium mb-2" style={{ color: colors.textPrimary }}>
+                      Performance Rating *
+                    </label>
+                    <div className="flex items-center gap-2">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          onClick={() => setPerformanceFormData({
+                            ...performanceFormData,
+                            performanceRating: star,
+                          })}
+                          className="transition-transform hover:scale-110 active:scale-95"
+                        >
+                          <Star
+                            className={`h-8 w-8 ${
+                              performanceFormData.performanceRating && star <= performanceFormData.performanceRating
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'text-gray-300 hover:text-yellow-300'
+                            }`}
+                          />
+                        </button>
+                      ))}
+                      {performanceFormData.performanceRating && (
+                        <span className="ml-2 text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          ({performanceFormData.performanceRating}/5)
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                      Click on a star to rate (1 = Poor, 5 = Excellent)
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-medium mb-1" style={{ color: colors.textPrimary }}>
+                      Review Description
+                    </label>
+                    <textarea
+                      value={performanceFormData.performanceReview}
+                      onChange={(e) => setPerformanceFormData({
+                        ...performanceFormData,
+                        performanceReview: e.target.value,
+                      })}
+                      rows={6}
+                      className="w-full resize-none rounded-lg border px-3 py-2 text-sm"
+                      style={{
+                        backgroundColor: colors.backgroundSecondary,
+                        borderColor: colors.borderLight,
+                        color: colors.textPrimary,
+                      }}
+                      placeholder="Enter performance review description..."
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2">
+                    {isEditingPerformance && projectSubcontractor && (projectSubcontractor.performanceRating || projectSubcontractor.performanceReview) && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => {
+                          setIsEditingPerformance(false);
+                          setPerformanceFormData({
+                            performanceRating: (projectSubcontractor.performanceRating as 'Bad' | 'Good' | 'Very Good') || '',
+                            performanceReview: projectSubcontractor.performanceReview || '',
+                          });
+                        }}
+                        disabled={isSaving}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      leftIcon={<Save className="h-4 w-4" />}
+                    onClick={async () => {
+                      if (!performanceFormData.performanceRating) {
+                        setError('Please select a performance rating (1-5 stars).');
+                        return;
+                      }
+
+                      setIsSaving(true);
+                      setError(null);
+
+                      try {
+                        const response = await put<{ success: boolean; data?: ProjectSubcontractor; error?: string }>(
+                          `/api/admin/project-subcontractors/${subcontractorId}`,
+                          {
+                            performanceRating: performanceFormData.performanceRating || null,
+                            performanceReview: performanceFormData.performanceReview || null,
+                          }
+                        );
+
+                        if (!response.success) {
+                          throw new Error(response.error || 'Failed to save performance review');
+                        }
+
+                        // Update local state
+                        if (response.data) {
+                          setProjectSubcontractor({
+                            ...projectSubcontractor!,
+                            ...response.data,
+                          });
+                            // Update form data with saved values
+                            setPerformanceFormData({
+                              performanceRating: response.data.performanceRating || null,
+                              performanceReview: response.data.performanceReview || '',
+                            });
+                        }
+
+                        // Close the form and show saved view
+                        setIsEditingPerformance(false);
+                        setError(null);
+                      } catch (submitError: any) {
+                        console.error('Failed to save performance review:', submitError);
+                        const errorMessage = submitError?.message || 'Failed to save performance review. Please try again.';
+                        setError(errorMessage);
+                        alert(errorMessage);
+                      } finally {
+                        setIsSaving(false);
+                      }
+                    }}
+                    isLoading={isSaving}
+                    disabled={isSaving || !performanceFormData.performanceRating}
+                    >
+                      Save Performance Review
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            )}
           </div>
         )}
       </Card>

@@ -1183,12 +1183,14 @@ model ProjectVendorEvaluation {
 }
 
 model ProjectSupplier {
-  id         Int      @id @default(autoincrement())
-  projectId  Int
-  supplierId Int
-  notes      String?
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
+  id                Int      @id @default(autoincrement())
+  projectId         Int
+  supplierId        Int
+  notes             String?
+  performanceRating Int?     // 1-5 stars
+  performanceReview String?  // Review description
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
 
   project        Project                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
   supplier       Supplier                 @relation(fields: [supplierId], references: [id], onDelete: Cascade)
@@ -1342,6 +1344,8 @@ model ProjectSubcontractor {
   scopeOfWork                     String?
   subcontractAgreement            Boolean  @default(false)
   subcontractAgreementDocumentUrl String?
+  performanceRating               Int?    // 1-5 stars
+  performanceReview               String? // Review description
   createdAt                       DateTime @default(now())
   updatedAt                       DateTime @updatedAt
 
@@ -1396,11 +1400,11 @@ model ProjectSubcontractorChangeOrder {
   createdAt              DateTime @default(now())
   updatedAt              DateTime @updatedAt
 
-  purchaseOrder        ProjectSubcontractorPurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
-  projectSubcontractor ProjectSubcontractor                     @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
-  project              Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  invoiceChangeOrders  ProjectSubcontractorInvoiceChangeOrder[]
-  advancePaymentInvoices ProjectSubcontractorInvoice[]          @relation("ChangeOrderAdvancePayment")
+  purchaseOrder          ProjectSubcontractorPurchaseOrder        @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+  projectSubcontractor   ProjectSubcontractor                     @relation(fields: [projectSubcontractorId], references: [id], onDelete: Cascade)
+  project                Project                                  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  invoiceChangeOrders    ProjectSubcontractorInvoiceChangeOrder[]
+  advancePaymentInvoices ProjectSubcontractorInvoice[]            @relation("ChangeOrderAdvancePayment")
 
   @@index([projectId])
   @@index([projectSubcontractorId])
@@ -1424,7 +1428,9 @@ model ProjectSubcontractorInvoice {
   downPaymentRecovery    Decimal? // Down Payment Recovery (for Progress Payment) - deducted from total
   advanceRecovery        Decimal? // Advance Payment Recovery (for Progress Payment) - default 10% of amount, deducted from total
   retention              Decimal? // Retention amount (for Progress Payment) - default 10% of payment, deducted from total
-  totalAmount            Decimal // Total amount with VAT (C) = A + B - Down Payment Recovery - Advance Recovery - Retention
+  contraChargesAmount   Decimal? // Contra Charges amount (for Progress Payment) - deducted from total
+  contraChargesDescription String? // Contra Charges description (for Progress Payment)
+  totalAmount            Decimal // Total amount with VAT (C) = A + B - Down Payment Recovery - Advance Recovery - Retention - Contra Charges
   status                 String    @default("unpaid") // "paid", "partially_paid", or "unpaid"
   createdAt              DateTime  @default(now())
   updatedAt              DateTime  @updatedAt

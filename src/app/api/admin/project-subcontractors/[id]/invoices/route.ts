@@ -75,7 +75,7 @@ export async function POST(
     }
 
     const body = await request.json();
-    const { invoiceNumber, invoiceDate, dueDate, purchaseOrderId, changeOrderId, changeOrderIds, paymentType, downPayment, invoiceAmount, vatAmount, downPaymentRecovery, advanceRecovery, retention, totalAmount } = body;
+    const { invoiceNumber, invoiceDate, dueDate, purchaseOrderId, changeOrderId, changeOrderIds, paymentType, downPayment, invoiceAmount, vatAmount, downPaymentRecovery, advanceRecovery, retention, contraChargesAmount, contraChargesDescription, totalAmount } = body;
 
     // Validate required fields
     if (!invoiceNumber || !invoiceDate) {
@@ -271,8 +271,9 @@ export async function POST(
         const recovery = downPaymentRecovery ? parseFloat(downPaymentRecovery) : 0;
         const advRecovery = advanceRecovery ? parseFloat(advanceRecovery) : (paymentType === 'Progress Payment' ? baseAmount * 0.10 : 0);
         const ret = retention ? parseFloat(retention) : (paymentType === 'Progress Payment' ? baseAmount * 0.10 : 0);
+        const contraCharges = contraChargesAmount ? parseFloat(contraChargesAmount) : 0;
         
-        const amountAfterDeductions = baseAmount - recovery - advRecovery - ret;
+        const amountAfterDeductions = baseAmount - recovery - advRecovery - ret - contraCharges;
         
         // Invoice Amount is the base amount (before deductions)
         finalInvoiceAmount = baseAmount;
@@ -295,6 +296,12 @@ export async function POST(
       : (paymentType === 'Progress Payment' && invoiceAmount) 
         ? parseFloat(invoiceAmount) * 0.10 
         : null;
+    const finalContraChargesAmount = (paymentType === 'Progress Payment' && contraChargesAmount) 
+      ? parseFloat(contraChargesAmount) 
+      : null;
+    const finalContraChargesDescription = (paymentType === 'Progress Payment' && contraChargesDescription) 
+      ? contraChargesDescription 
+      : null;
 
     // Create invoice with appropriate relationships
     const invoiceData: any = {
@@ -312,6 +319,8 @@ export async function POST(
       downPaymentRecovery: finalDownPaymentRecovery ? parseFloat(finalDownPaymentRecovery.toFixed(2)) : null,
       advanceRecovery: finalAdvanceRecovery ? parseFloat(finalAdvanceRecovery.toFixed(2)) : null,
       retention: finalRetention ? parseFloat(finalRetention.toFixed(2)) : null,
+      contraChargesAmount: finalContraChargesAmount ? parseFloat(finalContraChargesAmount.toFixed(2)) : null,
+      contraChargesDescription: finalContraChargesDescription,
       totalAmount: parseFloat(finalTotalAmount.toFixed(2)),
     };
 

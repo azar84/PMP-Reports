@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
-import { updateMultipleInvoiceStatuses } from '@/lib/invoiceStatus';
+import { updateMultipleSubcontractorInvoiceStatuses } from '@/lib/invoiceStatus';
 
 // GET - Fetch all payments for a project subcontractor
 export async function GET(
@@ -210,7 +210,7 @@ export async function POST(
     });
 
     // Update status for all affected invoices
-    await updateMultipleInvoiceStatuses(invoiceIds);
+    await updateMultipleSubcontractorInvoiceStatuses(invoiceIds);
 
     return NextResponse.json({ success: true, data: payment });
   } catch (error: any) {

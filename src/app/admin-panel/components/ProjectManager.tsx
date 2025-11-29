@@ -1945,70 +1945,6 @@ export default function ProjectManager() {
               </div>
             </button>
             <button
-              onClick={() => setActiveTab('closeOut')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
-                activeTab === 'closeOut'
-                  ? 'border-current active'
-                  : 'border-transparent'
-              }`}
-              onMouseEnter={(e) => {
-                if (activeTab !== 'closeOut') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
-                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== 'closeOut') {
-                  e.currentTarget.style.borderColor = colors.border;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-              style={{
-                color: activeTab === 'closeOut' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'closeOut' ? colors.primary : colors.border,
-                backgroundColor: activeTab === 'closeOut' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'closeOut' ? 'transparent' : colors.border,
-                '--tab-border-color': activeTab === 'closeOut' ? colors.primary : 'transparent'
-              } as React.CSSProperties}
-            >
-              <div className="flex items-center space-x-2">
-                <ClipboardCheck className="w-4 h-4" />
-                <span>Close Out</span>
-              </div>
-            </button>
-            <button
-              onClick={() => setActiveTab('clientFeedback')}
-              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
-                activeTab === 'clientFeedback'
-                  ? 'border-current active'
-                  : 'border-transparent'
-              }`}
-              onMouseEnter={(e) => {
-                if (activeTab !== 'clientFeedback') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
-                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (activeTab !== 'clientFeedback') {
-                  e.currentTarget.style.borderColor = colors.border;
-                  e.currentTarget.style.backgroundColor = 'transparent';
-                }
-              }}
-              style={{
-                color: activeTab === 'clientFeedback' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
-                backgroundColor: activeTab === 'clientFeedback' ? colors.backgroundSecondary : 'transparent',
-                borderBottomColor: activeTab === 'clientFeedback' ? 'transparent' : colors.border,
-                '--tab-border-color': activeTab === 'clientFeedback' ? colors.primary : 'transparent'
-              } as React.CSSProperties}
-            >
-              <div className="flex items-center space-x-2">
-                <MessageSquare className="w-4 h-4" />
-                <span>Client Feedback</span>
-              </div>
-            </button>
-            <button
               onClick={() => setActiveTab('commercial')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
                 activeTab === 'commercial'
@@ -2134,6 +2070,70 @@ export default function ProjectManager() {
               <div className="flex items-center space-x-2">
                 <HardHat className="w-4 h-4" />
                 <span>Subcontractors</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('closeOut')}
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
+                activeTab === 'closeOut'
+                  ? 'border-current active'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'closeOut') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'closeOut') {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'closeOut' ? colors.primary : colors.textSecondary,
+                borderColor: activeTab === 'closeOut' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'closeOut' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'closeOut' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'closeOut' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
+            >
+              <div className="flex items-center space-x-2">
+                <ClipboardCheck className="w-4 h-4" />
+                <span>Close Out</span>
+              </div>
+            </button>
+            <button
+              onClick={() => setActiveTab('clientFeedback')}
+              className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
+                activeTab === 'clientFeedback'
+                  ? 'border-current active'
+                  : 'border-transparent'
+              }`}
+              onMouseEnter={(e) => {
+                if (activeTab !== 'clientFeedback') {
+                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (activeTab !== 'clientFeedback') {
+                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }
+              }}
+              style={{
+                color: activeTab === 'clientFeedback' ? colors.primary : colors.textSecondary,
+                borderColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
+                backgroundColor: activeTab === 'clientFeedback' ? colors.backgroundSecondary : 'transparent',
+                borderBottomColor: activeTab === 'clientFeedback' ? 'transparent' : colors.border,
+                '--tab-border-color': activeTab === 'clientFeedback' ? colors.primary : 'transparent'
+              } as React.CSSProperties}
+            >
+              <div className="flex items-center space-x-2">
+                <MessageSquare className="w-4 h-4" />
+                <span>Client Feedback</span>
               </div>
             </button>
           </div>
@@ -2672,26 +2672,6 @@ export default function ProjectManager() {
                 />
               )}
             </div>
-          ) : activeTab === 'closeOut' ? (
-            <div>
-              {selectedProject && (
-                <ProjectCloseOut
-                  projectId={selectedProject.id}
-                  projectName={selectedProject.projectName}
-                  projectStartDate={selectedProject.startDate}
-                  projectEndDate={selectedProject.endDate}
-                />
-              )}
-            </div>
-          ) : activeTab === 'clientFeedback' ? (
-            <div>
-              {selectedProject && (
-                <ProjectClientFeedback
-                  projectId={selectedProject.id}
-                  projectName={selectedProject.projectName}
-                />
-              )}
-            </div>
           ) : activeTab === 'commercial' ? (
             <div>
               {selectedProject && (
@@ -2745,6 +2725,26 @@ export default function ProjectManager() {
                   onViewSubcontractorDetails={(subcontractorId) => setSelectedSubcontractorId(subcontractorId)}
                 />
               ) : null}
+            </div>
+          ) : activeTab === 'closeOut' ? (
+            <div>
+              {selectedProject && (
+                <ProjectCloseOut
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                  projectStartDate={selectedProject.startDate}
+                  projectEndDate={selectedProject.endDate}
+                />
+              )}
+            </div>
+          ) : activeTab === 'clientFeedback' ? (
+            <div>
+              {selectedProject && (
+                <ProjectClientFeedback
+                  projectId={selectedProject.id}
+                  projectName={selectedProject.projectName}
+                />
+              )}
             </div>
           ) : null}
         </div>

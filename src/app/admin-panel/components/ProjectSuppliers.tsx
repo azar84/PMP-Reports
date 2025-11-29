@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/Input';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
-import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet } from 'lucide-react';
+import { Plus, Save, Edit, Trash2, Building2, Tag, Mail, User as UserIcon, Phone, Search, X, Eye, FileText, ShoppingCart, Package, Receipt, CreditCard, AlertCircle, Clock, Wallet, ChevronRight } from 'lucide-react';
 import { formatCurrencyWithDecimals } from '@/lib/currency';
 
 interface ProjectSuppliersProps {
@@ -548,10 +548,18 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
         }, 0);
         const totalDelivered = totalDeliveredBase * vatMultiplier; // Add VAT
 
+        // Calculate Total PO Amounts without VAT
+        const totalPOAmountsWithoutVat = summaryData.purchaseOrders.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0);
+        }, 0);
+
         // Calculate Total PO Amounts (with VAT)
         const totalPOAmountsWithVat = summaryData.purchaseOrders.reduce((sum, po) => {
           return sum + Number(po.lpoValueWithVat || 0);
         }, 0);
+
+        // Calculate VAT Amount = Total with VAT - Total without VAT
+        const totalPOVatAmount = totalPOAmountsWithVat - totalPOAmountsWithoutVat;
 
         // Calculate LPO Balance: (Total PO amount - Delivered amount) * VAT multiplier (with VAT)
         const totalPOAmount = summaryData.purchaseOrders.reduce((sum, po) => {
@@ -591,8 +599,8 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
 
         if (isLoadingSummary) {
           return (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
-              {[...Array(8)].map((_, i) => (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
+              {[...Array(3)].map((_, i) => (
                 <Card key={i} className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                   <div className="animate-pulse">
                     <div className="h-4 bg-gray-200 rounded w-3/4 mb-2" style={{ backgroundColor: colors.borderLight }}></div>
@@ -605,102 +613,119 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
         }
 
         return (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-8 gap-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
             <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    PO Amounts
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalPOAmountsWithoutVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    Without VAT
+                  </p>
+                </div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    VAT Amount
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
+                    {formatCurrencyWithDecimals(totalPOVatAmount)}
+                  </p>
+                </div>
+                
                 <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total PO Amounts</p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalPOAmountsWithVat)}</p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>With VAT</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.primary}20` }}>
-                  <FileText className="h-6 w-6" style={{ color: colors.primary }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Delivered</p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalDelivered)}</p>
-                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>With VAT</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.info}20` }}>
-                  <Package className="h-6 w-6" style={{ color: colors.info }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>LPO Balance</p>
-                  <p className="text-xl font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>{formatCurrencyWithDecimals(lpoBalance)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${lpoBalance > 0 ? colors.warning : colors.success}20` }}>
-                  <ShoppingCart className="h-6 w-6" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Invoiced</p>
-                  <p className="text-xl font-bold" style={{ color: colors.textPrimary }}>{formatCurrencyWithDecimals(totalInvoiced)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.info}20` }}>
-                  <Receipt className="h-6 w-6" style={{ color: colors.info }} />
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total PO Amounts
+                  </p>
+                  <p className="text-base font-bold" style={{ color: colors.primary }}>
+                    {formatCurrencyWithDecimals(totalPOAmountsWithVat)}
+                  </p>
+                  <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                    With VAT
+                  </p>
                 </div>
               </div>
             </Card>
 
             <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Delivered
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalDelivered)}
+                  </p>
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    With VAT
+                  </p>
+                </div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    LPO Balance
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: lpoBalance > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(lpoBalance)}
+                  </p>
+                </div>
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Invoiced
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(totalInvoiced)}
+                  </p>
+                </div>
+                
                 <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Due Amount</p>
-                  <p className="text-xl font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>{formatCurrencyWithDecimals(dueAmount)}</p>
-                  {dueAmount > 0 && <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>Past due date</p>}
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${dueAmount > 0 ? colors.error : colors.success}20` }}>
-                  <AlertCircle className="h-6 w-6" style={{ color: dueAmount > 0 ? colors.error : colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }} title="Total paid amounts - sum of payments for invoices with status 'paid'">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Total Paid</p>
-                  <p className="text-xl font-bold" style={{ color: colors.success }}>{formatCurrencyWithDecimals(totalPaid)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.success}20` }}>
-                  <CreditCard className="h-6 w-6" style={{ color: colors.success }} />
-                </div>
-              </div>
-            </Card>
-
-            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }} title="Committed payments (Post Dated payments that are not yet liquidated)">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Committed Payments</p>
-                  <p className="text-xl font-bold" style={{ color: colors.warning }}>{formatCurrencyWithDecimals(committedPayments)}</p>
-                </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${colors.warning}20` }}>
-                  <Clock className="h-6 w-6" style={{ color: colors.warning }} />
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Due Amount
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: dueAmount > 0 ? colors.error : colors.success }}>
+                    {formatCurrencyWithDecimals(dueAmount)}
+                  </p>
+                  {dueAmount > 0 && (
+                    <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                      Past due date
+                    </p>
+                  )}
                 </div>
               </div>
             </Card>
 
             <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>Balance to be Paid</p>
-                  <p className="text-xl font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>{formatCurrencyWithDecimals(balanceToBePaid)}</p>
+              <div className="space-y-4">
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Paid
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.success }}>
+                    {formatCurrencyWithDecimals(totalPaid)}
+                  </p>
                 </div>
-                <div className="w-12 h-12 rounded-lg flex items-center justify-center" style={{ backgroundColor: `${balanceToBePaid > 0 ? colors.warning : colors.success}20` }}>
-                  <Wallet className="h-6 w-6" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }} />
+                
+                <div className="pb-3 border-b" style={{ borderColor: colors.borderLight }}>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Committed Payments
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: colors.warning }}>
+                    {formatCurrencyWithDecimals(committedPayments)}
+                  </p>
+                </div>
+                
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance to be Paid
+                  </p>
+                  <p className="text-lg font-bold" style={{ color: balanceToBePaid > 0 ? colors.warning : colors.success }}>
+                    {formatCurrencyWithDecimals(balanceToBePaid)}
+                  </p>
                 </div>
               </div>
             </Card>
@@ -1027,16 +1052,102 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
           <div className="space-y-4">
               {filteredSuppliers.map((projectSupplier) => {
               const supplier = projectSupplier.supplier;
+              
+              // Calculate totals for this specific supplier
+              const supplierPOs = summaryData.purchaseOrders.filter(po => po.projectSupplierId === projectSupplier.id);
+              const supplierInvoices = summaryData.invoices.filter(inv => inv.projectSupplierId === projectSupplier.id);
+              
+              // Calculate Total Order Amount (Total PO amounts with VAT)
+              const totalOrderAmount = supplierPOs.reduce((sum, po) => {
+                return sum + Number(po.lpoValueWithVat || 0);
+              }, 0);
+              
+              // Calculate Total Due Amount (invoices past due date)
+              const today = new Date();
+              today.setHours(0, 0, 0, 0);
+              
+              // Helper to calculate paid amounts from invoices
+              const calculatePaidAmountsFromInvoices = (invoiceList: Invoice[]) => {
+                const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+                invoiceList.forEach(invoice => {
+                  if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+                    const totalPaid = invoice.paymentInvoices.reduce(
+                      (sum, pi) => ({
+                        paymentAmount: sum.paymentAmount + Number(pi.paymentAmount || 0),
+                        vatAmount: sum.vatAmount + Number(pi.vatAmount || 0),
+                      }),
+                      { paymentAmount: 0, vatAmount: 0 }
+                    );
+                    paidAmounts[invoice.id] = totalPaid;
+                  } else {
+                    paidAmounts[invoice.id] = { paymentAmount: 0, vatAmount: 0 };
+                  }
+                });
+                return paidAmounts;
+              };
+              
+              const paidAmountsFromDB = calculatePaidAmountsFromInvoices(supplierInvoices);
+              
+              const totalDueAmount = supplierInvoices.reduce((sum, invoice) => {
+                if (!invoice.dueDate) return sum;
+                
+                const dueDate = new Date(invoice.dueDate);
+                dueDate.setHours(0, 0, 0, 0);
+                
+                // Check if invoice is past due date
+                if (dueDate < today) {
+                  // Calculate remaining balance for this invoice using DB data
+                  const paid = paidAmountsFromDB[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+                  const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+                  const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+                  
+                  // Only add if there's still a balance to be paid
+                  return sum + (remaining > 0 ? remaining : 0);
+                }
+                
+                return sum;
+              }, 0);
+              
               return (
                 <Card
                   key={projectSupplier.id}
-                  className="p-5 transition-all hover:shadow-md"
+                  className="p-5 transition-all duration-200 cursor-pointer group relative"
                   style={{
                     backgroundColor: colors.backgroundPrimary,
                     borderColor: colors.borderLight,
                   }}
+                  onClick={() => onViewSupplierDetails?.(projectSupplier.id)}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.borderColor = colors.primary;
+                    e.currentTarget.style.boxShadow = `0 4px 12px ${colors.primary}15`;
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.borderColor = colors.borderLight;
+                    e.currentTarget.style.boxShadow = 'none';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
                 >
-                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  {/* Action buttons - positioned absolutely to avoid interfering with card click */}
+                  <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveSupplier(projectSupplier.id, supplier.name);
+                      }}
+                      aria-label={`Remove ${supplier.name}`}
+                      className="h-8 w-8 hover:bg-red-50 transition-colors"
+                      style={{
+                        color: colors.error,
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </div>
+
+                  <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between pr-10">
                     <div className="flex-1 space-y-4">
                       <div className="flex flex-wrap items-center gap-3">
                         <h4 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
@@ -1159,31 +1270,33 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                           </p>
                         </div>
                       )}
-                    </div>
 
-                    <div className="flex flex-row items-center gap-2 md:flex-col md:items-end">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        leftIcon={<Eye className="h-4 w-4" />}
-                        onClick={() => onViewSupplierDetails?.(projectSupplier.id)}
-                        style={{ color: colors.info }}
-                      >
-                        View Details
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        onClick={() => handleRemoveSupplier(projectSupplier.id, supplier.name)}
-                        aria-label={`Remove ${supplier.name}`}
-                        className="h-9 w-9"
-                        style={{
-                          color: colors.error,
-                        }}
-                      >
-                        <Trash2 className="h-4 w-4" style={{ color: colors.error }} />
-                      </Button>
+                      {/* Total Order Amount and Total Due Amount */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-3 border-t" style={{ borderColor: colors.borderLight }}>
+                        <div>
+                          <p className="text-xs font-medium mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                            Total Order Amount
+                          </p>
+                          <p className="text-base font-semibold" style={{ color: colors.textPrimary }}>
+                            {formatCurrencyWithDecimals(totalOrderAmount)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-medium mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                            Total Due Amount
+                          </p>
+                          <p className="text-base font-semibold" style={{ color: totalDueAmount > 0 ? colors.error : colors.success }}>
+                            {formatCurrencyWithDecimals(totalDueAmount)}
+                          </p>
+                        </div>
+                      </div>
                     </div>
+                  </div>
+
+                  {/* Subtle hint that card is clickable */}
+                  <div className="absolute bottom-4 right-4 flex items-center gap-1.5 text-xs opacity-60 group-hover:opacity-100 transition-opacity duration-200" style={{ color: colors.primary }}>
+                    <span className="font-medium">View Details</span>
+                    <ChevronRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 transition-transform duration-200" />
                   </div>
                 </Card>
               );
