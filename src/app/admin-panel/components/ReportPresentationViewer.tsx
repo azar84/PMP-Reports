@@ -74,6 +74,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const [assignedIndirectPlantsPage, setAssignedIndirectPlantsPage] = useState(0);
   const [balanceIndirectPlantsPage, setBalanceIndirectPlantsPage] = useState(0);
   const [assignedRequiredPlantsPage, setAssignedRequiredPlantsPage] = useState(0);
+  const [assetsPage, setAssetsPage] = useState(0);
+  const [planningMilestonesPage, setPlanningMilestonesPage] = useState(0);
 
   useEffect(() => {
     if (report.reportData) {
@@ -95,6 +97,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     setAssignedIndirectPlantsPage(0);
     setBalanceIndirectPlantsPage(0);
     setAssignedRequiredPlantsPage(0);
+    setAssetsPage(0);
+    setPlanningMilestonesPage(0);
   }, [currentSlide]);
 
   // Keyboard navigation
@@ -500,25 +504,47 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 7: Planning
+    // Slide 7: Assets
+    // Always show assets slide, even if empty (to match other slides behavior)
+    const assetsEntries = data.assets?.entries || (Array.isArray(data.assets) ? data.assets : []);
+    slides.push({
+      type: 'assets',
+      title: 'Project Assets',
+      content: {
+        project: data.project,
+        entries: assetsEntries,
+      }
+    });
+
+    // Slide 8: Planning
     if (data.planning) {
       slides.push({
         type: 'planning',
         title: 'Planning & Milestones',
-        content: data.planning
+        content: {
+          project: data.project,
+          planning: data.planning.planning || data.planning,
+          controlMilestones: data.planning.controlMilestones || []
+        }
       });
     }
 
-    // Slide 8: Quality
+    // Slide 9: Quality
     if (data.quality) {
       slides.push({
         type: 'quality',
         title: 'Quality Management',
-        content: data.quality
+        content: {
+          project: data.project,
+          e1Entries: data.quality.e1Entries || [],
+          e2Entries: data.quality.e2Entries || [],
+          checklistEntries: data.quality.checklistEntries || [],
+          elapsedTimePercentage: data.quality.elapsedTimePercentage !== undefined ? data.quality.elapsedTimePercentage : null
+        }
       });
     }
 
-    // Slide 9: Risks
+    // Slide 10: Risks
     if (data.risks) {
       slides.push({
         type: 'risks',
@@ -527,7 +553,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 10: Area of Concerns
+    // Slide 11: Area of Concerns
     if (data.areaOfConcerns) {
       slides.push({
         type: 'areaOfConcerns',
@@ -536,7 +562,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 11: HSE
+    // Slide 12: HSE
     if (data.hse) {
       slides.push({
         type: 'hse',
@@ -545,21 +571,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 12: Labour Supply
+    // Slide 13: Labour Supply
     if (data.labourSupply && data.labourSupply.length > 0) {
       slides.push({
         type: 'labourSupply',
         title: 'Labour Supply',
         content: data.labourSupply
-      });
-    }
-
-    // Slide 13: Assets
-    if (data.assets && data.assets.length > 0) {
-      slides.push({
-        type: 'assets',
-        title: 'Project Assets',
-        content: data.assets
       });
     }
 
@@ -1133,104 +1150,1021 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   const renderPlanningSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const planning = content.planning || {};
+    const controlMilestones = content.controlMilestones || [];
+    
+    // Helper function to format date
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    // Calculate variance percentage
+    const variance = planning.variance !== null && planning.variance !== undefined 
+      ? parseFloat(planning.variance.toString()) 
+      : null;
+    const plannedProgress = planning.plannedProgress !== null && planning.plannedProgress !== undefined
+      ? parseFloat(planning.plannedProgress.toString())
+      : null;
+    const actualProgress = planning.actualProgress !== null && planning.actualProgress !== undefined
+      ? parseFloat(planning.actualProgress.toString())
+      : null;
+
+    // Calculate project duration progress (elapsed time percentage and days)
+    let elapsedTimePercentage = 0;
+    let elapsedDays = 0;
+    let totalDays = 0;
+    
+    if (project.startDate && project.endDate && report.reportMonth && report.reportYear) {
+      try {
+        const startDate = new Date(project.startDate);
+        const endDate = new Date(project.endDate);
+        // reportMonth is 1-12 (1=January, 12=December)
+        // JavaScript Date uses 0-11 (0=January, 11=December)
+        // To get last day of reportMonth: convert to 0-11, then use (month + 1, 0)
+        // Example: December (12) -> jsMonth = 11 -> new Date(year, 12, 0) = Dec 31
+        const jsMonth = report.reportMonth - 1; // Convert 1-12 to 0-11
+        const reportEndDate = new Date(report.reportYear, jsMonth + 1, 0); // Last day of report month
+        
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && !isNaN(reportEndDate.getTime())) {
+          totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          elapsedDays = Math.ceil((reportEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          if (totalDays > 0) {
+            elapsedTimePercentage = (elapsedDays / totalDays) * 100;
+            elapsedTimePercentage = Math.max(0, Math.min(100, elapsedTimePercentage)); // Clamp between 0 and 100
+          }
+        }
+      } catch (error) {
+        // Ignore calculation errors for display
+      }
+    }
+
+    // Calculate Revised Completion Date (Baseline End + EOT Days)
+    const calculateRevisedCompletion = (): string => {
+      if (!project.endDate || planning.eotDays === null || planning.eotDays === undefined) {
+        return '-';
+      }
+      try {
+        const baselineEnd = new Date(project.endDate);
+        const eotDays = parseInt(planning.eotDays.toString(), 10);
+        if (isNaN(baselineEnd.getTime()) || isNaN(eotDays)) {
+          return '-';
+        }
+        const revisedDate = new Date(baselineEnd);
+        revisedDate.setDate(revisedDate.getDate() + eotDays);
+        return formatDate(revisedDate.toISOString());
+      } catch {
+        return '-';
+      }
+    };
+    const revisedCompletionDate = calculateRevisedCompletion();
+
+    // Pagination for milestones
+    const itemsPerPage = 8;
+    const totalMilestones = controlMilestones.length;
+    const totalMilestonePages = Math.ceil(totalMilestones / itemsPerPage);
+    const currentMilestonePage = planningMilestonesPage;
+    const startIndex = currentMilestonePage * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const currentMilestones = controlMilestones.slice(startIndex, endIndex);
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Planning & Milestones" />
-        <div className="flex-1 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
-          {content.planning && (
-            <div className="grid grid-cols-2 gap-6">
-              {content.planning.targetProgramStart && (
-                <div>
-                  <p className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Target Program Start</p>
-                  <p className="text-lg" style={{ color: colors.textPrimary }}>
-                    {new Date(content.planning.targetProgramStart).toLocaleDateString()}
-                  </p>
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* Date Comparison Table */}
+          <div className="mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+            <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+              <thead>
+                <tr>
+                  <th 
+                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Date Type
+                  </th>
+                  <th 
+                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Baseline (Project)
+                  </th>
+                  <th 
+                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Target
+                  </th>
+                  <th 
+                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    EOT / Revised
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* Start Date Row */}
+                <tr 
+                  className="hover:opacity-90 transition-opacity"
+                  style={{ 
+                    borderBottom: `1px solid ${colors.border}`,
+                    backgroundColor: 'transparent'
+                  }}
+                >
+                  <td className="py-3 px-4 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    Start Date
+                  </td>
+                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    {formatDate(project.startDate)}
+                  </td>
+                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    {formatDate(planning.targetProgramStart)}
+                  </td>
+                  <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
+                    -
+                  </td>
+                </tr>
+                {/* End Date Row */}
+                <tr 
+                  className="hover:opacity-90 transition-opacity"
+                  style={{ 
+                    borderBottom: `1px solid ${colors.border}`,
+                    backgroundColor: `${colors.backgroundSecondary}40`
+                  }}
+                >
+                  <td className="py-3 px-4 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    End Date
+                  </td>
+                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    {formatDate(project.endDate)}
+                  </td>
+                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    {formatDate(planning.targetProgramEnd)}
+                  </td>
+                  <td className="py-3 px-4" style={{ color: colors.warning, fontSize: '0.75rem', fontWeight: '600' }}>
+                    {revisedCompletionDate}
+                  </td>
+                </tr>
+                {/* EOT Days Row */}
+                {planning.eotDays !== null && (
+                  <tr 
+                    className="hover:opacity-90 transition-opacity"
+                    style={{ 
+                      borderBottom: `1px solid ${colors.border}`,
+                      backgroundColor: 'transparent'
+                    }}
+                  >
+                    <td className="py-3 px-4 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                      Approved EOT
+                    </td>
+                    <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
+                      -
+                    </td>
+                    <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
+                      -
+                    </td>
+                    <td className="py-3 px-4" style={{ color: colors.warning, fontSize: '0.75rem', fontWeight: '600' }}>
+                      {planning.eotDays} {planning.eotDays === 1 ? 'day' : 'days'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
                 </div>
-              )}
-              {content.planning.targetProgramEnd && (
+
+          {/* Progress Analysis */}
+          {(plannedProgress !== null || actualProgress !== null || variance !== null || (project.startDate && project.endDate)) && (
+            <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>Progress Analysis</h3>
+                {variance !== null && (
+                  <span 
+                    className="text-xs font-semibold px-2 py-0.5 rounded"
+                    style={{ 
+                      color: variance >= 0 ? colors.success : colors.error,
+                      backgroundColor: variance >= 0 ? `${colors.success}15` : `${colors.error}15`,
+                      border: `1px solid ${variance >= 0 ? colors.success : colors.error}30`
+                    }}
+                  >
+                    Variance: {variance >= 0 ? '+' : ''}{variance.toFixed(1)}%
+                  </span>
+                )}
+              </div>
+              <div className="space-y-4">
+                {/* Planned Progress Bar */}
+                {plannedProgress !== null && (
                 <div>
-                  <p className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Target Program End</p>
-                  <p className="text-lg" style={{ color: colors.textPrimary }}>
-                    {new Date(content.planning.targetProgramEnd).toLocaleDateString()}
-                  </p>
-                </div>
-              )}
-              {content.planning.plannedProgress !== null && (
-                <div>
-                  <p className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Planned Progress</p>
-                  <p className="text-lg" style={{ color: colors.textPrimary }}>{content.planning.plannedProgress}%</p>
-                </div>
-              )}
-              {content.planning.actualProgress !== null && (
-                <div>
-                  <p className="text-sm font-medium mb-2" style={{ color: colors.textSecondary }}>Actual Progress</p>
-                  <p className="text-lg" style={{ color: colors.textPrimary }}>{content.planning.actualProgress}%</p>
-                </div>
-              )}
-            </div>
-          )}
-          {content.controlMilestones && content.controlMilestones.length > 0 && (
-            <div className="mt-8">
-              <h3 className="text-2xl font-semibold mb-4" style={{ color: colors.textPrimary }}>Control Milestones</h3>
-              <div className="space-y-3">
-                {content.controlMilestones.map((milestone: any, idx: number) => (
-                  <div key={idx} className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                    <div className="flex items-center justify-between">
-                      <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{milestone.name}</p>
-                      <span className="px-3 py-1 rounded-full text-sm" style={{ 
-                        backgroundColor: milestone.status === 'Completed' ? colors.success : colors.warning,
-                        color: colors.backgroundPrimary
-                      }}>
-                        {milestone.status}
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.primary }}></div>
+                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>Planned</span>
+                      </div>
+                      <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                        {plannedProgress.toFixed(1)}%
                       </span>
                     </div>
-                  </div>
-                ))}
+                    <div className="h-4 rounded-full overflow-hidden" style={{ backgroundColor: `${colors.primary}20` }}>
+                      <div 
+                        className="h-full rounded-full transition-all"
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, plannedProgress))}%`,
+                          backgroundColor: colors.primary
+                        }}
+                        title={`Planned: ${plannedProgress.toFixed(1)}%`}
+                      />
+                    </div>
+                </div>
+              )}
+                {/* Actual Progress Bar */}
+                {actualProgress !== null && (
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.info }}></div>
+                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>Actual</span>
+                      </div>
+                      <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                        {actualProgress.toFixed(1)}%
+                      </span>
+                    </div>
+                    <div className="h-4 rounded-full overflow-hidden" style={{ backgroundColor: `${colors.info}20` }}>
+                      <div 
+                        className="h-full rounded-full transition-all"
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, actualProgress))}%`,
+                          backgroundColor: colors.info
+                        }}
+                        title={`Actual: ${actualProgress.toFixed(1)}%`}
+                      />
+                    </div>
+                </div>
+              )}
+                {/* Project Duration Bar */}
+                {project.startDate && project.endDate && (
+                <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center gap-2">
+                        <div className="w-3 h-3 rounded" style={{ backgroundColor: colors.warning }}></div>
+                        <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>Project Duration</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                          {elapsedTimePercentage.toFixed(1)}%
+                        </span>
+                        <span className="text-xs" style={{ color: colors.textMuted }}>
+                          ({elapsedDays} / {totalDays} days)
+                        </span>
+                      </div>
+                    </div>
+                    <div className="h-4 rounded-full overflow-hidden" style={{ backgroundColor: `${colors.warning}20` }}>
+                      <div 
+                        className="h-full rounded-full transition-all"
+                        style={{ 
+                          width: `${Math.min(100, Math.max(0, elapsedTimePercentage))}%`,
+                          backgroundColor: colors.warning
+                        }}
+                        title={`Project Duration: ${elapsedTimePercentage.toFixed(1)}% (${elapsedDays} / ${totalDays} days)`}
+                      />
+                    </div>
+                </div>
+              )}
               </div>
             </div>
           )}
+
+
+          {/* Control Milestones Table */}
+          {totalMilestones > 0 ? (
+            <div className="flex flex-col mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  Control Milestones ({totalMilestones})
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                {totalMilestonePages > 1 && (
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => setPlanningMilestonesPage(Math.max(0, planningMilestonesPage - 1))}
+                      disabled={planningMilestonesPage === 0}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: planningMilestonesPage === 0 ? colors.textMuted : colors.primary,
+                        backgroundColor: planningMilestonesPage === 0 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      {planningMilestonesPage + 1} / {totalMilestonePages}
+                      </span>
+                    <button
+                      onClick={() => setPlanningMilestonesPage(Math.min(totalMilestonePages - 1, planningMilestonesPage + 1))}
+                      disabled={planningMilestonesPage >= totalMilestonePages - 1}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: planningMilestonesPage >= totalMilestonePages - 1 ? colors.textMuted : colors.primary,
+                        backgroundColor: planningMilestonesPage >= totalMilestonePages - 1 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                    </div>
+                )}
+                  </div>
+              <div className="overflow-x-auto">
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Milestone
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Planned Start
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Planned End
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Actual Start
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Actual End
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {currentMilestones.map((milestone: any, idx: number) => {
+                      const getStatusColor = (status: string) => {
+                        switch (status?.toLowerCase()) {
+                          case 'completed':
+                            return { bg: colors.success, text: colors.success, border: colors.success };
+                          case 'ongoing':
+                            return { bg: colors.warning, text: colors.warning, border: colors.warning };
+                          case 'pending':
+                          default:
+                            return { bg: colors.info, text: colors.info, border: colors.info };
+                        }
+                      };
+                      const statusColors = getStatusColor(milestone.status || 'Pending');
+                      
+                      return (
+                        <tr 
+                          key={milestone.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                            {milestone.name || 'N/A'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(milestone.startDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(milestone.endDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(milestone.actualStartDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(milestone.actualEndDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                            <span 
+                              className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                              style={{ 
+                                backgroundColor: `${statusColors.bg}15`,
+                                color: statusColors.text,
+                                border: `1px solid ${statusColors.border}30`,
+                                fontSize: '0.65rem'
+                              }}
+                            >
+                              {milestone.status || 'Pending'}
+                            </span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-4">
+              <Calendar className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                No milestones recorded
+              </p>
+            </div>
+          )}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
 
   const renderQualitySlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const e1Entries = content.e1Entries || [];
+    const e2Entries = content.e2Entries || [];
+    const checklistEntries = content.checklistEntries || [];
+    
+    // Get elapsed time percentage from saved report data (calculated at report generation time)
+    const elapsedTimePercentage = content.elapsedTimePercentage !== undefined && content.elapsedTimePercentage !== null
+      ? parseFloat(content.elapsedTimePercentage.toString())
+      : 0;
+
+    // Helper to format dates for display
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    // Calculate the actual values for explanation (if dates are available)
+    let calculationDetails = null;
+    if (project.startDate && project.endDate && report.reportMonth && report.reportYear) {
+      try {
+        const startDate = new Date(project.startDate);
+        const endDate = new Date(project.endDate);
+        // reportMonth is 1-12 (1=January, 12=December)
+        // JavaScript Date uses 0-11 (0=January, 11=December)
+        // To get last day of reportMonth: convert to 0-11, then use (month + 1, 0)
+        // Example: December (12) -> jsMonth = 11 -> new Date(year, 12, 0) = Dec 31
+        const jsMonth = report.reportMonth - 1; // Convert 1-12 to 0-11
+        const reportEndDate = new Date(report.reportYear, jsMonth + 1, 0); // Last day of report month
+        
+        if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && !isNaN(reportEndDate.getTime())) {
+          const totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          const elapsedDays = Math.ceil((reportEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          
+          calculationDetails = {
+            startDate: formatDate(project.startDate),
+            endDate: formatDate(project.endDate),
+            reportEndDate: formatDate(reportEndDate.toISOString()),
+            totalDays,
+            elapsedDays,
+            percentage: elapsedTimePercentage
+          };
+        }
+      } catch (error) {
+        // Ignore calculation errors for display
+      }
+    }
+
+    // Helper to calculate percentage approved
+    const calculateApprovedPercentage = (total: number | null, approved: number | null): number | null => {
+      if (total === null || approved === null || total === 0) return null;
+      return (approved / total) * 100;
+    };
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Quality Management" />
-        <div className="flex-1 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
-          {content.e1Entries && content.e1Entries.length > 0 && (
-            <div>
-              <h3 className="text-2xl font-semibold mb-4" style={{ color: colors.textPrimary }}>E1 Log Entries</h3>
-              <div className="grid grid-cols-2 gap-4">
-                {content.e1Entries.map((entry: any, idx: number) => (
-                  <div key={idx} className="p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                    <p className="font-medium mb-2" style={{ color: colors.textPrimary }}>{entry.submissionType}</p>
-                    <div className="grid grid-cols-4 gap-2 text-sm">
-                      <div>
-                        <p style={{ color: colors.textSecondary }}>Total</p>
-                        <p style={{ color: colors.textPrimary }}>{entry.totalNumber || 0}</p>
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* E1 Log Entries Table */}
+          {e1Entries.length > 0 && (
+            <div className="mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  E1 Log - Engineering Phase Submissions
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                       </div>
-                      <div>
-                        <p style={{ color: colors.textSecondary }}>Submitted</p>
-                        <p style={{ color: colors.textPrimary }}>{entry.submitted || 0}</p>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-1.5 px-3 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Type
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Total
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Sub
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Review
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Appr
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Revise
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        % Appr
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Elapsed %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {e1Entries.map((entry: any, idx: number) => {
+                      const approvedPct = calculateApprovedPercentage(entry.totalNumber, entry.approved);
+                      return (
+                        <tr 
+                          key={entry.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.border}`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-1 px-3 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.submissionType || 'N/A'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.totalNumber ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.submitted ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.warning, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.underReview ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.approved ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.error, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.reviseAndResubmit ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {approvedPct !== null ? `${approvedPct.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.info, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {elapsedTimePercentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
                       </div>
-                      <div>
-                        <p style={{ color: colors.textSecondary }}>Under Review</p>
-                        <p style={{ color: colors.textPrimary }}>{entry.underReview || 0}</p>
                       </div>
-                      <div>
-                        <p style={{ color: colors.textSecondary }}>Approved</p>
-                        <p style={{ color: colors.textPrimary }}>{entry.approved || 0}</p>
+          )}
+
+          {/* E2 Log Entries Table */}
+          {e2Entries.length > 0 && (
+            <div className="mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  E2 Log - Procurement Phase Long Lead Items
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                       </div>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-1.5 px-3 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Type
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Total
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Sub
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Review
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Appr
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Revise
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        % Appr
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Elapsed %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {e2Entries.map((entry: any, idx: number) => {
+                      const approvedPct = calculateApprovedPercentage(entry.totalNumber, entry.approved);
+                      return (
+                        <tr 
+                          key={entry.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.border}`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-1 px-3 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.submissionType || 'N/A'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.totalNumber ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.submitted ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.warning, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.underReview ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.approved ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.error, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.reviseAndResubmit ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {approvedPct !== null ? `${approvedPct.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.info, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {elapsedTimePercentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
                     </div>
                   </div>
-                ))}
+          )}
+
+          {/* Quality Checklist Entries Table */}
+          {checklistEntries.length > 0 && (
+            <div className="mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  Quality Checklist
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              </div>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-1.5 px-3 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Type
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Sub
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Review
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Appr
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Reject
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        % Appr
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem'
+                        }}
+                      >
+                        Elapsed %
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {checklistEntries.map((entry: any, idx: number) => {
+                      // For checklist, calculate approved percentage from submitted (not total)
+                      const totalSubmitted = (entry.submitted || 0) + (entry.underReview || 0) + (entry.approved || 0) + (entry.rejected || 0);
+                      const approvedPct = totalSubmitted > 0 ? ((entry.approved || 0) / totalSubmitted) * 100 : null;
+                      return (
+                        <tr 
+                          key={entry.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.border}`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-1 px-3 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.submissionType || 'N/A'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                            {entry.submitted ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.warning, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.underReview ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.approved ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.error, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {entry.rejected ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {approvedPct !== null ? `${approvedPct.toFixed(1)}%` : '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.info, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {elapsedTimePercentage.toFixed(1)}%
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
+
+          {/* Empty State */}
+          {e1Entries.length === 0 && e2Entries.length === 0 && checklistEntries.length === 0 && (
+            <div className="text-center py-8">
+              <ShieldCheck className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                No quality data recorded
+              </p>
         </div>
+          )}
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };
@@ -1475,72 +2409,72 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <thead>
                   <tr>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        fontSize: '0.8rem',
+                        fontSize: '0.7rem',
                         height: 'auto'
                       }}
                     >
                       Item #
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        fontSize: '0.8rem',
+                        fontSize: '0.7rem',
                         height: 'auto'
                       }}
                     >
                       Phase
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        fontSize: '0.8rem',
+                        fontSize: '0.7rem',
                         height: 'auto'
                       }}
                     >
                       Planned Date
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        fontSize: '0.8rem',
+                        fontSize: '0.7rem',
                         height: 'auto'
                       }}
                     >
                       Actual Date
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        fontSize: '0.8rem',
+                        fontSize: '0.7rem',
                         height: 'auto'
                       }}
                     >
                       Status
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
                         borderBottom: `2px solid ${colors.primary}`,
-                        fontSize: '0.8rem',
+                        fontSize: '0.7rem',
                         height: 'auto'
                       }}
                     >
@@ -1558,16 +2492,16 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                             backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
                           }}
                         >
-                      <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-8' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.8rem', height: 'auto' }}>
+                      <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-8' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
                         {item.displayNumber || '-'}
                           </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.8rem', height: 'auto' }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
                             {item.phase}
                           </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.75rem', height: 'auto' }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
                             {formatDate(item.plannedDate)}
                           </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.75rem', height: 'auto' }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
                             {formatDate(item.actualDate)}
                           </td>
                       <td className="py-0.5 px-2" style={{ height: 'auto' }}>
@@ -1578,16 +2512,16 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                                   backgroundColor: `${getStatusColor(item.status)}15`,
                                   color: getStatusColor(item.status),
                               border: `1px solid ${getStatusColor(item.status)}30`,
-                              fontSize: '0.75rem'
+                              fontSize: '0.65rem'
                                 }}
                               >
                                 {item.status}
                               </span>
                             ) : (
-                          <span style={{ color: colors.textMuted, fontSize: '0.75rem' }}>-</span>
+                          <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
                             )}
                           </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.75rem', height: 'auto' }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
                               {item.notes || '-'}
                           </td>
                         </tr>
@@ -1872,18 +2806,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         {/* Tables Container - Uses explicit heights to prevent overflow */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Assigned Staff Table - Shown First with Slider */}
-          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ 
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6" style={{ 
             marginBottom: isLastPage && balanceStaffList.length > 0 ? '16px' : '0'
           }}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 
-                className="text-sm font-semibold"
-                style={{ color: colors.textPrimary }}
-              >
+            <div className="flex items-center mb-1">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                 Assigned Staff
               </h3>
-              {assignedStaffList.length > 10 && (
-                <div className="flex items-center gap-2">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              {assignedStaffList.length > 8 && (
+                <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={() => setAssignedStaffPage(Math.max(0, assignedStaffPage - 1))}
                     disabled={assignedStaffPage === 0}
@@ -1896,15 +2829,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <span className="text-xs" style={{ color: colors.textSecondary }}>
-                    {assignedStaffPage + 1} / {Math.ceil(assignedStaffList.length / 10)}
+                    {assignedStaffPage + 1} / {Math.ceil(assignedStaffList.length / 8)}
                   </span>
                   <button
-                  onClick={() => setAssignedStaffPage(Math.min(Math.ceil(assignedStaffList.length / 10) - 1, assignedStaffPage + 1))}
-                  disabled={assignedStaffPage >= Math.ceil(assignedStaffList.length / 10) - 1}
+                  onClick={() => setAssignedStaffPage(Math.min(Math.ceil(assignedStaffList.length / 8) - 1, assignedStaffPage + 1))}
+                  disabled={assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1}
                   className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
                   style={{ 
-                    color: assignedStaffPage >= Math.ceil(assignedStaffList.length / 10) - 1 ? colors.textMuted : colors.primary,
-                    backgroundColor: assignedStaffPage >= Math.ceil(assignedStaffList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                    color: assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1 ? colors.textMuted : colors.primary,
+                    backgroundColor: assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1 ? 'transparent' : colors.backgroundSecondary
                   }}
                   >
                     <ArrowRight className="w-4 h-4" />
@@ -1922,15 +2855,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     height: '100%'
                   }}
                 >
-                  {Array.from({ length: Math.ceil(assignedStaffList.length / 10) }).map((_, pageIdx) => {
-                    const pageStaff = assignedStaffList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                  {Array.from({ length: Math.ceil(assignedStaffList.length / 8) }).map((_, pageIdx) => {
+                    const pageStaff = assignedStaffList.slice(pageIdx * 8, (pageIdx + 1) * 8);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
                         <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
                 <thead>
                   <tr>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -1942,7 +2875,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Staff Name
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -1954,7 +2887,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Position
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -1966,7 +2899,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Utilization
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -1978,7 +2911,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Start Date
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -1990,7 +2923,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       End Date
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2002,7 +2935,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Duration
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2014,7 +2947,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Status
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2101,16 +3034,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
           {/* Balance Staff Table - Positions that need to be filled (only on last page) with Slider - Takes remaining space */}
           {isLastPage && balanceStaffList.length > 0 && (
-          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
-            <div className="flex items-center justify-between mb-1">
-              <h3 
-                className="text-sm font-semibold"
-                style={{ color: colors.textPrimary }}
-              >
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mt-8 mb-6">
+            <div className="flex items-center mb-1">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                 Balance Staff (Positions to be Filled)
               </h3>
-              {balanceStaffList.length > 10 && (
-                <div className="flex items-center gap-2">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              {balanceStaffList.length > 8 && (
+                <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={() => setBalanceStaffPage(Math.max(0, balanceStaffPage - 1))}
                     disabled={balanceStaffPage === 0}
@@ -2123,15 +3055,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <ArrowLeft className="w-4 h-4" />
                   </button>
                   <span className="text-xs" style={{ color: colors.textSecondary }}>
-                    {balanceStaffPage + 1} / {Math.ceil(balanceStaffList.length / 10)}
+                    {balanceStaffPage + 1} / {Math.ceil(balanceStaffList.length / 8)}
                   </span>
                   <button
-                    onClick={() => setBalanceStaffPage(Math.min(Math.ceil(balanceStaffList.length / 10) - 1, balanceStaffPage + 1))}
-                    disabled={balanceStaffPage >= Math.ceil(balanceStaffList.length / 10) - 1}
+                    onClick={() => setBalanceStaffPage(Math.min(Math.ceil(balanceStaffList.length / 8) - 1, balanceStaffPage + 1))}
+                    disabled={balanceStaffPage >= Math.ceil(balanceStaffList.length / 8) - 1}
                     className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
                     style={{ 
-                      color: balanceStaffPage >= Math.ceil(balanceStaffList.length / 10) - 1 ? colors.textMuted : colors.primary,
-                      backgroundColor: balanceStaffPage >= Math.ceil(balanceStaffList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                      color: balanceStaffPage >= Math.ceil(balanceStaffList.length / 8) - 1 ? colors.textMuted : colors.primary,
+                      backgroundColor: balanceStaffPage >= Math.ceil(balanceStaffList.length / 8) - 1 ? 'transparent' : colors.backgroundSecondary
                     }}
                   >
                     <ArrowRight className="w-4 h-4" />
@@ -2147,15 +3079,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   height: '100%'
                 }}
               >
-                {Array.from({ length: Math.ceil(balanceStaffList.length / 10) }).map((_, pageIdx) => {
-                  const pageBalanceStaff = balanceStaffList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                {Array.from({ length: Math.ceil(balanceStaffList.length / 8) }).map((_, pageIdx) => {
+                  const pageBalanceStaff = balanceStaffList.slice(pageIdx * 8, (pageIdx + 1) * 8);
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                       <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
                 <thead>
                   <tr>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2167,7 +3099,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Position
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2179,7 +3111,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Required
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2191,7 +3123,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Assigned
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2508,18 +3440,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         {/* Tables Container - Uses explicit heights to prevent overflow */}
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Assigned Labours Table - Shown First with Slider */}
-          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ 
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6" style={{ 
             marginBottom: isLastPage && balanceLaboursList.length > 0 ? '16px' : '0'
           }}>
-            <div className="flex items-center justify-between mb-1">
-              <h3 
-                className="text-sm font-semibold"
-                style={{ color: colors.textPrimary }}
-              >
+            <div className="flex items-center mb-1">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                 Assigned Labours
               </h3>
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
               {assignedLaboursList.length > 10 && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={() => setAssignedLaboursPage(Math.max(0, assignedLaboursPage - 1))}
                     disabled={assignedLaboursPage === 0}
@@ -2566,7 +3497,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <thead>
                   <tr>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2578,7 +3509,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Labour Name
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2590,7 +3521,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Trade
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2602,7 +3533,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Utilization
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2614,7 +3545,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Start Date
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2626,7 +3557,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       End Date
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2638,7 +3569,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Duration
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2650,7 +3581,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Status
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2733,16 +3664,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
           {/* Balance Labours Table - Trades that need to be filled (only on last page) with Slider - Takes remaining space */}
           {isLastPage && balanceLaboursList.length > 0 && (
-          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
-            <div className="flex items-center justify-between mb-1">
-              <h3 
-                className="text-sm font-semibold"
-                style={{ color: colors.textPrimary }}
-              >
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mt-8 mb-6">
+            <div className="flex items-center mb-1">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                 Balance Labours (Trades to be Filled)
               </h3>
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
               {balanceLaboursList.length > 10 && (
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 ml-4">
                   <button
                     onClick={() => setBalanceLaboursPage(Math.max(0, balanceLaboursPage - 1))}
                     disabled={balanceLaboursPage === 0}
@@ -2787,7 +3717,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <thead>
                   <tr>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2799,7 +3729,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Trade
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2811,7 +3741,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Required
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2823,7 +3753,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       Assigned
                     </th>
                     <th 
-                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                       style={{ 
                         color: colors.primary, 
                         backgroundColor: colors.backgroundSecondary,
@@ -2882,16 +3812,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
           {/* Labour Supply Table - Shows labour supply details with Slider */}
           {content.labourSupply && Array.isArray(content.labourSupply) && content.labourSupply.length > 0 && (
-            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ marginTop: '16px' }}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 
-                  className="text-sm font-semibold"
-                  style={{ color: colors.textPrimary }}
-                >
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                   Labour Supply
                 </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                 {content.labourSupply.length > 10 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-4">
                     <button
                       onClick={() => setLabourSupplyPage(Math.max(0, labourSupplyPage - 1))}
                       disabled={labourSupplyPage === 0}
@@ -2936,7 +3865,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <thead>
                     <tr>
                       <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                         style={{ 
                           color: colors.primary, 
                           backgroundColor: colors.backgroundSecondary,
@@ -2948,7 +3877,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Trade
                       </th>
                       <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                         style={{ 
                           color: colors.primary, 
                           backgroundColor: colors.backgroundSecondary,
@@ -2960,7 +3889,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Number of Labour
                       </th>
                       <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                         style={{ 
                           color: colors.primary, 
                           backgroundColor: colors.backgroundSecondary,
@@ -2972,7 +3901,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Price Per Hour
                       </th>
                       <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                         style={{ 
                           color: colors.primary, 
                           backgroundColor: colors.backgroundSecondary,
@@ -3195,18 +4124,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Assigned Plants Table - All plants with Direct/Indirect type */}
           {allAssignedPlants.length > 0 && (
-            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ 
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6" style={{ 
               marginBottom: balancePlantsList.length > 0 ? '16px' : '0'
             }}>
-              <div className="flex items-center justify-between mb-1">
-                <h3 
-                  className="text-sm font-semibold"
-                  style={{ color: colors.textPrimary }}
-                >
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                   Assigned Plants
                 </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                 {allAssignedPlants.length > 10 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-4">
                     <button
                       onClick={() => setAssignedDirectPlantsPage(Math.max(0, assignedDirectPlantsPage - 1))}
                       disabled={assignedDirectPlantsPage === 0}
@@ -3250,14 +4178,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
                           <thead>
                             <tr>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plant</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Code</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plate Number</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Type</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Start Date</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>End Date</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Duration</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Status</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plant</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Code</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plate Number</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Type</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Start Date</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>End Date</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Duration</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Status</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3297,16 +4225,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
           {/* Balance Plants Table - Requirements that need to be filled */}
           {balancePlantsList.length > 0 && (
-            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
-              <div className="flex items-center justify-between mb-1">
-                <h3 
-                  className="text-sm font-semibold"
-                  style={{ color: colors.textPrimary }}
-                >
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                   Balance Plants (Requirements to be Filled)
                 </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                 {balancePlantsList.length > 10 && (
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 ml-4">
                     <button
                       onClick={() => setBalanceDirectPlantsPage(Math.max(0, balanceDirectPlantsPage - 1))}
                       disabled={balanceDirectPlantsPage === 0}
@@ -3350,10 +4277,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
                           <thead>
                             <tr>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Requirement</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Required</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Assigned</th>
-                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Balance</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Requirement</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Required</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Assigned</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Balance</th>
                             </tr>
                           </thead>
                           <tbody>
@@ -3392,19 +4319,172 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   const renderAssetsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const entries = content.entries || [];
+    const itemsPerPage = 10;
+    const totalItems = entries.length;
+    const totalPagesForAssets = Math.ceil(totalItems / itemsPerPage);
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Project Assets" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
-          {content.map((asset: any, idx: number) => (
-            <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{asset.type}</p>
-              <p className="text-sm" style={{ color: colors.textSecondary }}>{asset.description}</p>
-              {asset.assetNumber && (
-                <p className="text-sm mt-1" style={{ color: colors.textMuted }}>Asset #: {asset.assetNumber}</p>
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {totalItems === 0 ? (
+            <div className="text-center py-4">
+              <Package className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                No assets recorded
+              </p>
+            </div>
+          ) : (
+            <>
+              <div className="flex items-center mt-8 mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  Project Assets
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                {totalItems > 10 && (
+                  <div className="flex items-center gap-2 ml-4">
+                    <button
+                      onClick={() => setAssetsPage(Math.max(0, assetsPage - 1))}
+                      disabled={assetsPage === 0}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: assetsPage === 0 ? colors.textMuted : colors.primary,
+                        backgroundColor: assetsPage === 0 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      {assetsPage + 1} / {totalPagesForAssets}
+                    </span>
+                    <button
+                      onClick={() => setAssetsPage(Math.min(totalPagesForAssets - 1, assetsPage + 1))}
+                      disabled={assetsPage >= totalPagesForAssets - 1}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: assetsPage >= totalPagesForAssets - 1 ? colors.textMuted : colors.primary,
+                        backgroundColor: assetsPage >= totalPagesForAssets - 1 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
               )}
             </div>
-          ))}
+              <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', maxHeight: '100%' }}>
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${assetsPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: totalPagesForAssets }).map((_, pageIdx) => {
+                    const pageEntries = entries.slice(pageIdx * itemsPerPage, (pageIdx + 1) * itemsPerPage);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                          <thead>
+                            <tr>
+                              <th 
+                                className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                                style={{ 
+                                  color: colors.primary, 
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderBottom: `2px solid ${colors.primary}`,
+                                  fontSize: '0.7rem',
+                                  height: 'auto'
+                                }}
+                              >
+                                Type
+                              </th>
+                              <th 
+                                className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                                style={{ 
+                                  color: colors.primary, 
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderBottom: `2px solid ${colors.primary}`,
+                                  fontSize: '0.7rem',
+                                  height: 'auto'
+                                }}
+                              >
+                                Description
+                              </th>
+                              <th 
+                                className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                                style={{ 
+                                  color: colors.primary, 
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderBottom: `2px solid ${colors.primary}`,
+                                  fontSize: '0.7rem',
+                                  height: 'auto'
+                                }}
+                              >
+                                Asset Number
+                              </th>
+                              <th 
+                                className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                                style={{ 
+                                  color: colors.primary, 
+                                  backgroundColor: colors.backgroundSecondary,
+                                  borderBottom: `2px solid ${colors.primary}`,
+                                  fontSize: '0.7rem',
+                                  height: 'auto'
+                                }}
+                              >
+                                Status
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pageEntries.map((asset: any, idx: number) => (
+                              <tr 
+                                key={asset.id || idx}
+                                className="hover:opacity-90 transition-opacity"
+                                style={{ 
+                                  borderBottom: `1px solid ${colors.primary}15`,
+                                  backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                                }}
+                              >
+                                <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                                  {asset.type || 'N/A'}
+                                </td>
+                                <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                                  {asset.description || 'N/A'}
+                                </td>
+                                <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                                  {asset.assetNumber || 'N/A'}
+                                </td>
+                                <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                                  <span 
+                                    className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                    style={{ 
+                                      backgroundColor: asset.status === 'Active' 
+                                        ? `${colors.success}15` 
+                                        : `${colors.warning}15`,
+                                      color: asset.status === 'Active' 
+                                        ? colors.success 
+                                        : colors.warning,
+                                      border: `1px solid ${asset.status === 'Active' ? colors.success : colors.warning}30`,
+                                      fontSize: '0.65rem'
+                                    }}
+                                  >
+                                    {asset.status || 'Active'}
+                                  </span>
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </>
+          )}
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>

@@ -711,7 +711,7 @@ export default function ProjectManager() {
   };
 
   // Collect all project data from all tabs
-  const collectProjectData = async (): Promise<any> => {
+  const collectProjectData = async (reportMonth?: number, reportYear?: number): Promise<any> => {
     if (!selectedProject) return null;
 
     // Ensure we have full project data with all relationships
@@ -840,7 +840,40 @@ export default function ProjectManager() {
       // Quality
       const qualityRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/quality`);
       if (qualityRes.success) {
-        reportData.quality = qualityRes.data;
+        // Calculate elapsed time percentage at end of report month
+        // Formula: (end of report month - project start date) / (project end date - project start date) * 100
+        let elapsedTimePercentage = 0;
+        if (reportMonth && reportYear && fullProjectData.startDate && fullProjectData.endDate) {
+          try {
+            const startDate = new Date(fullProjectData.startDate);
+            const endDate = new Date(fullProjectData.endDate);
+            // End of report month (last day of the month)
+            // reportMonth is 1-12 (1=January, 12=December)
+            // JavaScript Date uses 0-11 (0=January, 11=December)
+            // To get last day of reportMonth: convert to 0-11, then use (month + 1, 0)
+            // Example: December (12) -> jsMonth = 11 -> new Date(year, 12, 0) = Dec 31
+            const jsMonth = reportMonth - 1; // Convert 1-12 to 0-11
+            const reportEndDate = new Date(reportYear, jsMonth + 1, 0); // Last day of report month
+            
+            if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && !isNaN(reportEndDate.getTime())) {
+              // Calculate duration in days
+              const totalDurationDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+              const elapsedDurationDays = Math.ceil((reportEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+              
+              if (totalDurationDays > 0) {
+                elapsedTimePercentage = (elapsedDurationDays / totalDurationDays) * 100;
+                elapsedTimePercentage = Math.max(0, Math.min(100, elapsedTimePercentage)); // Clamp between 0 and 100
+              }
+            }
+          } catch (error) {
+            console.error('Error calculating elapsed time percentage:', error);
+          }
+        }
+        
+        reportData.quality = {
+          ...qualityRes.data,
+          elapsedTimePercentage: elapsedTimePercentage
+        };
       }
 
       // Risks
@@ -938,7 +971,7 @@ export default function ProjectManager() {
 
     setIsGeneratingReport(true);
     try {
-      const reportData = await collectProjectData();
+      const reportData = await collectProjectData(reportMonth, reportYear);
       
       const response = await post<{ success: boolean; data: any; error?: string }>('/api/admin/reports', {
         projectId: selectedProject.id,
