@@ -62,7 +62,9 @@ import {
   MessageSquare,
   Download,
   Truck,
-  FileBarChart
+  FileBarChart,
+  Hammer,
+  UserCog
 } from 'lucide-react';
 
 interface Project {
@@ -877,6 +879,12 @@ export default function ProjectManager() {
         reportData.labours = laboursRes.data;
       }
 
+      // Project Trades (needed to show trades with no assignments)
+      const projectTradesRes = await get<{ success: boolean; data: any }>(`/api/admin/project-trades?projectId=${selectedProject.id}`);
+      if (projectTradesRes.success) {
+        reportData.projectTrades = projectTradesRes.data;
+      }
+
       // Labour Supply
       const labourSupplyRes = await get<{ success: boolean; data: any }>(`/api/admin/project-labour-supplies?projectId=${selectedProject.id}`);
       if (labourSupplyRes.success) {
@@ -887,6 +895,12 @@ export default function ProjectManager() {
       const plantsRes = await get<{ success: boolean; data: any }>(`/api/admin/project-plants?projectId=${selectedProject.id}`);
       if (plantsRes.success) {
         reportData.plants = plantsRes.data;
+      }
+
+      // Plant Requirements
+      const plantRequirementsRes = await get<{ success: boolean; data: any }>(`/api/admin/project-plant-requirements?projectId=${selectedProject.id}`);
+      if (plantRequirementsRes.success) {
+        reportData.plantRequirements = plantRequirementsRes.data;
       }
 
       // Assets
@@ -1569,19 +1583,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'overview') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'overview') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'overview' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'overview' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'overview' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'overview' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'overview' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'overview' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'overview' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'overview' ? colors.primary : 'transparent'
@@ -1601,19 +1621,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'checklist') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'checklist') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'checklist' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'checklist' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'checklist' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'checklist' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'checklist' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'checklist' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'checklist' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'checklist' ? colors.primary : 'transparent'
@@ -1633,19 +1659,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'staff') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'staff') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'staff' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'staff' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'staff' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'staff' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'staff' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'staff' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'staff' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'staff' ? colors.primary : 'transparent'
@@ -1665,26 +1697,32 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'labours') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'labours') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'labours' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'labours' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'labours' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'labours' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'labours' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'labours' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'labours' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'labours' ? colors.primary : 'transparent'
               } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
-                <HardHat className="w-4 h-4" />
+                <Hammer className="w-4 h-4" />
                 <span>Labours</span>
               </div>
             </button>
@@ -1697,26 +1735,32 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'labourSupply') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'labourSupply') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{ 
                 color: activeTab === 'labourSupply' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'labourSupply' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'labourSupply' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'labourSupply' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'labourSupply' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'labourSupply' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'labourSupply' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'labourSupply' ? colors.primary : 'transparent'
               } as React.CSSProperties}
             >
               <div className="flex items-center space-x-2">
-                <Wrench className="w-4 h-4" />
+                <UserCog className="w-4 h-4" />
                 <span>Labour Supply</span>
               </div>
             </button>
@@ -1729,19 +1773,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'plants') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'plants') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'plants' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'plants' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'plants' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'plants' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'plants' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'plants' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'plants' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'plants' ? colors.primary : 'transparent'
@@ -1761,19 +1811,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'assets') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'assets') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'assets' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'assets' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'assets' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'assets' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'assets' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'assets' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'assets' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'assets' ? colors.primary : 'transparent'
@@ -1793,19 +1849,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'planning') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'planning') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'planning' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'planning' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'planning' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'planning' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'planning' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'planning' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'planning' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'planning' ? colors.primary : 'transparent'
@@ -1825,19 +1887,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'quality') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'quality') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'quality' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'quality' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'quality' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'quality' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'quality' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'quality' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'quality' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'quality' ? colors.primary : 'transparent'
@@ -1857,19 +1925,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'risks') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'risks') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'risks' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'risks' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'risks' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'risks' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'risks' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'risks' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'risks' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'risks' ? colors.primary : 'transparent'
@@ -1889,19 +1963,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'hse') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'hse') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'hse' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'hse' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'hse' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'hse' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'hse' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'hse' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'hse' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'hse' ? colors.primary : 'transparent'
@@ -1921,19 +2001,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'pictures') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'pictures') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'pictures' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'pictures' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'pictures' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'pictures' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'pictures' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'pictures' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'pictures' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'pictures' ? colors.primary : 'transparent'
@@ -1953,19 +2039,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'commercial') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'commercial') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'commercial' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'commercial' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'commercial' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'commercial' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'commercial' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'commercial' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'commercial' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'commercial' ? colors.primary : 'transparent'
@@ -1985,19 +2077,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'ipc') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'ipc') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'ipc' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'ipc' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'ipc' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'ipc' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'ipc' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'ipc' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'ipc' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'ipc' ? colors.primary : 'transparent'
@@ -2017,19 +2115,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'suppliers') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'suppliers') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'suppliers' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'suppliers' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'suppliers' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'suppliers' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'suppliers' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'suppliers' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'suppliers' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'suppliers' ? colors.primary : 'transparent'
@@ -2049,19 +2153,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'subcontractors') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'subcontractors') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'subcontractors' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'subcontractors' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'subcontractors' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'subcontractors' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'subcontractors' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'subcontractors' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'subcontractors' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'subcontractors' ? colors.primary : 'transparent'
@@ -2081,19 +2191,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'closeOut') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'closeOut') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'closeOut' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'closeOut' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'closeOut' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'closeOut' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'closeOut' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'closeOut' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'closeOut' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'closeOut' ? colors.primary : 'transparent'
@@ -2113,19 +2229,25 @@ export default function ProjectManager() {
               }`}
               onMouseEnter={(e) => {
                 if (activeTab !== 'clientFeedback') {
-                  e.currentTarget.style.borderColor = colors.borderLight;
+                  e.currentTarget.style.borderTopColor = colors.borderLight;
+                  e.currentTarget.style.borderLeftColor = colors.borderLight;
+                  e.currentTarget.style.borderRightColor = colors.borderLight;
                   e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                 }
               }}
               onMouseLeave={(e) => {
                 if (activeTab !== 'clientFeedback') {
-                  e.currentTarget.style.borderColor = colors.border;
+                  e.currentTarget.style.borderTopColor = colors.border;
+                  e.currentTarget.style.borderLeftColor = colors.border;
+                  e.currentTarget.style.borderRightColor = colors.border;
                   e.currentTarget.style.backgroundColor = 'transparent';
                 }
               }}
               style={{
                 color: activeTab === 'clientFeedback' ? colors.primary : colors.textSecondary,
-                borderColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
+                borderTopColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
+                borderLeftColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
+                borderRightColor: activeTab === 'clientFeedback' ? colors.primary : colors.border,
                 backgroundColor: activeTab === 'clientFeedback' ? colors.backgroundSecondary : 'transparent',
                 borderBottomColor: activeTab === 'clientFeedback' ? 'transparent' : colors.border,
                 '--tab-border-color': activeTab === 'clientFeedback' ? colors.primary : 'transparent'

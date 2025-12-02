@@ -31,13 +31,31 @@ const assignmentSchema = z.object({
 
 function serializeAssignment(assignment: any) {
   return {
-    ...assignment,
+    id: assignment.id,
+    projectId: assignment.projectId,
+    plantId: assignment.plantId,
+    requirementId: assignment.requirementId,
     slotIndex: assignment.slotIndex !== null && assignment.slotIndex !== undefined ? Number(assignment.slotIndex) : null,
+    startDate: assignment.startDate ? assignment.startDate.toISOString() : null,
+    endDate: assignment.endDate ? assignment.endDate.toISOString() : null,
+    status: assignment.status,
+    notes: assignment.notes,
     monthlyCost: assignment.monthlyCost ? Number(assignment.monthlyCost) : null,
+    createdAt: assignment.createdAt ? assignment.createdAt.toISOString() : null,
+    updatedAt: assignment.updatedAt ? assignment.updatedAt.toISOString() : null,
     plant: assignment.plant
       ? {
-          ...assignment.plant,
+          id: assignment.plant.id,
+          tenantId: assignment.plant.tenantId,
+          plantDescription: assignment.plant.plantDescription,
+          plantCode: assignment.plant.plantCode,
+          plateNumber: assignment.plant.plateNumber,
+          plantType: assignment.plant.plantType, // Explicitly include plantType for categorization
+          isOwned: assignment.plant.isOwned,
           monthlyCost: assignment.plant.monthlyCost ? Number(assignment.plant.monthlyCost) : 0,
+          isActive: assignment.plant.isActive,
+          createdAt: assignment.plant.createdAt ? assignment.plant.createdAt.toISOString() : null,
+          updatedAt: assignment.plant.updatedAt ? assignment.plant.updatedAt.toISOString() : null,
         }
       : null,
     requirement: assignment.requirement
@@ -50,8 +68,17 @@ function serializeAssignment(assignment: any) {
             monthlyCost: item.monthlyCost ? Number(item.monthlyCost) : null,
             plant: item.plant
               ? {
-                  ...item.plant,
+                  id: item.plant.id,
+                  tenantId: item.plant.tenantId,
+                  plantDescription: item.plant.plantDescription,
+                  plantCode: item.plant.plantCode,
+                  plateNumber: item.plant.plateNumber,
+                  plantType: item.plant.plantType, // Explicitly include plantType for categorization
+                  isOwned: item.plant.isOwned,
                   monthlyCost: item.plant.monthlyCost ? Number(item.plant.monthlyCost) : 0,
+                  isActive: item.plant.isActive,
+                  createdAt: item.plant.createdAt,
+                  updatedAt: item.plant.updatedAt,
                 }
               : null,
           })) ?? [],

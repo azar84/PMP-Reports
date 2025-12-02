@@ -66,6 +66,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const [assignedStaffPage, setAssignedStaffPage] = useState(0);
   const [balanceStaffPage, setBalanceStaffPage] = useState(0);
   const [checklistPage, setChecklistPage] = useState(0);
+  const [assignedLaboursPage, setAssignedLaboursPage] = useState(0);
+  const [balanceLaboursPage, setBalanceLaboursPage] = useState(0);
+  const [labourSupplyPage, setLabourSupplyPage] = useState(0);
+  const [assignedDirectPlantsPage, setAssignedDirectPlantsPage] = useState(0);
+  const [balanceDirectPlantsPage, setBalanceDirectPlantsPage] = useState(0);
+  const [assignedIndirectPlantsPage, setAssignedIndirectPlantsPage] = useState(0);
+  const [balanceIndirectPlantsPage, setBalanceIndirectPlantsPage] = useState(0);
+  const [assignedRequiredPlantsPage, setAssignedRequiredPlantsPage] = useState(0);
 
   useEffect(() => {
     if (report.reportData) {
@@ -79,6 +87,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     setAssignedStaffPage(0);
     setBalanceStaffPage(0);
     setChecklistPage(0);
+    setAssignedLaboursPage(0);
+    setBalanceLaboursPage(0);
+    setLabourSupplyPage(0);
+    setAssignedDirectPlantsPage(0);
+    setBalanceDirectPlantsPage(0);
+    setAssignedIndirectPlantsPage(0);
+    setBalanceIndirectPlantsPage(0);
+    setAssignedRequiredPlantsPage(0);
   }, [currentSlide]);
 
   // Keyboard navigation
@@ -249,7 +265,242 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 5: Planning
+    // Slide 5: Labours (similar structure to Staff)
+    if ((data.labours && data.labours.length > 0) || (data.projectTrades && data.projectTrades.length > 0)) {
+      // Process labours data similar to staff
+      const allAssignedLabours: any[] = [];
+      const tradeSummary: Array<{
+        trade: string;
+        required: number;
+        assigned: number;
+        balance: number;
+      }> = [];
+      
+      // Use projectTrades as source of truth for all trades (includes trades with no assignments)
+      // If projectTrades is not available, fall back to inferring from labours
+      const tradesMap = new Map<string, { required: number; assignments: any[] }>();
+      
+      // First, initialize all trades from projectTrades (if available)
+      if (data.projectTrades && Array.isArray(data.projectTrades)) {
+        data.projectTrades.forEach((projectTrade: any) => {
+          const tradeName = projectTrade.trade || 'Unknown';
+          const requiredQuantity = projectTrade.requiredQuantity || 0;
+          
+          if (!tradesMap.has(tradeName)) {
+            tradesMap.set(tradeName, {
+              required: requiredQuantity,
+              assignments: []
+            });
+          }
+        });
+      }
+      
+      // Then, process labour assignments and match them to trades
+      if (data.labours && Array.isArray(data.labours)) {
+        data.labours.forEach((labourAssignment: any) => {
+          const tradeName = labourAssignment.trade?.trade || 'Unknown';
+          
+          // If trade not in map yet (fallback for old data format), add it
+          if (!tradesMap.has(tradeName)) {
+            const requiredQuantity = labourAssignment.trade?.requiredQuantity || 0;
+            tradesMap.set(tradeName, {
+              required: requiredQuantity,
+              assignments: []
+            });
+          }
+          
+          if (labourAssignment.labour && labourAssignment.labour.labourName) {
+            allAssignedLabours.push({
+              ...labourAssignment,
+              tradeName: tradeName,
+            });
+            tradesMap.get(tradeName)!.assignments.push(labourAssignment);
+          }
+        });
+      }
+      
+      // Also process assignments from projectTrades if they're included there
+      if (data.projectTrades && Array.isArray(data.projectTrades)) {
+        data.projectTrades.forEach((projectTrade: any) => {
+          const tradeName = projectTrade.trade || 'Unknown';
+          
+          if (projectTrade.labourAssignments && Array.isArray(projectTrade.labourAssignments)) {
+            projectTrade.labourAssignments.forEach((labourAssignment: any) => {
+              if (labourAssignment.labour && labourAssignment.labour.labourName) {
+                // Check if already added from data.labours
+                const alreadyAdded = allAssignedLabours.some(
+                  al => al.id === labourAssignment.id || 
+                  (al.labourId === labourAssignment.labourId && al.tradeName === tradeName)
+                );
+                
+                if (!alreadyAdded) {
+                  allAssignedLabours.push({
+                    ...labourAssignment,
+                    tradeName: tradeName,
+                  });
+                }
+                
+                // Add to assignments for this trade
+                if (tradesMap.has(tradeName)) {
+                  const alreadyInAssignments = tradesMap.get(tradeName)!.assignments.some(
+                    a => a.id === labourAssignment.id
+                  );
+                  if (!alreadyInAssignments) {
+                    tradesMap.get(tradeName)!.assignments.push(labourAssignment);
+                  }
+                }
+              }
+            });
+          }
+        });
+      }
+      
+      // Calculate trade summary for all trades (including those with no assignments)
+      tradesMap.forEach((tradeData, tradeName) => {
+        const assignedCount = tradeData.assignments.reduce((sum: number, assignment: any) => {
+          // Count utilization percentage (50% = 0.5, 100% = 1.0)
+          const utilizationValue = (assignment.utilization || 100) / 100;
+          return sum + utilizationValue;
+        }, 0);
+        
+        const balance = tradeData.required - assignedCount;
+        tradeSummary.push({
+          trade: tradeName,
+          required: tradeData.required,
+          assigned: assignedCount,
+          balance: balance,
+        });
+      });
+      
+      // Get balance labours (trades that need to be filled)
+      const balanceLaboursList = tradeSummary.filter(trade => trade.balance > 0);
+      
+      // Create ONE labours slide with all assigned labours (internal pagination handles 10 per page)
+      slides.push({
+        type: 'labours',
+        title: 'Project Labours',
+        content: {
+          project: data.project, // Include project for header
+          assignedLabours: allAssignedLabours, // All assigned labours in one slide
+          balanceLabours: balanceLaboursList, // All balance labours (including trades with no assignments)
+          tradeSummary: tradeSummary, // Keep for summary calculations
+          labours: data.labours || [], // Include full labours array
+          labourSupply: data.labourSupply || [], // Include labour supply data
+          pageNumber: 1,
+          totalPages: 1,
+          isLastPage: true,
+        }
+      });
+    }
+
+    // Slide 6: Plants (categorized by Direct, Indirect, and Required)
+    // Similar structure to labours - showing assigned vs required/balance
+    if ((data.plants && data.plants.length > 0) || (data.plantRequirements && data.plantRequirements.length > 0)) {
+      // Process plants similar to labours
+      const allAssignedDirectPlants: any[] = [];
+      const allAssignedIndirectPlants: any[] = [];
+      const allAssignedRequiredPlants: any[] = [];
+      
+      // Track requirements by plant type (direct/indirect)
+      const directRequirements: Array<{
+        requirement: any;
+        required: number;
+        assigned: number;
+        balance: number;
+      }> = [];
+      
+      const indirectRequirements: Array<{
+        requirement: any;
+        required: number;
+        assigned: number;
+        balance: number;
+      }> = [];
+      
+      // Process plant assignments
+      if (data.plants && Array.isArray(data.plants)) {
+        data.plants.forEach((plantAssignment: any) => {
+          const hasRequirement = !!(plantAssignment.requirement || 
+                                    (plantAssignment.requirementId !== null && 
+                                     plantAssignment.requirementId !== undefined && 
+                                     plantAssignment.requirementId > 0));
+          
+          if (hasRequirement) {
+            // Plants assigned to fulfill a requirement
+            allAssignedRequiredPlants.push(plantAssignment);
+          } else if (plantAssignment.plant) {
+            // Categorize by plantType
+            const plantType = plantAssignment.plant.plantType;
+            if (plantType === 'indirect' || plantType === 'Indirect') {
+              allAssignedIndirectPlants.push(plantAssignment);
+            } else {
+              allAssignedDirectPlants.push(plantAssignment);
+            }
+          } else {
+            // Default to direct if no plant master data
+            allAssignedDirectPlants.push(plantAssignment);
+          }
+        });
+      }
+      
+      // Process plant requirements to calculate required vs assigned
+      if (data.plantRequirements && Array.isArray(data.plantRequirements)) {
+        data.plantRequirements.forEach((requirement: any) => {
+          const requiredQuantity = requirement.requiredQuantity || 0;
+          const assignments = requirement.assignments || [];
+          const assignedCount = assignments.length;
+          const balance = requiredQuantity - assignedCount;
+          
+          // Determine if requirement is for direct or indirect plants
+          // Check if any assigned plant has a plantType
+          let isIndirect = false;
+          if (assignments.length > 0 && assignments[0].plant) {
+            const plantType = assignments[0].plant.plantType;
+            isIndirect = (plantType === 'indirect' || plantType === 'Indirect');
+          }
+          
+          // For now, we'll categorize requirements based on assigned plants
+          // If no assignments, we can't determine type, so default to direct
+          if (isIndirect) {
+            indirectRequirements.push({
+              requirement: requirement,
+              required: requiredQuantity,
+              assigned: assignedCount,
+              balance: balance,
+            });
+          } else {
+            directRequirements.push({
+              requirement: requirement,
+              required: requiredQuantity,
+              assigned: assignedCount,
+              balance: balance,
+            });
+          }
+        });
+      }
+      
+      // Calculate balance plants (requirements that need to be filled)
+      const balanceDirectPlants = directRequirements.filter(req => req.balance > 0);
+      const balanceIndirectPlants = indirectRequirements.filter(req => req.balance > 0);
+      
+      slides.push({
+        type: 'plants',
+        title: 'Plant & Equipment',
+        content: {
+          project: data.project,
+          assignedDirectPlants: allAssignedDirectPlants,
+          balanceDirectPlants: balanceDirectPlants,
+          directRequirements: directRequirements,
+          assignedIndirectPlants: allAssignedIndirectPlants,
+          balanceIndirectPlants: balanceIndirectPlants,
+          indirectRequirements: indirectRequirements,
+          assignedRequiredPlants: allAssignedRequiredPlants,
+          allPlants: data.plants || [],
+          plantRequirements: data.plantRequirements || [],
+        }
+      });
+    }
+
+    // Slide 7: Planning
     if (data.planning) {
       slides.push({
         type: 'planning',
@@ -258,7 +509,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 6: Quality
+    // Slide 8: Quality
     if (data.quality) {
       slides.push({
         type: 'quality',
@@ -267,7 +518,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 7: Risks
+    // Slide 9: Risks
     if (data.risks) {
       slides.push({
         type: 'risks',
@@ -276,7 +527,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 8: Area of Concerns
+    // Slide 10: Area of Concerns
     if (data.areaOfConcerns) {
       slides.push({
         type: 'areaOfConcerns',
@@ -285,7 +536,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 9: HSE
+    // Slide 11: HSE
     if (data.hse) {
       slides.push({
         type: 'hse',
@@ -294,16 +545,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 10: Labours
-    if (data.labours && data.labours.length > 0) {
-      slides.push({
-        type: 'labours',
-        title: 'Project Labours',
-        content: data.labours
-      });
-    }
-
-    // Slide 11: Labour Supply
+    // Slide 12: Labour Supply
     if (data.labourSupply && data.labourSupply.length > 0) {
       slides.push({
         type: 'labourSupply',
@@ -312,16 +554,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 11: Plants
-    if (data.plants && data.plants.length > 0) {
-      slides.push({
-        type: 'plants',
-        title: 'Plant & Equipment',
-        content: data.plants
-      });
-    }
-
-    // Slide 12: Assets
+    // Slide 13: Assets
     if (data.assets && data.assets.length > 0) {
       slides.push({
         type: 'assets',
@@ -330,7 +563,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 13: Pictures
+    // Slide 14: Pictures
     if (data.pictures && data.pictures.length > 0) {
       slides.push({
         type: 'pictures',
@@ -339,7 +572,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 14: Close Out
+    // Slide 15: Close Out
     if (data.closeOut && data.closeOut.length > 0) {
       slides.push({
         type: 'closeOut',
@@ -348,7 +581,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 15: Client Feedback
+    // Slide 16: Client Feedback
     if (data.clientFeedback) {
       slides.push({
         type: 'clientFeedback',
@@ -2021,32 +2254,772 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   };
 
   const renderLaboursSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    // Check if content is in new format (with assignedLabours array) or old format (labours array)
+    const isNewFormat = content.assignedLabours !== undefined;
+    
+    // Calculate summary statistics - matching ProjectLabours.tsx logic
+    let totalNeeded = 0;
+    let totalAssigned = 0;
+    const assignedLabourIds = new Set<number>();
+    const assignedLaboursList: Array<{
+      labourName: string;
+      tradeName: string;
+      utilization: number;
+      status: string;
+      startDate?: string | null;
+      endDate?: string | null;
+      duration?: string;
+      phone?: string;
+      labourId?: number;
+    }> = [];
+    
+    // Track trades and their required/assigned counts
+    let tradeSummary: Array<{
+      trade: string;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+    
+    // Track balance labours (trades that need to be filled)
+    let balanceLaboursList: Array<{
+      trade: string;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+
+    // Helper function to calculate duration
+    const calculateDuration = (startDate: string | null | undefined, endDate: string | null | undefined): string => {
+      if (!startDate || !endDate) return '-';
+      try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return `${diffDays} days`;
+      } catch {
+        return '-';
+      }
+    };
+
+    // Helper function to format date
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    if (isNewFormat) {
+      // New format: content has assignedLabours array and balanceLabours array
+      // Calculate totalNeeded from tradeSummary
+      if (content.tradeSummary && Array.isArray(content.tradeSummary)) {
+        totalNeeded = content.tradeSummary.reduce((sum: number, trade: any) => {
+          return sum + (trade.required || 0);
+        }, 0);
+      }
+      
+      // Calculate totalAssigned from assignedLabours (sum of utilization / 100)
+      if (content.assignedLabours && Array.isArray(content.assignedLabours)) {
+        content.assignedLabours.forEach((assignment: any) => {
+          if (assignment.labour && assignment.labour.labourName) {
+            // Count utilization percentage (50% = 0.5, 100% = 1.0)
+            const utilizationValue = (assignment.utilization || 100) / 100;
+            totalAssigned += utilizationValue;
+            
+            // Track unique labour IDs for involved labours count
+            if (assignment.labourId) {
+              assignedLabourIds.add(assignment.labourId);
+            } else if (assignment.labour?.id) {
+              assignedLabourIds.add(assignment.labour.id);
+            }
+            
+            const startDate = assignment.startDate;
+            const endDate = assignment.endDate;
+            assignedLaboursList.push({
+              labourName: assignment.labour.labourName,
+              tradeName: assignment.tradeName || assignment.trade?.trade || 'Unknown',
+              utilization: assignment.utilization || 0,
+              status: assignment.status || 'Active',
+              startDate: startDate,
+              endDate: endDate,
+              duration: calculateDuration(startDate, endDate),
+              phone: assignment.labour.phone,
+              labourId: assignment.labourId || assignment.labour?.id,
+            });
+          }
+        });
+      }
+      
+      // Get balance labours from content
+      if (content.balanceLabours && Array.isArray(content.balanceLabours)) {
+        balanceLaboursList = content.balanceLabours;
+      }
+      
+      // Get trade summary for reference
+      if (content.tradeSummary && Array.isArray(content.tradeSummary)) {
+        tradeSummary = content.tradeSummary;
+      }
+    } else {
+      // Old format: content is array of labour assignments
+      if (content && Array.isArray(content)) {
+        // Group by trade
+        const tradesMap = new Map<string, { required: number; assignments: any[] }>();
+        
+        content.forEach((labourAssignment: any) => {
+          const tradeName = labourAssignment.trade?.trade || 'Unknown';
+          const requiredQuantity = labourAssignment.trade?.requiredQuantity || 0;
+          
+          if (!tradesMap.has(tradeName)) {
+            tradesMap.set(tradeName, {
+              required: requiredQuantity,
+              assignments: []
+            });
+          }
+          
+          if (labourAssignment.labour && labourAssignment.labour.labourName) {
+            // Count utilization percentage (50% = 0.5, 100% = 1.0)
+            const utilizationValue = (labourAssignment.utilization || 100) / 100;
+            totalAssigned += utilizationValue;
+            tradesMap.get(tradeName)!.assignments.push(labourAssignment);
+            
+            // Track unique labour IDs
+            if (labourAssignment.labourId) {
+              assignedLabourIds.add(labourAssignment.labourId);
+            } else if (labourAssignment.labour?.id) {
+              assignedLabourIds.add(labourAssignment.labour.id);
+            }
+            
+            const startDate = labourAssignment.startDate;
+            const endDate = labourAssignment.endDate;
+            assignedLaboursList.push({
+              labourName: labourAssignment.labour.labourName,
+              tradeName: tradeName,
+              utilization: labourAssignment.utilization || 0,
+              status: labourAssignment.status || 'Active',
+              startDate: startDate,
+              endDate: endDate,
+              duration: calculateDuration(startDate, endDate),
+              phone: labourAssignment.labour.phone,
+              labourId: labourAssignment.labourId || labourAssignment.labour?.id,
+            });
+          }
+        });
+        
+        // Calculate trade summary
+        tradesMap.forEach((tradeData, tradeName) => {
+          const assignedCount = tradeData.assignments.reduce((sum: number, assignment: any) => {
+            const utilizationValue = (assignment.utilization || 100) / 100;
+            return sum + utilizationValue;
+          }, 0);
+          
+          totalNeeded += tradeData.required;
+          const balance = tradeData.required - assignedCount;
+          const tradeDataObj = {
+            trade: tradeName,
+            required: tradeData.required,
+            assigned: assignedCount,
+            balance: balance,
+          };
+          
+          tradeSummary.push(tradeDataObj);
+          
+          // Add to balance labours list if trade needs to be filled
+          if (balance > 0) {
+            balanceLaboursList.push(tradeDataObj);
+          }
+        });
+      }
+    }
+
+    // Calculate final values
+    const totalInvolvedLabours = assignedLabourIds.size;
+    const balance = totalNeeded - totalAssigned;
+    
+    // Round values to 2 decimal places
+    const roundedTotalNeeded = Math.round(totalNeeded * 100) / 100;
+    const roundedTotalAssigned = Math.round(totalAssigned * 100) / 100;
+    const roundedBalance = Math.round(balance * 100) / 100;
+    const isLastPage = content.isLastPage !== undefined ? content.isLastPage : true;
+    
+    // Get project from content
     const project = content.project || report.project;
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Project Labours" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
-          {content.map((labour: any, idx: number) => (
-            <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>
-                    {labour.labour?.labourName || 'Unknown'}
-                  </p>
-                  <p className="text-sm" style={{ color: colors.textSecondary }}>
-                    Trade: {labour.trade?.trade || 'N/A'} • Utilization: {labour.utilization}%
+
+        {/* Summary Section */}
+        <div className="mb-2 grid grid-cols-4 gap-2 max-w-6xl mx-auto flex-shrink-0">
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Needed
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {roundedTotalNeeded.toFixed(2)}
                   </p>
                 </div>
-                <span className="px-3 py-1 rounded-full text-sm" style={{
-                  backgroundColor: labour.status === 'Active' ? colors.success : colors.warning,
-                  color: colors.backgroundPrimary
-                }}>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Assigned
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.success }}>
+              {roundedTotalAssigned.toFixed(2)}
+            </p>
+          </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Balance
+            </p>
+            <p className="text-xl font-bold" style={{ color: roundedBalance > 0 ? colors.warning : colors.success }}>
+              {roundedBalance.toFixed(2)}
+            </p>
+          </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Involved Labours
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {totalInvolvedLabours}
+            </p>
+          </div>
+        </div>
+
+        {/* Tables Container - Uses explicit heights to prevent overflow */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Assigned Labours Table - Shown First with Slider */}
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ 
+            marginBottom: isLastPage && balanceLaboursList.length > 0 ? '16px' : '0'
+          }}>
+            <div className="flex items-center justify-between mb-1">
+              <h3 
+                className="text-sm font-semibold"
+                style={{ color: colors.textPrimary }}
+              >
+                Assigned Labours
+              </h3>
+              {assignedLaboursList.length > 10 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setAssignedLaboursPage(Math.max(0, assignedLaboursPage - 1))}
+                    disabled={assignedLaboursPage === 0}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: assignedLaboursPage === 0 ? colors.textMuted : colors.primary,
+                      backgroundColor: assignedLaboursPage === 0 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    {assignedLaboursPage + 1} / {Math.ceil(assignedLaboursList.length / 10)}
+                  </span>
+                  <button
+                    onClick={() => setAssignedLaboursPage(Math.min(Math.ceil(assignedLaboursList.length / 10) - 1, assignedLaboursPage + 1))}
+                    disabled={assignedLaboursPage >= Math.ceil(assignedLaboursList.length / 10) - 1}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: assignedLaboursPage >= Math.ceil(assignedLaboursList.length / 10) - 1 ? colors.textMuted : colors.primary,
+                      backgroundColor: assignedLaboursPage >= Math.ceil(assignedLaboursList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', display: 'flex', flexDirection: 'column' }}>
+            {assignedLaboursList.length > 0 ? (
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${assignedLaboursPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: Math.ceil(assignedLaboursList.length / 10) }).map((_, pageIdx) => {
+                    const pageLabours = assignedLaboursList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <thead>
+                  <tr>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Labour Name
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Trade
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Utilization
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Start Date
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      End Date
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Duration
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Status
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Contact
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageLabours.map((labour: any, idx: number) => (
+                    <tr 
+                      key={idx}
+                      className="hover:opacity-90 transition-opacity"
+                            style={{ 
+                        borderBottom: `1px solid ${colors.primary}15`,
+                        backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                            }}
+                          >
+                      <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {labour.labourName}
+                            </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {labour.tradeName}
+                            </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {labour.utilization}%
+                            </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                        {formatDate(labour.startDate)}
+                            </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                        {formatDate(labour.endDate)}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                        {labour.duration || '-'}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                                <span 
+                          className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                  style={{ 
+                            backgroundColor: labour.status === 'Active' ? `${colors.success}15` : `${colors.warning}15`,
+                            color: labour.status === 'Active' ? colors.success : colors.warning,
+                            border: `1px solid ${labour.status === 'Active' ? colors.success : colors.warning}30`,
+                            fontSize: '0.65rem'
+                          }}
+                        >
                   {labour.status}
                 </span>
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textMuted, fontSize: '0.65rem', height: 'auto' }}>
+                        {labour.phone ? (
+                          <div className="truncate max-w-[100px]" title={labour.phone}>{labour.phone}</div>
+                        ) : (
+                          <span>-</span>
+                        )}
+                            </td>
+                          </tr>
+                        ))}
+                </tbody>
+              </table>
+              </div>
+                    );
+                  })}
+            </div>
+        </div>
+            ) : (
+              <div className="text-center py-4">
+                <User className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                  No labours assigned to this project
+                        </p>
+                      </div>
+              )}
+                    </div>
+                  </div>
+
+          {/* Balance Labours Table - Trades that need to be filled (only on last page) with Slider - Takes remaining space */}
+          {isLastPage && balanceLaboursList.length > 0 && (
+          <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
+            <div className="flex items-center justify-between mb-1">
+              <h3 
+                className="text-sm font-semibold"
+                style={{ color: colors.textPrimary }}
+              >
+                Balance Labours (Trades to be Filled)
+              </h3>
+              {balanceLaboursList.length > 10 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setBalanceLaboursPage(Math.max(0, balanceLaboursPage - 1))}
+                    disabled={balanceLaboursPage === 0}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: balanceLaboursPage === 0 ? colors.textMuted : colors.primary,
+                      backgroundColor: balanceLaboursPage === 0 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowLeft className="w-4 h-4" />
+                  </button>
+                  <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    {balanceLaboursPage + 1} / {Math.ceil(balanceLaboursList.length / 10)}
+                  </span>
+                  <button
+                    onClick={() => setBalanceLaboursPage(Math.min(Math.ceil(balanceLaboursList.length / 10) - 1, balanceLaboursPage + 1))}
+                    disabled={balanceLaboursPage >= Math.ceil(balanceLaboursList.length / 10) - 1}
+                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    style={{ 
+                      color: balanceLaboursPage >= Math.ceil(balanceLaboursList.length / 10) - 1 ? colors.textMuted : colors.primary,
+                      backgroundColor: balanceLaboursPage >= Math.ceil(balanceLaboursList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                    }}
+                  >
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
+              )}
+            </div>
+            <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', maxHeight: '100%' }}>
+              <div 
+                className="flex transition-transform duration-300 ease-in-out h-full"
+                style={{ 
+                  transform: `translateX(-${balanceLaboursPage * 100}%)`,
+                  height: '100%'
+                }}
+              >
+                {Array.from({ length: Math.ceil(balanceLaboursList.length / 10) }).map((_, pageIdx) => {
+                  const pageBalanceLabours = balanceLaboursList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                  return (
+                    <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
+                      <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <thead>
+                  <tr>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Trade
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Required
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Assigned
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Balance
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageBalanceLabours.map((trade: any, idx: number) => (
+                    <tr 
+                      key={idx}
+                      className="hover:opacity-90 transition-opacity"
+                      style={{ 
+                        borderBottom: `1px solid ${colors.primary}15`,
+                        backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                      }}
+                    >
+                      <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {trade.trade}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {trade.required.toFixed(2)}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {trade.assigned.toFixed(2)}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                        <span 
+                          className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                          style={{ 
+                            backgroundColor: trade.balance > 0 ? `${colors.warning}15` : `${colors.success}15`,
+                            color: trade.balance > 0 ? colors.warning : colors.success,
+                            border: `1px solid ${trade.balance > 0 ? colors.warning : colors.success}30`,
+                            fontSize: '0.65rem'
+                          }}
+                        >
+                          {trade.balance.toFixed(2)}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+        </div>
+                  );
+                })}
+          </div>
+        </div>
+            </div>
+          )}
+
+          {/* Labour Supply Table - Shows labour supply details with Slider */}
+          {content.labourSupply && Array.isArray(content.labourSupply) && content.labourSupply.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ marginTop: '16px' }}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 
+                  className="text-sm font-semibold"
+                  style={{ color: colors.textPrimary }}
+                >
+                  Labour Supply
+                </h3>
+                {content.labourSupply.length > 10 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setLabourSupplyPage(Math.max(0, labourSupplyPage - 1))}
+                      disabled={labourSupplyPage === 0}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: labourSupplyPage === 0 ? colors.textMuted : colors.primary,
+                        backgroundColor: labourSupplyPage === 0 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      {labourSupplyPage + 1} / {Math.ceil(content.labourSupply.length / 10)}
+                    </span>
+                    <button
+                      onClick={() => setLabourSupplyPage(Math.min(Math.ceil(content.labourSupply.length / 10) - 1, labourSupplyPage + 1))}
+                      disabled={labourSupplyPage >= Math.ceil(content.labourSupply.length / 10) - 1}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: labourSupplyPage >= Math.ceil(content.labourSupply.length / 10) - 1 ? colors.textMuted : colors.primary,
+                        backgroundColor: labourSupplyPage >= Math.ceil(content.labourSupply.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden" style={{ position: 'relative', maxHeight: '100%' }}>
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${labourSupplyPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: Math.ceil(content.labourSupply.length / 10) }).map((_, pageIdx) => {
+                    const pageLabourSupply = content.labourSupply.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Trade
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Number of Labour
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Price Per Hour
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Supplied Quantity
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pageLabourSupply.map((supply: any, idx: number) => (
+                      <tr 
+                        key={idx}
+                        className="hover:opacity-90 transition-opacity"
+                        style={{ 
+                          borderBottom: `1px solid ${colors.primary}15`,
+                          backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                        }}
+                      >
+                        <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                          {supply.trade || 'N/A'}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                          {supply.numberOfLabour || 0}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                          {supply.pricePerHour ? formatCurrency(supply.pricePerHour) : '-'}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                          {supply.suppliedQuantity !== undefined ? supply.suppliedQuantity : supply.numberOfLabour || 0}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             </div>
-          ))}
+          )}
         </div>
+
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
@@ -2074,19 +3047,344 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   const renderPlantsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    
+    // Combine all assigned plants into one list with type (Direct/Indirect)
+    const allAssignedPlants: Array<{
+      plant: any;
+      plantAssignment: any;
+      type: string; // 'Direct' or 'Indirect'
+    }> = [];
+    
+    // Get all plants from content
+    const allPlants = content.allPlants || content.plants || [];
+    
+    // Process all plants and categorize by type
+    allPlants.forEach((plantAssignment: any) => {
+      if (plantAssignment.plant) {
+        const plantType = plantAssignment.plant.plantType;
+        const type = (plantType === 'indirect' || plantType === 'Indirect') ? 'Indirect' : 'Direct';
+        allAssignedPlants.push({
+          plant: plantAssignment.plant,
+          plantAssignment: plantAssignment,
+          type: type
+        });
+      }
+    });
+    
+    // Process plant requirements for balance table
+    const balancePlantsList: Array<{
+      requirement: string;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+    
+    const plantRequirements = content.plantRequirements || [];
+    let totalNeeded = 0;
+    let totalAssigned = 0;
+    
+    plantRequirements.forEach((requirement: any) => {
+      const requiredQuantity = requirement.requiredQuantity || 0;
+      const assignments = requirement.assignments || [];
+      const assignedCount = assignments.length;
+      const balance = requiredQuantity - assignedCount;
+      
+      totalNeeded += requiredQuantity;
+      totalAssigned += assignedCount;
+      
+      if (balance > 0) {
+        balancePlantsList.push({
+          requirement: requirement.title || 'N/A',
+          required: requiredQuantity,
+          assigned: assignedCount,
+          balance: balance
+        });
+      }
+    });
+    
+    const totalBalance = totalNeeded - totalAssigned;
+    
+    // Helper function to format date
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+    
+    // Helper function to calculate duration
+    const calculateDuration = (startDate: string | null | undefined, endDate: string | null | undefined): string => {
+      if (!startDate || !endDate) return '-';
+      try {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
+        const diffTime = Math.abs(end.getTime() - start.getTime());
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return `${diffDays} days`;
+      } catch {
+        return '-';
+      }
+    };
+
+    // Round values
+    const roundedTotalNeeded = Math.round(totalNeeded * 100) / 100;
+    const roundedTotalAssigned = Math.round(totalAssigned * 100) / 100;
+    const roundedTotalBalance = Math.round(totalBalance * 100) / 100;
+    const totalInvolvedPlants = allAssignedPlants.length;
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Plant & Equipment" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
-          {content.map((plant: any, idx: number) => (
-            <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{plant.plant?.name || 'N/A'}</p>
-              <p className="text-sm" style={{ color: colors.textSecondary }}>
-                Type: {plant.plant?.type || 'N/A'} • Status: {plant.status || 'N/A'}
+
+        {/* Summary Section - Cards */}
+        <div className="mb-2 grid grid-cols-4 gap-2 max-w-6xl mx-auto flex-shrink-0">
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Needed
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {roundedTotalNeeded.toFixed(2)}
               </p>
             </div>
-          ))}
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Assigned
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.success }}>
+              {roundedTotalAssigned.toFixed(2)}
+            </p>
+          </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Balance
+            </p>
+            <p className="text-xl font-bold" style={{ color: roundedTotalBalance > 0 ? colors.warning : colors.success }}>
+              {roundedTotalBalance.toFixed(2)}
+            </p>
+          </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Involved Plants
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {totalInvolvedPlants}
+            </p>
+          </div>
         </div>
+
+        {/* Tables Container */}
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
+          {/* Assigned Plants Table - All plants with Direct/Indirect type */}
+          {allAssignedPlants.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full" style={{ 
+              marginBottom: balancePlantsList.length > 0 ? '16px' : '0'
+            }}>
+              <div className="flex items-center justify-between mb-1">
+                <h3 
+                  className="text-sm font-semibold"
+                  style={{ color: colors.textPrimary }}
+                >
+                  Assigned Plants
+                </h3>
+                {allAssignedPlants.length > 10 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setAssignedDirectPlantsPage(Math.max(0, assignedDirectPlantsPage - 1))}
+                      disabled={assignedDirectPlantsPage === 0}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: assignedDirectPlantsPage === 0 ? colors.textMuted : colors.primary,
+                        backgroundColor: assignedDirectPlantsPage === 0 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      {assignedDirectPlantsPage + 1} / {Math.ceil(allAssignedPlants.length / 10)}
+                    </span>
+                    <button
+                      onClick={() => setAssignedDirectPlantsPage(Math.min(Math.ceil(allAssignedPlants.length / 10) - 1, assignedDirectPlantsPage + 1))}
+                      disabled={assignedDirectPlantsPage >= Math.ceil(allAssignedPlants.length / 10) - 1}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: assignedDirectPlantsPage >= Math.ceil(allAssignedPlants.length / 10) - 1 ? colors.textMuted : colors.primary,
+                        backgroundColor: assignedDirectPlantsPage >= Math.ceil(allAssignedPlants.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${assignedDirectPlantsPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: Math.ceil(allAssignedPlants.length / 10) }).map((_, pageIdx) => {
+                    const pagePlants = allAssignedPlants.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                          <thead>
+                            <tr>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plant</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Code</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plate Number</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Type</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Start Date</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>End Date</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Duration</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pagePlants.map((item: any, idx: number) => {
+                              const plant = item.plant;
+                              const plantAssignment = item.plantAssignment;
+                              return (
+                                <tr key={idx} className="hover:opacity-90 transition-opacity" style={{ borderBottom: `1px solid ${colors.primary}15`, backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40` }}>
+                                  <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>{plant?.plantDescription || 'N/A'}</td>
+                                  <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>{plant?.plantCode || '-'}</td>
+                                  <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>{plant?.plateNumber || '-'}</td>
+                                  <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                                    <span className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block" style={{ backgroundColor: item.type === 'Direct' ? `${colors.success}15` : `${colors.warning}15`, color: item.type === 'Direct' ? colors.success : colors.warning, border: `1px solid ${item.type === 'Direct' ? colors.success : colors.warning}30`, fontSize: '0.65rem' }}>
+                                      {item.type}
+                                    </span>
+                                  </td>
+                                  <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>{formatDate(plantAssignment.startDate)}</td>
+                                  <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>{formatDate(plantAssignment.endDate)}</td>
+                                  <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>{calculateDuration(plantAssignment.startDate, plantAssignment.endDate)}</td>
+                                  <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                                    <span className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block" style={{ backgroundColor: plantAssignment.status === 'Active' ? `${colors.success}15` : `${colors.warning}15`, color: plantAssignment.status === 'Active' ? colors.success : colors.warning, border: `1px solid ${plantAssignment.status === 'Active' ? colors.success : colors.warning}30`, fontSize: '0.65rem' }}>
+                                      {plantAssignment.status || 'Active'}
+                                    </span>
+                                  </td>
+                                </tr>
+                              );
+                            })}
+                          </tbody>
+                        </table>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Balance Plants Table - Requirements that need to be filled */}
+          {balancePlantsList.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
+              <div className="flex items-center justify-between mb-1">
+                <h3 
+                  className="text-sm font-semibold"
+                  style={{ color: colors.textPrimary }}
+                >
+                  Balance Plants (Requirements to be Filled)
+                </h3>
+                {balancePlantsList.length > 10 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setBalanceDirectPlantsPage(Math.max(0, balanceDirectPlantsPage - 1))}
+                      disabled={balanceDirectPlantsPage === 0}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: balanceDirectPlantsPage === 0 ? colors.textMuted : colors.primary,
+                        backgroundColor: balanceDirectPlantsPage === 0 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowLeft className="w-4 h-4" />
+                    </button>
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      {balanceDirectPlantsPage + 1} / {Math.ceil(balancePlantsList.length / 10)}
+                    </span>
+                    <button
+                      onClick={() => setBalanceDirectPlantsPage(Math.min(Math.ceil(balancePlantsList.length / 10) - 1, balanceDirectPlantsPage + 1))}
+                      disabled={balanceDirectPlantsPage >= Math.ceil(balancePlantsList.length / 10) - 1}
+                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      style={{ 
+                        color: balanceDirectPlantsPage >= Math.ceil(balancePlantsList.length / 10) - 1 ? colors.textMuted : colors.primary,
+                        backgroundColor: balanceDirectPlantsPage >= Math.ceil(balancePlantsList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
+                      }}
+                    >
+                      <ArrowRight className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <div 
+                  className="flex transition-transform duration-300 ease-in-out h-full"
+                  style={{ 
+                    transform: `translateX(-${balanceDirectPlantsPage * 100}%)`,
+                    height: '100%'
+                  }}
+                >
+                  {Array.from({ length: Math.ceil(balancePlantsList.length / 10) }).map((_, pageIdx) => {
+                    const pageBalance = balancePlantsList.slice(pageIdx * 10, (pageIdx + 1) * 10);
+                    return (
+                      <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
+                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                          <thead>
+                            <tr>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Requirement</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Required</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Assigned</th>
+                              <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Balance</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {pageBalance.map((req: any, idx: number) => (
+                              <tr key={idx} className="hover:opacity-90 transition-opacity" style={{ borderBottom: `1px solid ${colors.primary}15`, backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40` }}>
+                                <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>{req.requirement || 'N/A'}</td>
+                                <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>{req.required || 0}</td>
+                                <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>{req.assigned || 0}</td>
+                                <td className="py-0.5 px-2" style={{ color: req.balance > 0 ? colors.warning : colors.success, fontSize: '0.7rem', height: 'auto', fontWeight: 'bold' }}>{req.balance || 0}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+        </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Empty state - if no plants */}
+          {allAssignedPlants.length === 0 && balancePlantsList.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-8">
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                No plants found for this project
+              </p>
+            </div>
+          )}
+        </div>
+
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
