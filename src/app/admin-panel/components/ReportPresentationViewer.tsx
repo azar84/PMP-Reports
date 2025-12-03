@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { formatCurrency } from '@/lib/currency';
 import { 
@@ -56,6 +56,9 @@ interface ReportPresentationViewerProps {
   report: ProjectReport;
   onClose: () => void;
 }
+
+// Store pictures slider state outside component to persist across re-renders
+const picturesSliderState = new Map<string, { currentIndex: number; isPaused: boolean }>();
 
 export default function ReportPresentationViewer({ report, onClose }: ReportPresentationViewerProps) {
   const { designSystem } = useDesignSystem();
@@ -124,11 +127,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const generateSlides = (data: any): any[] => {
     const slides: any[] = [];
 
-    // Find featured picture
+    // Find featured picture from all project pictures (not just selected report pictures)
     let featuredPicture = null;
-    if (data.pictures && data.pictures.pictures) {
+    if (data.allProjectPictures && data.allProjectPictures.pictures) {
+      featuredPicture = data.allProjectPictures.pictures.find((pic: any) => pic.isFeatured);
+      // If no featured picture, use the first one from all project pictures
+      if (!featuredPicture && data.allProjectPictures.pictures.length > 0) {
+        featuredPicture = data.allProjectPictures.pictures[0];
+      }
+    }
+    // Fallback to selected report pictures if no allProjectPictures available
+    if (!featuredPicture && data.pictures && data.pictures.pictures) {
       featuredPicture = data.pictures.pictures.find((pic: any) => pic.isFeatured);
-      // If no featured picture, use the first one
       if (!featuredPicture && data.pictures.pictures.length > 0) {
         featuredPicture = data.pictures.pictures[0];
       }
@@ -507,9 +517,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     // Slide 7: Assets
     // Always show assets slide, even if empty (to match other slides behavior)
     const assetsEntries = data.assets?.entries || (Array.isArray(data.assets) ? data.assets : []);
-    slides.push({
-      type: 'assets',
-      title: 'Project Assets',
+      slides.push({
+        type: 'assets',
+        title: 'Project Assets',
       content: {
         project: data.project,
         entries: assetsEntries,
@@ -544,66 +554,65 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
-    // Slide 10: Risks
-    if (data.risks) {
-      slides.push({
-        type: 'risks',
-        title: 'Project Risks',
-        content: data.risks
-      });
-    }
-
-    // Slide 11: Area of Concerns
-    if (data.areaOfConcerns) {
-      slides.push({
-        type: 'areaOfConcerns',
-        title: 'Areas of Concern',
-        content: data.areaOfConcerns
-      });
-    }
-
-    // Slide 12: HSE
+    // Slide 10: HSE
     if (data.hse) {
       slides.push({
         type: 'hse',
-        title: 'Health, Safety & Environment',
-        content: data.hse
+        title: 'HSE & NOC Tracker',
+        content: {
+          project: data.project,
+          hseItems: data.hse.hseItems || [],
+          nocEntries: data.hse.nocEntries || []
+        }
       });
     }
 
-    // Slide 13: Labour Supply
-    if (data.labourSupply && data.labourSupply.length > 0) {
+    // Slide 11: Risks & Area of Concerns (combined)
+    if (data.risks || data.areaOfConcerns) {
       slides.push({
-        type: 'labourSupply',
-        title: 'Labour Supply',
-        content: data.labourSupply
+        type: 'risks',
+        title: 'Risks & Areas of Concern',
+        content: {
+          project: data.project,
+          risks: data.risks ? (data.risks.risks || (Array.isArray(data.risks) ? data.risks : [])) : [],
+          areaOfConcerns: data.areaOfConcerns ? (data.areaOfConcerns.areaOfConcerns || (Array.isArray(data.areaOfConcerns) ? data.areaOfConcerns : [])) : []
+        }
       });
     }
 
-    // Slide 14: Pictures
-    if (data.pictures && data.pictures.length > 0) {
-      slides.push({
-        type: 'pictures',
-        title: 'Project Pictures',
-        content: data.pictures
-      });
-    }
-
-    // Slide 15: Close Out
-    if (data.closeOut && data.closeOut.length > 0) {
-      slides.push({
-        type: 'closeOut',
-        title: 'Project Close Out',
-        content: data.closeOut
-      });
-    }
-
-    // Slide 16: Client Feedback
+    // Slide 12: Client Feedback
     if (data.clientFeedback) {
       slides.push({
         type: 'clientFeedback',
         title: 'Client Feedback',
-        content: data.clientFeedback
+        content: {
+          project: data.project,
+          feedback: data.clientFeedback.feedback || data.clientFeedback
+        }
+      });
+    }
+
+    // Slide 13: Pictures
+    if (data.pictures && data.pictures.pictures && data.pictures.pictures.length > 0) {
+      slides.push({
+        type: 'pictures',
+        title: 'Project Pictures',
+        content: {
+          project: data.project,
+          pictures: data.pictures.pictures
+        }
+      });
+    }
+
+    // Slide 14: Close Out
+    if (data.closeOut && data.closeOut.entries && data.closeOut.entries.length > 0) {
+      slides.push({
+        type: 'closeOut',
+        title: 'Project Close Out',
+        content: {
+          project: data.project,
+          entries: data.closeOut.entries
+        }
       });
     }
 
@@ -2171,31 +2180,298 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   const renderRisksSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const risks = content.risks || [];
+    const areaOfConcerns = content.areaOfConcerns || [];
+    
+    // Helper function to format date
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    // Helper function to get impact color
+    const getImpactColor = (impact: string | null | undefined) => {
+      if (!impact) return { bg: colors.textMuted, text: colors.textMuted, border: colors.textMuted };
+      const impactLower = impact.toLowerCase();
+      if (impactLower === 'high') {
+        return { bg: colors.error, text: colors.error, border: colors.error };
+      } else if (impactLower === 'medium') {
+        return { bg: colors.warning, text: colors.warning, border: colors.warning };
+      } else {
+        return { bg: colors.success, text: colors.success, border: colors.success };
+      }
+    };
+
+    // Helper function to get status color
+    const getStatusColor = (status: string | null | undefined) => {
+      if (!status) return { bg: colors.textMuted, text: colors.textMuted, border: colors.textMuted };
+      const statusLower = status.toLowerCase();
+      if (statusLower === 'resolved') {
+        return { bg: colors.success, text: colors.success, border: colors.success };
+      } else if (statusLower === 'in progress') {
+        return { bg: colors.info, text: colors.info, border: colors.info };
+      } else {
+        return { bg: colors.warning, text: colors.warning, border: colors.warning };
+      }
+    };
+    
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
-        <ReportHeader project={project} pageTitle="Project Risks" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
-          {content.risks && content.risks.length > 0 ? (
-            content.risks.map((risk: any, idx: number) => (
-              <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-                <div className="flex items-start justify-between mb-2">
-                  <p className="text-xl font-medium" style={{ color: colors.textPrimary }}>{risk.riskItem}</p>
-                  {risk.impact && (
-                    <span className="px-3 py-1 rounded-full text-sm" style={{
-                      backgroundColor: risk.impact === 'High' ? colors.error : risk.impact === 'Medium' ? colors.warning : colors.success,
-                      color: colors.backgroundPrimary
-                    }}>
+        <ReportHeader project={project} pageTitle="Risks & Areas of Concern" />
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* Risks Table */}
+          {risks.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  Risk Register
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              </div>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Risk Item
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Impact
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Remarks
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {risks.map((risk: any, idx: number) => {
+                      const impactColors = getImpactColor(risk.impact);
+                      
+                      return (
+                        <tr 
+                          key={risk.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                            {risk.riskItem || 'N/A'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                            {risk.impact ? (
+                              <span 
+                                className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                style={{ 
+                                  backgroundColor: `${impactColors.bg}15`,
+                                  color: impactColors.text,
+                                  border: `1px solid ${impactColors.border}30`,
+                                  fontSize: '0.65rem'
+                                }}
+                              >
                       {risk.impact}
                     </span>
-                  )}
+                            ) : (
+                              <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                            {risk.remarks || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
                 </div>
-                {risk.remarks && (
-                  <p className="text-lg" style={{ color: colors.textSecondary }}>{risk.remarks}</p>
-                )}
+            </div>
+          )}
+
+          {/* Area of Concerns Table */}
+          {areaOfConcerns.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  Areas of Concern
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
               </div>
-            ))
-          ) : (
-            <p className="text-center text-lg" style={{ color: colors.textMuted }}>No risks recorded</p>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Description
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Action Needed
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Started Date
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Resolution Date
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Status
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Remarks
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {areaOfConcerns.map((concern: any, idx: number) => {
+                      const statusColors = getStatusColor(concern.status);
+                      
+                      return (
+                        <tr 
+                          key={concern.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                            {concern.description || concern.areaOfConcern || 'N/A'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                            {concern.actionNeeded || '-'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(concern.startedDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(concern.resolutionDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                            {concern.status ? (
+                              <span 
+                                className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                style={{ 
+                                  backgroundColor: `${statusColors.bg}15`,
+                                  color: statusColors.text,
+                                  border: `1px solid ${statusColors.border}30`,
+                                  fontSize: '0.65rem'
+                                }}
+                              >
+                                {concern.status}
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                            {concern.remarks || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {risks.length === 0 && areaOfConcerns.length === 0 && (
+            <div className="text-center py-8">
+              <AlertTriangle className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+              <p className="text-xs" style={{ color: colors.textSecondary }}>No risks or areas of concern recorded</p>
+            </div>
           )}
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
@@ -2236,26 +2512,331 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   const renderHSESlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const hseItems = content.hseItems || [];
+    const nocEntries = content.nocEntries || [];
+    
+    // Helper function to format date
+    const formatDate = (dateString: string | null | undefined): string => {
+      if (!dateString) return '-';
+      try {
+        return new Date(dateString).toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'short', 
+          day: 'numeric' 
+        });
+      } catch {
+        return '-';
+      }
+    };
+
+    // Helper function to get status color
+    const getStatusColor = (status: string | null | undefined) => {
+      if (!status) return { bg: colors.textMuted, text: colors.textMuted, border: colors.textMuted };
+      const statusLower = status.toLowerCase();
+      if (statusLower.includes('completed') || statusLower.includes('approved') || statusLower.includes('obtained')) {
+        return { bg: colors.success, text: colors.success, border: colors.success };
+      } else if (statusLower.includes('progress') || statusLower.includes('pending') || statusLower.includes('submitted')) {
+        return { bg: colors.warning, text: colors.warning, border: colors.warning };
+      } else if (statusLower.includes('hold') || statusLower.includes('delayed') || statusLower.includes('rejected')) {
+        return { bg: colors.error, text: colors.error, border: colors.error };
+      } else {
+        return { bg: colors.info, text: colors.info, border: colors.info };
+      }
+    };
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
-        <ReportHeader project={project} pageTitle="Health, Safety & Environment" />
-        <div className="flex-1 overflow-y-auto space-y-6 max-w-4xl mx-auto w-full">
-          {content.hseItems && content.hseItems.length > 0 && (
-            <div>
-              <h3 className="text-2xl font-semibold mb-4" style={{ color: colors.textPrimary }}>HSE Checklist</h3>
-              <div className="space-y-3">
-                {content.hseItems.map((item: any, idx: number) => (
-                  <div key={idx} className="p-4 rounded-lg flex items-center justify-between" style={{ backgroundColor: colors.backgroundSecondary }}>
-                    <p className="text-lg" style={{ color: colors.textPrimary }}>{item.item}</p>
-                    <span className="px-3 py-1 rounded-full text-sm" style={{
-                      backgroundColor: item.status === 'Completed' ? colors.success : colors.warning,
-                      color: colors.backgroundPrimary
-                    }}>
+        <ReportHeader project={project} pageTitle="HSE & NOC Tracker" />
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* HSE Checklist Table */}
+          {hseItems.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  HSE Checklist
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              </div>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Item
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Planned Date
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Actual Date
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Status
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Notes
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {hseItems.map((item: any, idx: number) => {
+                      const statusColors = getStatusColor(item.status);
+                      return (
+                        <tr 
+                          key={item.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                            {item.item || 'N/A'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(item.plannedDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(item.actualDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                            {item.status ? (
+                              <span 
+                                className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                style={{ 
+                                  backgroundColor: `${statusColors.bg}15`,
+                                  color: statusColors.text,
+                                  border: `1px solid ${statusColors.border}30`,
+                                  fontSize: '0.65rem'
+                                }}
+                              >
                       {item.status}
                     </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {item.notes || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
                   </div>
-                ))}
               </div>
+          )}
+
+          {/* NOC Tracker Table */}
+          {nocEntries.length > 0 && (
+            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mt-8 mb-6">
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  NOC Tracker
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+            </div>
+              <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        NOC Number
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Permit Type
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Planned Submission
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Actual Submission
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Expiry Date
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Status
+                      </th>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Remarks
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {nocEntries.map((entry: any, idx: number) => {
+                      const statusColors = getStatusColor(entry.status);
+                      return (
+                        <tr 
+                          key={entry.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
+                          <td className="py-0.5 px-2 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                            {entry.nocNumber || 'N/A'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                            {entry.permitType || '-'}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(entry.plannedSubmissionDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(entry.actualSubmissionDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(entry.expiryDate)}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                            {entry.status ? (
+                              <span 
+                                className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                style={{ 
+                                  backgroundColor: `${statusColors.bg}15`,
+                                  color: statusColors.text,
+                                  border: `1px solid ${statusColors.border}30`,
+                                  fontSize: '0.65rem'
+                                }}
+                              >
+                                {entry.status}
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto', maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {entry.remarks || '-'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {hseItems.length === 0 && nocEntries.length === 0 && (
+            <div className="text-center py-8">
+              <ShieldCheck className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+              <p className="text-xs" style={{ color: colors.textSecondary }}>
+                No HSE or NOC data recorded
+              </p>
             </div>
           )}
         </div>
@@ -4491,24 +5072,284 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
-  const renderPicturesSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+  // Pictures Slide Component (needs hooks, so it's a separate component)
+  const PicturesSlideContent: React.FC<{
+    content: any;
+    pageNumber?: number;
+    totalPages?: number;
+  }> = ({ content, pageNumber, totalPages }) => {
     const project = content.project || report.project;
+    const pictures = content.pictures || (Array.isArray(content) ? content : []);
+    
+    // Create a stable key for this slide based on report ID and pictures
+    const slideKey = `${report.id}-pictures-${pictures.length}-${pictures.map((p: any) => p.id || p.media?.id).join('-')}`;
+    
+    // Initialize or get state from persistent storage
+    const initialState = picturesSliderState.get(slideKey) || { currentIndex: 0, isPaused: false };
+    const [currentPictureIndex, setCurrentPictureIndex] = useState(initialState.currentIndex);
+    const [isPaused, setIsPaused] = useState(initialState.isPaused);
+    
+    const picturesRef = useRef(pictures);
+    const intervalRef = useRef<NodeJS.Timeout | null>(null);
+    const isPausedRef = useRef(isPaused);
+    const slideKeyRef = useRef(slideKey);
+
+    // Update refs when values change
+    useEffect(() => {
+      picturesRef.current = pictures;
+    }, [pictures]);
+
+    useEffect(() => {
+      isPausedRef.current = isPaused;
+      // Persist state
+      picturesSliderState.set(slideKeyRef.current, { currentIndex: currentPictureIndex, isPaused });
+    }, [isPaused, currentPictureIndex]);
+
+    // Reset index only when slide key changes (completely different set of pictures)
+    useEffect(() => {
+      if (slideKeyRef.current !== slideKey) {
+        slideKeyRef.current = slideKey;
+        const existingState = picturesSliderState.get(slideKey);
+        if (existingState) {
+          setCurrentPictureIndex(existingState.currentIndex);
+          setIsPaused(existingState.isPaused);
+        } else {
+          setCurrentPictureIndex(0);
+          setIsPaused(false);
+        }
+      }
+    }, [slideKey]);
+
+    // Auto-advance every 5 seconds - only depends on pictures.length, not isPaused
+    useEffect(() => {
+      // Clear any existing interval
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+
+      if (pictures.length <= 1) return;
+
+      // Start the interval
+      intervalRef.current = setInterval(() => {
+        // Check pause state from ref to avoid stale closure
+        if (isPausedRef.current) {
+          return; // Don't advance if paused
+        }
+
+        setCurrentPictureIndex((prev) => {
+          const currentLength = picturesRef.current.length;
+          if (currentLength === 0) return 0;
+          // Use modulo to cycle through all pictures
+          const nextIndex = (prev + 1) % currentLength;
+          // Persist state
+          picturesSliderState.set(slideKeyRef.current, { 
+            currentIndex: nextIndex, 
+            isPaused: isPausedRef.current 
+          });
+          return nextIndex;
+        });
+      }, 5000);
+
+      return () => {
+        if (intervalRef.current) {
+          clearInterval(intervalRef.current);
+          intervalRef.current = null;
+        }
+      };
+    }, [pictures.length]); // Only depend on pictures.length, not isPaused
+
+    const goToNext = () => {
+      setCurrentPictureIndex((prev) => {
+        const next = (prev + 1) % picturesRef.current.length;
+        picturesSliderState.set(slideKeyRef.current, { currentIndex: next, isPaused: true });
+        return next;
+      });
+      setIsPaused(true);
+      // Resume auto-advance after 5 seconds
+      setTimeout(() => {
+        setIsPaused(false);
+        setCurrentPictureIndex((current) => {
+          picturesSliderState.set(slideKeyRef.current, { currentIndex: current, isPaused: false });
+          return current;
+        });
+      }, 5000);
+    };
+
+    const goToPrevious = () => {
+      setCurrentPictureIndex((prev) => {
+        const next = (prev - 1 + picturesRef.current.length) % picturesRef.current.length;
+        picturesSliderState.set(slideKeyRef.current, { currentIndex: next, isPaused: true });
+        return next;
+      });
+      setIsPaused(true);
+      // Resume auto-advance after 5 seconds
+      setTimeout(() => {
+        setIsPaused(false);
+        setCurrentPictureIndex((current) => {
+          picturesSliderState.set(slideKeyRef.current, { currentIndex: current, isPaused: false });
+          return current;
+        });
+      }, 5000);
+    };
+
+    const goToPicture = (index: number) => {
+      setCurrentPictureIndex(index);
+      picturesSliderState.set(slideKeyRef.current, { currentIndex: index, isPaused: true });
+      setIsPaused(true);
+      // Resume auto-advance after 5 seconds
+      setTimeout(() => {
+        setIsPaused(false);
+        picturesSliderState.set(slideKeyRef.current, { currentIndex: index, isPaused: false });
+      }, 5000);
+    };
+
+    if (pictures.length === 0) {
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Project Pictures" />
-        <div className="flex-1 overflow-y-auto">
-          <div className="grid grid-cols-3 gap-4 max-w-4xl mx-auto">
-          {content.map((picture: any, idx: number) => (
-            <div key={idx} className="aspect-square rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary }}>
-              {picture.media?.url ? (
-                <img src={picture.media.url} alt={picture.caption || 'Project picture'} className="w-full h-full object-cover" />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center">
-                  <Camera className="w-12 h-12" style={{ color: colors.textMuted }} />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <Camera className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+              <p className="text-sm" style={{ color: colors.textSecondary }}>No pictures selected for this report</p>
+            </div>
+          </div>
+          {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+        </div>
+      );
+    }
+
+    const currentPicture = pictures[currentPictureIndex];
+    const pictureUrl = currentPicture?.media?.publicUrl || currentPicture?.media?.fileUrl || currentPicture?.media?.url || '';
+    const caption = currentPicture?.caption || currentPicture?.media?.filename || 'Project Picture';
+
+    return (
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Pictures" />
+        <div className="flex-1 min-h-0 flex items-center justify-center relative">
+          <div className="w-full h-full flex gap-3">
+            {/* Left Side - Main Picture Display */}
+            <div className="flex-1 min-w-0 flex flex-col items-center justify-center relative h-full">
+              {/* Previous Button */}
+              {pictures.length > 1 && (
+                <button
+                  onClick={goToPrevious}
+                  className="absolute left-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full transition-all hover:scale-110"
+                  style={{
+                    backgroundColor: `${colors.primary}90`,
+                    color: colors.backgroundPrimary,
+                    backdropFilter: 'blur(4px)'
+                  }}
+                  aria-label="Previous picture"
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+              )}
+
+              {/* Picture Container - Must fit within available height */}
+              <div className="w-full h-full flex flex-col items-center justify-center min-h-0">
+                {pictureUrl ? (
+                  <>
+                    {/* Caption Centered Above Image */}
+                    {caption && (
+                      <div 
+                        className="mb-2 px-2 w-full flex-shrink-0"
+                        style={{
+                          maxHeight: '40px',
+                          overflow: 'hidden'
+                        }}
+                      >
+                        <p className="text-sm font-semibold text-center truncate" style={{ color: colors.textPrimary }}>
+                          {caption}
+                        </p>
+                      </div>
+                    )}
+                    {/* Main Image - Takes available space */}
+                    <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+                      <img
+                        src={pictureUrl}
+                        alt={caption}
+                        className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                        style={{
+                          border: `2px solid ${colors.border}`
+                        }}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="flex flex-col items-center justify-center">
+                    <Camera className="w-16 h-16 mb-4" style={{ color: colors.textMuted }} />
+                    <p className="text-sm" style={{ color: colors.textSecondary }}>Image not available</p>
                 </div>
               )}
             </div>
-          ))}
+
+              {/* Next Button */}
+              {pictures.length > 1 && (
+                <button
+                  onClick={goToNext}
+                  className="absolute right-0 top-1/2 -translate-y-1/2 z-10 p-2 rounded-full transition-all hover:scale-110"
+                  style={{
+                    backgroundColor: `${colors.primary}90`,
+                    color: colors.backgroundPrimary,
+                    backdropFilter: 'blur(4px)'
+                  }}
+                  aria-label="Next picture"
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              )}
+            </div>
+
+            {/* Right Side - Thumbnail Slider (Vertical) */}
+            {pictures.length > 1 && (
+              <div className="flex flex-col items-center gap-1.5 w-16 flex-shrink-0 h-full">
+                {/* Picture Counter at Top */}
+                <div className="mb-1 text-center flex-shrink-0">
+                  <p className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
+                    {currentPictureIndex + 1} / {pictures.length}
+                  </p>
+                </div>
+
+                {/* Vertical Thumbnail List - Scrollable, fits available space */}
+                <div className="flex-1 min-h-0 overflow-y-auto flex flex-col gap-1.5 items-center py-1">
+                  {pictures.map((picture: any, idx: number) => {
+                    const thumbUrl = picture?.media?.publicUrl || picture?.media?.fileUrl || picture?.media?.url || '';
+                    const isActive = idx === currentPictureIndex;
+                    
+                    return (
+                      <button
+                        key={idx}
+                        onClick={() => goToPicture(idx)}
+                        className={`transition-all rounded overflow-hidden flex-shrink-0 ${
+                          isActive ? 'ring-2 ring-offset-1' : 'opacity-60 hover:opacity-100'
+                        }`}
+                        style={{
+                          ringColor: colors.primary,
+                          width: '50px',
+                          height: '50px'
+                        }}
+                      >
+                        {thumbUrl ? (
+                          <img
+                            src={thumbUrl}
+                            alt={`Thumbnail ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div 
+                            className="w-full h-full flex items-center justify-center"
+                            style={{ backgroundColor: colors.backgroundSecondary }}
+                          >
+                            <Camera className="w-5 h-5" style={{ color: colors.textMuted }} />
+                          </div>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
         </div>
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
@@ -4516,39 +5357,212 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
+  const renderPicturesSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const pictures = content.pictures || (Array.isArray(content) ? content : []);
+    const slideKey = `${report.id}-pictures-${pictures.length}-${pictures.map((p: any) => p.id || p.media?.id).join('-')}`;
+    return <PicturesSlideContent key={slideKey} content={content} pageNumber={pageNumber} totalPages={totalPages} />;
+  };
+
   const renderCloseOutSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const entries = content.entries || (Array.isArray(content) ? content : []);
+
+    if (entries.length === 0) {
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Project Close Out" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
-          {content.map((entry: any, idx: number) => (
-            <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <p className="text-lg font-medium mb-3" style={{ color: colors.textPrimary }}>{entry.itemType}</p>
-              <div className="grid grid-cols-5 gap-4 text-sm">
-                <div>
-                  <p style={{ color: colors.textSecondary }}>Total Required</p>
-                  <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{entry.totalRequired || 0}</p>
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <ClipboardCheck className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+              <p className="text-sm" style={{ color: colors.textSecondary }}>No close out information recorded</p>
                 </div>
-                <div>
-                  <p style={{ color: colors.textSecondary }}>Submitted</p>
-                  <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{entry.submitted || 0}</p>
                 </div>
-                <div>
-                  <p style={{ color: colors.textSecondary }}>Approved</p>
-                  <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{entry.approved || 0}</p>
+          {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
                 </div>
-                <div>
-                  <p style={{ color: colors.textSecondary }}>Under Review</p>
-                  <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{entry.underReview || 0}</p>
+      );
+    }
+
+    return (
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Project Close Out" />
+        
+        {/* Summary Section */}
+        <div className="mb-2 grid grid-cols-5 gap-2 max-w-6xl mx-auto flex-shrink-0">
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Required
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {entries.reduce((sum: number, e: any) => sum + (e.totalRequired || 0), 0)}
+            </p>
                 </div>
-                <div>
-                  <p style={{ color: colors.textSecondary }}>Rejected</p>
-                  <p className="text-lg font-medium" style={{ color: colors.textPrimary }}>{entry.rejected || 0}</p>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Submitted
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+              {entries.reduce((sum: number, e: any) => sum + (e.submitted || 0), 0)}
+            </p>
                 </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Total Approved
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.success }}>
+              {entries.reduce((sum: number, e: any) => sum + (e.approved || 0), 0)}
+            </p>
               </div>
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Under Review
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.warning }}>
+              {entries.reduce((sum: number, e: any) => sum + (e.underReview || 0), 0)}
+            </p>
             </div>
-          ))}
+          <div 
+            className="p-2 rounded-lg text-center"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+              Rejected
+            </p>
+            <p className="text-xl font-bold" style={{ color: colors.error }}>
+              {entries.reduce((sum: number, e: any) => sum + (e.rejected || 0), 0)}
+            </p>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* Separator */}
+          <div className="mt-8 mb-1">
+            <div className="flex items-center">
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                Close Out Items
+              </h3>
+              <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+            </div>
+          </div>
+
+          {/* Close Out Table */}
+          <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+            <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+              <thead>
+                <tr>
+                  <th 
+                    className="text-left py-1.5 px-3 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Item Type
+                  </th>
+                  <th 
+                    className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Total Required
+                  </th>
+                  <th 
+                    className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Submitted
+                  </th>
+                  <th 
+                    className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Approved
+                  </th>
+                  <th 
+                    className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Under Review
+                  </th>
+                  <th 
+                    className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                    style={{ 
+                      color: colors.primary, 
+                      backgroundColor: `${colors.primary}10`,
+                      borderBottom: `2px solid ${colors.primary}`,
+                      fontSize: '0.7rem'
+                    }}
+                  >
+                    Rejected
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {entries.map((entry: any, idx: number) => (
+                  <tr 
+                    key={entry.id || idx}
+                    className="hover:opacity-90 transition-opacity"
+                    style={{ 
+                      borderBottom: `1px solid ${colors.border}`,
+                      backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                    }}
+                  >
+                    <td className="py-1 px-3 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                      {entry.itemType || 'N/A'}
+                    </td>
+                    <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                      {entry.totalRequired ?? '-'}
+                    </td>
+                    <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem' }}>
+                      {entry.submitted ?? '-'}
+                    </td>
+                    <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
+                      {entry.approved ?? '-'}
+                    </td>
+                    <td className="py-1 px-2 text-center" style={{ color: colors.warning, fontSize: '0.7rem', fontWeight: '600' }}>
+                      {entry.underReview ?? '-'}
+                    </td>
+                    <td className="py-1 px-2 text-center" style={{ color: colors.error, fontSize: '0.7rem', fontWeight: '600' }}>
+                      {entry.rejected ?? '-'}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
@@ -4557,43 +5571,145 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   const renderClientFeedbackSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
+    const feedback = content.feedback || content;
+    const rating = feedback?.rating || null;
+    const positivePoints = feedback?.positivePoints || (Array.isArray(feedback?.positivePoints) ? feedback.positivePoints : []);
+    const negativePoints = feedback?.negativePoints || (Array.isArray(feedback?.negativePoints) ? feedback.negativePoints : []);
+
+    // Helper function to get rating color
+    const getRatingColor = (ratingValue: string | null | undefined) => {
+      if (!ratingValue) return colors.textMuted;
+      const ratingLower = ratingValue.toLowerCase();
+      if (ratingLower === 'excellent' || ratingLower === 'very good') {
+        return colors.success;
+      } else if (ratingLower === 'good') {
+        return colors.info;
+      } else if (ratingLower === 'average') {
+        return colors.warning;
+      } else {
+        return colors.error;
+      }
+    };
+
+    const hasPositivePoints = Array.isArray(positivePoints) && positivePoints.length > 0;
+    const hasNegativePoints = Array.isArray(negativePoints) && negativePoints.length > 0;
+
     return (
       <div className="h-full flex flex-col p-6 overflow-hidden">
         <ReportHeader project={project} pageTitle="Client Feedback" />
-        <div className="flex-1 overflow-y-auto max-w-4xl mx-auto w-full">
-          {content.rating && (
-            <div className="text-center mb-8">
-              <p className="text-2xl font-semibold mb-2" style={{ color: colors.textPrimary }}>Rating</p>
-              <p className="text-4xl" style={{ color: colors.primary }}>{content.rating}</p>
-            </div>
-          )}
-          {content.positivePoints && Array.isArray(content.positivePoints) && content.positivePoints.length > 0 && (
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* Rating Section */}
+          {rating && (
             <div className="mb-6">
-              <h3 className="text-xl font-semibold mb-4" style={{ color: colors.success }}>Positive Points</h3>
-              <ul className="space-y-2">
-                {content.positivePoints.map((point: string, idx: number) => (
-                  <li key={idx} className="flex items-start space-x-2">
-                    <span className="text-green-500 mt-1">✓</span>
-                    <p style={{ color: colors.textPrimary }}>{point}</p>
-                  </li>
-                ))}
-              </ul>
+              <div className="flex items-center mb-1">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  Overall Rating
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              </div>
+              <div className="mt-4 text-center">
+                <p 
+                  className="text-2xl font-bold" 
+                  style={{ color: getRatingColor(rating) }}
+                >
+                  {rating}
+                </p>
+              </div>
             </div>
           )}
-          {content.negativePoints && Array.isArray(content.negativePoints) && content.negativePoints.length > 0 && (
-            <div>
-              <h3 className="text-xl font-semibold mb-4" style={{ color: colors.error }}>Areas for Improvement</h3>
-              <ul className="space-y-2">
-                {content.negativePoints.map((point: string, idx: number) => (
-                  <li key={idx} className="flex items-start space-x-2">
-                    <span className="text-red-500 mt-1">•</span>
-                    <p style={{ color: colors.textPrimary }}>{point}</p>
+
+          {/* Positive Points Section */}
+          {hasPositivePoints && (
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-xs font-semibold uppercase tracking-wider flex items-center gap-2" style={{ color: colors.success }}>
+                  <span className="text-lg">✓</span>
+                  Positive Points
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              </div>
+              <div 
+                className="rounded-lg p-5"
+                style={{ 
+                  backgroundColor: `${colors.success}08`,
+                  border: `1px solid ${colors.success}30`,
+                  boxShadow: `0 2px 4px ${colors.success}10`
+                }}
+              >
+                <ul className="space-y-3">
+                  {positivePoints.map((point: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <div 
+                        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5"
+                        style={{ 
+                          backgroundColor: `${colors.success}20`,
+                          color: colors.success
+                        }}
+                      >
+                        <span className="text-xs font-bold">✓</span>
+                      </div>
+                      <p className="text-sm leading-relaxed flex-1" style={{ color: colors.textPrimary }}>
+                        {point}
+                      </p>
                   </li>
                 ))}
               </ul>
+              </div>
             </div>
+          )}
+
+          {/* Areas for Improvement Section */}
+          {hasNegativePoints && (
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                <h3 className="px-4 text-xs font-semibold uppercase tracking-wider flex items-center gap-2" style={{ color: colors.error }}>
+                  <span className="text-lg">⚠</span>
+                  Areas for Improvement
+                </h3>
+                <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+              </div>
+              <div 
+                className="rounded-lg p-5"
+                style={{ 
+                  backgroundColor: `${colors.error}08`,
+                  border: `1px solid ${colors.error}30`,
+                  boxShadow: `0 2px 4px ${colors.error}10`
+                }}
+              >
+                <ul className="space-y-3">
+                  {negativePoints.map((point: string, idx: number) => (
+                    <li key={idx} className="flex items-start gap-3">
+                      <div 
+                        className="flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center mt-0.5"
+                        style={{ 
+                          backgroundColor: `${colors.error}20`,
+                          color: colors.error
+                        }}
+                      >
+                        <span className="text-xs font-bold">!</span>
+                      </div>
+                      <p className="text-sm leading-relaxed flex-1" style={{ color: colors.textPrimary }}>
+                        {point}
+                      </p>
+                  </li>
+                ))}
+              </ul>
+              </div>
+            </div>
+          )}
+
+          {/* Empty State */}
+          {!rating && !hasPositivePoints && !hasNegativePoints && (
+            <div className="text-center py-8">
+              <MessageSquare className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
+              <p className="text-xs" style={{ color: colors.textSecondary }}>No client feedback recorded</p>
+        </div>
           )}
         </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
   };

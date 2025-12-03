@@ -240,6 +240,9 @@ export default function ProjectManager() {
   const [reportMonth, setReportMonth] = useState<number>(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [availablePictures, setAvailablePictures] = useState<any[]>([]);
+  const [selectedPictureIds, setSelectedPictureIds] = useState<Set<number>>(new Set());
+  const [isLoadingPictures, setIsLoadingPictures] = useState(false);
   const [showConsultantModal, setShowConsultantModal] = useState(false);
   const [clientContactFormData, setClientContactFormData] = useState<Partial<Contact>>({
     firstName: '',
@@ -942,10 +945,24 @@ export default function ProjectManager() {
         reportData.assets = assetsRes.data;
       }
 
-      // Pictures
-      const picturesRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/pictures`);
-      if (picturesRes.success) {
-        reportData.pictures = picturesRes.data;
+      // Pictures - include selected pictures for the report
+      if (selectedPictureIds.size > 0 && availablePictures.length > 0) {
+        const selectedPictures = availablePictures.filter(pic => selectedPictureIds.has(pic.id));
+        reportData.pictures = {
+          pictures: selectedPictures
+        };
+      } else {
+        reportData.pictures = { pictures: [] };
+      }
+
+      // All Project Pictures - fetch all pictures to find featured one for cover
+      const allPicturesRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/pictures`);
+      if (allPicturesRes.success && allPicturesRes.data?.pictures) {
+        reportData.allProjectPictures = {
+          pictures: allPicturesRes.data.pictures
+        };
+      } else {
+        reportData.allProjectPictures = { pictures: [] };
       }
 
       // Close Out
@@ -1584,7 +1601,37 @@ export default function ProjectManager() {
             </div>
             <div className="flex items-center space-x-2">
               <Button
-                onClick={() => setShowGenerateReportModal(true)}
+                onClick={async () => {
+                  setShowGenerateReportModal(true);
+                  // Fetch pictures when opening modal
+                  if (selectedProject) {
+                    setIsLoadingPictures(true);
+                    try {
+                      const picturesRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/pictures`);
+                      if (picturesRes.success && picturesRes.data?.pictures) {
+                        // Sort by createdAt descending (most recent first)
+                        const sortedPictures = [...picturesRes.data.pictures].sort((a: any, b: any) => {
+                          const dateA = new Date(a.createdAt || a.media?.createdAt || 0).getTime();
+                          const dateB = new Date(b.createdAt || b.media?.createdAt || 0).getTime();
+                          return dateB - dateA; // Descending order (newest first)
+                        });
+                        setAvailablePictures(sortedPictures);
+                        // Select latest 10 images by default (already sorted by most recent first)
+                        const latest10 = sortedPictures.slice(0, 10);
+                        setSelectedPictureIds(new Set(latest10.map((pic: any) => pic.id)));
+                      } else {
+                        setAvailablePictures([]);
+                        setSelectedPictureIds(new Set());
+                      }
+                    } catch (error) {
+                      console.error('Error fetching pictures:', error);
+                      setAvailablePictures([]);
+                      setSelectedPictureIds(new Set());
+                    } finally {
+                      setIsLoadingPictures(false);
+                    }
+                  }
+                }}
                 className="flex items-center space-x-2"
                 variant="outline"
               >
@@ -6668,7 +6715,7 @@ export default function ProjectManager() {
           onClick={() => setShowGenerateReportModal(false)}
         >
           <Card 
-            className="w-full max-w-md p-6"
+            className="w-full max-w-2xl p-6"
             style={{ backgroundColor: colors.backgroundSecondary }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -6749,9 +6796,171 @@ export default function ProjectManager() {
                 </div>
               </div>
 
+              {/* Picture Selection */}
+              <div>
+                <div className="flex items-center justify-between mb-3">
+                  <label className="block text-sm font-medium" style={{ color: colors.textPrimary }}>
+                    Select Pictures to Include
+                  </label>
+                  {availablePictures.length > 0 && (
+                    <button
+                      onClick={() => {
+                        if (selectedPictureIds.size === availablePictures.length) {
+                          setSelectedPictureIds(new Set());
+                        } else {
+                          setSelectedPictureIds(new Set(availablePictures.map((pic: any) => pic.id)));
+                        }
+                      }}
+                      className="text-xs px-2 py-1 rounded"
+                      style={{ 
+                        color: colors.primary,
+                        backgroundColor: `${colors.primary}10`
+                      }}
+                    >
+                      {selectedPictureIds.size === availablePictures.length ? 'Deselect All' : 'Select All'}
+                    </button>
+                  )}
+                </div>
+                
+                {isLoadingPictures ? (
+                  <div className="text-center py-4">
+                    <div className="animate-spin rounded-full h-6 w-6 border-2 border-t-transparent mx-auto" style={{ borderColor: colors.primary }}></div>
+                    <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>Loading pictures...</p>
+                  </div>
+                ) : availablePictures.length === 0 ? (
+                  <div className="text-center py-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                    <Camera className="w-6 h-6 mx-auto mb-2" style={{ color: colors.textMuted }} />
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>No pictures available</p>
+                  </div>
+                ) : (
+                  <div 
+                    className="rounded-lg border overflow-y-auto"
+                    style={{ 
+                      backgroundColor: colors.backgroundPrimary,
+                      borderColor: colors.borderLight,
+                      maxHeight: '400px'
+                    }}
+                  >
+                    <div className="p-3 grid grid-cols-2 gap-3">
+                      {availablePictures.map((picture: any) => {
+                        const isSelected = selectedPictureIds.has(picture.id);
+                        const pictureUrl = picture.media?.publicUrl || picture.media?.fileUrl || picture.media?.url || '';
+                        const caption = picture.caption || picture.media?.filename || picture.media?.fileName || 'Untitled';
+                        const date = picture.createdAt || picture.media?.createdAt;
+                        const formattedDate = date ? new Date(date).toLocaleDateString('en-US', { 
+                          year: 'numeric', 
+                          month: 'short', 
+                          day: 'numeric' 
+                        }) : '';
+
+                        return (
+                          <div
+                            key={picture.id}
+                            className="relative rounded-lg overflow-hidden cursor-pointer transition-all"
+                            style={{
+                              border: `2px solid ${isSelected ? colors.primary : colors.borderLight}`,
+                              backgroundColor: isSelected ? `${colors.primary}05` : colors.backgroundSecondary
+                            }}
+                            onClick={() => {
+                              const newSelected = new Set(selectedPictureIds);
+                              if (isSelected) {
+                                newSelected.delete(picture.id);
+                              } else {
+                                newSelected.add(picture.id);
+                              }
+                              setSelectedPictureIds(newSelected);
+                            }}
+                          >
+                            {/* Checkbox overlay */}
+                            <div 
+                              className="absolute top-2 left-2 z-10"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => {
+                                  const newSelected = new Set(selectedPictureIds);
+                                  if (isSelected) {
+                                    newSelected.delete(picture.id);
+                                  } else {
+                                    newSelected.add(picture.id);
+                                  }
+                                  setSelectedPictureIds(newSelected);
+                                }}
+                                className="w-5 h-5 rounded cursor-pointer"
+                                style={{
+                                  accentColor: colors.primary,
+                                  backgroundColor: isSelected ? colors.primary : colors.backgroundPrimary
+                                }}
+                              />
+                            </div>
+                            
+                            {/* Picture */}
+                            {pictureUrl ? (
+                              <img
+                                src={pictureUrl}
+                                alt={caption}
+                                className="w-full h-32 object-cover"
+                                style={{ 
+                                  opacity: isSelected ? 1 : 0.7,
+                                  transition: 'opacity 0.2s'
+                                }}
+                                onError={(e) => {
+                                  // Fallback if image fails to load
+                                  const target = e.target as HTMLImageElement;
+                                  target.style.display = 'none';
+                                  const parent = target.parentElement;
+                                  if (parent) {
+                                    const fallback = parent.querySelector('.image-fallback') as HTMLElement;
+                                    if (fallback) fallback.style.display = 'flex';
+                                  }
+                                }}
+                              />
+                            ) : null}
+                            
+                            {/* Fallback for missing image */}
+                            <div 
+                              className="image-fallback w-full h-32 flex items-center justify-center"
+                              style={{ 
+                                backgroundColor: colors.backgroundPrimary,
+                                display: pictureUrl ? 'none' : 'flex'
+                              }}
+                            >
+                              <Camera className="w-8 h-8" style={{ color: colors.textMuted }} />
+                            </div>
+                            
+                            {/* Caption and Date */}
+                            <div className="p-2">
+                              <p className="text-xs font-medium truncate mb-1" style={{ color: colors.textPrimary }}>
+                                {caption}
+                              </p>
+                              {formattedDate && (
+                                <p className="text-xs" style={{ color: colors.textSecondary }}>
+                                  {formattedDate}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+                {availablePictures.length > 0 && (
+                  <p className="text-xs mt-2" style={{ color: colors.textSecondary }}>
+                    {selectedPictureIds.size} of {availablePictures.length} picture{availablePictures.length !== 1 ? 's' : ''} selected
+                  </p>
+                )}
+              </div>
+
               <div className="flex items-center justify-end space-x-3 pt-4">
                 <Button
-                  onClick={() => setShowGenerateReportModal(false)}
+                  onClick={() => {
+                    setShowGenerateReportModal(false);
+                    setSelectedPictureIds(new Set());
+                    setAvailablePictures([]);
+                  }}
                   className="px-4 py-2"
                   style={{ 
                     backgroundColor: colors.backgroundPrimary,
