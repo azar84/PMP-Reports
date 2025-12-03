@@ -976,6 +976,18 @@ export default function ProjectManager() {
       if (clientFeedbackRes.success) {
         reportData.clientFeedback = clientFeedbackRes.data;
       }
+
+      // Commercial
+      const commercialRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/commercial`);
+      if (commercialRes.success) {
+        reportData.commercial = commercialRes.data;
+      }
+
+      // Commercial Checklist
+      const commercialChecklistRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/commercial/checklist`);
+      if (commercialChecklistRes.success) {
+        reportData.commercialChecklist = commercialChecklistRes.data;
+      }
     } catch (error) {
       console.error('Error collecting project data:', error);
     }

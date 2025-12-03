@@ -4,6 +4,7 @@ import { useEffect, useState, type CSSProperties } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
@@ -121,17 +122,14 @@ export default function ProjectCommercial({
   const [checklistSaving, setChecklistSaving] = useState<boolean>(false);
   const [checklistInitializing, setChecklistInitializing] = useState<boolean>(false);
 
-  // Planning data (for Project Progress %)
-  const [planningActualProgress, setPlanningActualProgress] = useState<number | null>(null);
-
   // Calculate totals
-  // Effective Contract Value = Contract Value - Provisional Sum + Instructed Provisional Sum - Omissions + Variations + Dayworks
+  // Effective Contract Value = Contract Value - Provisional Sum + Instructed Provisional Sum - Omissions + Variations - Dayworks
   const effectiveContractValue = 
     (commercialData.contractValue || 0) -
     (commercialData.provisionalSum || 0) +
     (commercialData.instructedProvisionalSum || 0) -
     (commercialData.omission || 0) +
-    (commercialData.variations || 0) +
+    (commercialData.variations || 0) -
     (commercialData.dayworks || 0);
 
   const totalBudget = 
@@ -150,79 +148,10 @@ export default function ProjectCommercial({
   const gross = effectiveContractValue - totalBudget;
   const grossPercentage = effectiveContractValue > 0 ? (gross / effectiveContractValue) * 100 : 0;
 
-  // Calculate Actual Up to date Results variances
-  const actualVarianceAmount = (commercialData.budgetUpToDate || 0) - (commercialData.totalActualCostToDate || 0);
-  const actualVariancePercentage = (commercialData.budgetUpToDate || 0) > 0 
-    ? (actualVarianceAmount / (commercialData.budgetUpToDate || 1)) * 100 
-    : null;
-
-  // Calculate Cost at Completion variances
-  const costVarianceAmount = (commercialData.forecastedBudgetAtCompletion || 0) - (commercialData.forecastedCostAtCompletion || 0);
-  const costVariancePercentage = (commercialData.forecastedBudgetAtCompletion || 0) > 0 
-    ? (costVarianceAmount / (commercialData.forecastedBudgetAtCompletion || 1)) * 100 
-    : null;
-
-  // Calculate Overall Status based on Actual Variance %
-  // If variance is positive (>1%) → "Under Budget" (Green)
-  // If variance is negative (<-1%) → "Over Budget" (Red)
-  // If variance is within ±1% (between -1.0% and +1.0%, inclusive) → "On Budget" (Orange)
-  const calculateOverallStatus = (): 'On Budget' | 'Over Budget' | 'Under Budget' | null => {
-    if (actualVariancePercentage === null || isNaN(actualVariancePercentage) || !isFinite(actualVariancePercentage)) {
-      return null;
-    }
-    
-    // Convert to number to ensure decimal precision
-    const variance = Number(actualVariancePercentage);
-    
-    // Check if within ±1% range (inclusive, supports decimals)
-    if (variance >= -1.0 && variance <= 1.0) {
-      return 'On Budget';
-    } else if (variance < -1.0) {
-      return 'Over Budget';
-    } else {
-      // variance > 1.0
-      return 'Under Budget';
-    }
-  };
-
-  const calculatedOverallStatus = calculateOverallStatus();
-
   useEffect(() => {
     loadCommercialData();
     loadChecklistItems();
-    loadPlanningData();
   }, [projectId]);
-
-  // Load planning data to get actualProgress
-  const loadPlanningData = async () => {
-    try {
-      const response = await get<{ success: boolean; data?: { planning?: { actualProgress?: any } }; error?: string }>(
-        `/api/admin/projects/${projectId}/planning`
-      );
-      if (response.success && response.data?.planning) {
-        const actualProgress = response.data.planning.actualProgress;
-        if (actualProgress !== null && actualProgress !== undefined) {
-          // Convert Prisma.Decimal to number if needed
-          const progressValue = typeof actualProgress === 'object' && 'toNumber' in actualProgress
-            ? (actualProgress as any).toNumber()
-            : typeof actualProgress === 'number'
-            ? actualProgress
-            : parseFloat(actualProgress);
-          
-          if (!isNaN(progressValue)) {
-            setPlanningActualProgress(progressValue);
-          } else {
-            setPlanningActualProgress(null);
-          }
-        } else {
-          setPlanningActualProgress(null);
-        }
-      }
-    } catch (error) {
-      console.error('Error loading planning data:', error);
-      setPlanningActualProgress(null);
-    }
-  };
 
   const convertDecimalToNumber = (value: any): number | null => {
     if (value === null || value === undefined || value === '') return null;
@@ -860,15 +789,135 @@ export default function ProjectCommercial({
                           textAlign: 'center',
                         }}
                       >
-                        <input
-                          type="text"
-                          value={item.status || ''}
-                          onChange={(event) => handleChecklistChange(index, 'status', event.target.value || null)}
-                          onBlur={() => saveChecklistItems()}
-                          placeholder="Status"
-                          className={`${cellInputClass} text-center`}
-                          style={cellInputStyle}
-                        />
+                        {(() => {
+                          const checkListItemLower = item.checkListItem?.toLowerCase() || '';
+                          const isQsVsTender = 
+                            checkListItemLower.includes('qs vs tender') ||
+                            checkListItemLower.includes('quantity vs tender') ||
+                            checkListItemLower.includes('quantity surveyor vs tender');
+                          const isTenderVsIfc = 
+                            checkListItemLower.includes('tender drawing vs ifc') ||
+                            checkListItemLower.includes('tender vs ifc') ||
+                            checkListItemLower.includes('tender vs ifc drawing');
+                          const isBudgetSignOff = 
+                            checkListItemLower.includes('budget sign off') ||
+                            checkListItemLower.includes('budget signoff') ||
+                            checkListItemLower.includes('budget sign-off');
+
+                          if (isQsVsTender) {
+                            return (
+                              <div className="flex flex-wrap gap-3 justify-center items-center">
+                                {['Positive Variance', 'Negative Variance', 'No Change'].map((option) => {
+                                  const isSelected = item.status === option;
+                                  return (
+                                    <Checkbox
+                                      key={option}
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Radio button behavior: always set to this option (never toggle off)
+                                        const updatedItems = [...checklistItems];
+                                        updatedItems[index] = {
+                                          ...updatedItems[index],
+                                          status: option,
+                                        };
+                                        setChecklistItems(updatedItems);
+                                        // Save immediately with updated items
+                                        saveChecklistItems(updatedItems);
+                                      }}
+                                      label={option}
+                                      variant="primary"
+                                      size="sm"
+                                    />
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+
+                          if (isTenderVsIfc) {
+                            return (
+                              <div className="flex flex-wrap gap-3 justify-center items-center">
+                                {['Addition', 'Omission', 'No Changes'].map((option) => {
+                                  const isSelected = item.status === option;
+                                  return (
+                                    <Checkbox
+                                      key={option}
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Radio button behavior: always set to this option (never toggle off)
+                                        const updatedItems = [...checklistItems];
+                                        updatedItems[index] = {
+                                          ...updatedItems[index],
+                                          status: option,
+                                        };
+                                        setChecklistItems(updatedItems);
+                                        // Save immediately with updated items
+                                        saveChecklistItems(updatedItems);
+                                      }}
+                                      label={option}
+                                      variant="primary"
+                                      size="sm"
+                                    />
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+
+                          if (isBudgetSignOff) {
+                            return (
+                              <div className="flex flex-wrap gap-3 justify-center items-center">
+                                {['Signed', 'Not Signed'].map((option) => {
+                                  const isSelected = item.status === option;
+                                  return (
+                                    <Checkbox
+                                      key={option}
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        // Radio button behavior: always set to this option (never toggle off)
+                                        const updatedItems = [...checklistItems];
+                                        updatedItems[index] = {
+                                          ...updatedItems[index],
+                                          status: option,
+                                        };
+                                        setChecklistItems(updatedItems);
+                                        // Save immediately with updated items
+                                        saveChecklistItems(updatedItems);
+                                      }}
+                                      label={option}
+                                      variant="primary"
+                                      size="sm"
+                                    />
+                                  );
+                                })}
+                              </div>
+                            );
+                          }
+
+                          // Default: show text input for other items
+                          const isVO = checkListItemLower.trim() === 'vo';
+                          const placeholder = isVO 
+                            ? `Expected value in ${currencySymbol}`
+                            : 'Status';
+                          
+                          return (
+                            <input
+                              type="text"
+                              value={item.status || ''}
+                              onChange={(event) => handleChecklistChange(index, 'status', event.target.value || null)}
+                              onBlur={() => saveChecklistItems()}
+                              placeholder={placeholder}
+                              className={`${cellInputClass} text-center`}
+                              style={cellInputStyle}
+                            />
+                          );
+                        })()}
                       </td>
                       <td
                         style={{
@@ -952,7 +1001,7 @@ export default function ProjectCommercial({
                   color: colors.textSecondary,
                   borderRight: `1px solid ${colors.borderLight || colors.border}`
                 }}>
-                  1.1 Contract Value
+                  1.1 Contract Value (excluding VAT)
                 </td>
                 <td className="py-2 px-4">
                   <Input
@@ -1134,26 +1183,13 @@ export default function ProjectCommercial({
                   />
                 </td>
               </tr>
-
-              {/* 3. Additional Costs */}
-              <tr style={{ backgroundColor: colors.backgroundPrimary, borderTop: `2px solid ${colors.border}` }}>
-                <td className="py-3 px-4 font-semibold" style={{ 
-                  color: colors.textPrimary,
-                  borderRight: `1px solid ${colors.borderLight || colors.border}`
-                }}>
-                  3. Additional Costs
-                </td>
-                <td className="py-3 px-4 text-right font-semibold" style={{ color: colors.textPrimary }}>
-                  {/* Total can be calculated if needed */}
-                </td>
-              </tr>
-              {/* 3.1 VAT */}
+              {/* 1.7 VAT */}
               <tr style={{ backgroundColor: colors.backgroundSecondary }}>
                 <td className="py-2 px-8" style={{ 
                   color: colors.textSecondary,
                   borderRight: `1px solid ${colors.borderLight || colors.border}`
                 }}>
-                  3.1 VAT (5%)
+                  1.7 VAT (5%)
                 </td>
                 <td className="py-2 px-4">
                   <Input
@@ -1199,14 +1235,13 @@ export default function ProjectCommercial({
                   />
                 </td>
               </tr>
-
-              {/* 3.2 Prolongation Cost Expected Value */}
+              {/* 1.8 Prolongation Cost Expected Value */}
               <tr style={{ backgroundColor: colors.backgroundSecondary }}>
                 <td className="py-2 px-8" style={{ 
                   color: colors.textSecondary,
                   borderRight: `1px solid ${colors.borderLight || colors.border}`
                 }}>
-                  3.2 Prolongation Cost Expected Value
+                  1.8 Prolongation Cost Expected Value
                 </td>
                 <td className="py-2 px-4">
                   <Input
@@ -1440,429 +1475,6 @@ export default function ProjectCommercial({
           </div>
         </div>
       </Card>
-
-      {/* New Sections: Actual Up to date Results, Cost at Completion, Overall Status, Project Performance Indicators */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {/* Left Column */}
-        <div className="space-y-4">
-          {/* Actual Up to date Results */}
-          <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-center" style={{ color: colors.textPrimary }}>
-                Actual Up to date Results
-              </h3>
-            </div>
-            <table className="w-full" style={{ borderCollapse: 'collapse', border: `1px solid ${colors.borderLight || colors.border}` }}>
-              <tbody>
-                <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`,
-                    width: '40px'
-                  }}>
-                    1
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Budget up to Date
-                  </td>
-                  <td className="py-2 px-4">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      value={getInputValue('budgetUpToDate', commercialData.budgetUpToDate)}
-                      onChange={(e) => handleInputChange('budgetUpToDate', e.target.value)}
-                      onBlur={(e) => {
-                        setInputValues((prev) => {
-                          const updated = { ...prev };
-                          delete updated.budgetUpToDate;
-                          return updated;
-                        });
-                      }}
-                      className="text-right w-full"
-                      style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        color: colors.textPrimary,
-                        borderColor: colors.borderLight,
-                      }}
-                    />
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundPrimary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    2
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Total Actual Cost to date
-                  </td>
-                  <td className="py-2 px-4">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      value={getInputValue('totalActualCostToDate', commercialData.totalActualCostToDate)}
-                      onChange={(e) => handleInputChange('totalActualCostToDate', e.target.value)}
-                      onBlur={(e) => {
-                        setInputValues((prev) => {
-                          const updated = { ...prev };
-                          delete updated.totalActualCostToDate;
-                          return updated;
-                        });
-                      }}
-                      className="text-right w-full"
-                      style={{
-                        backgroundColor: colors.backgroundSecondary,
-                        color: colors.textPrimary,
-                        borderColor: colors.borderLight,
-                      }}
-                    />
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    3
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Variance Amount
-                  </td>
-                  <td className="py-2 px-4 text-right" style={{ color: colors.textPrimary }}>
-                    {formatCurrency(actualVarianceAmount, currencySymbol)}
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundPrimary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    4
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Variance %
-                  </td>
-                  <td className="py-2 px-4 text-right" style={{ color: colors.textPrimary }}>
-                    {actualVariancePercentage !== null && !isNaN(actualVariancePercentage) && isFinite(actualVariancePercentage)
-                      ? `${actualVariancePercentage.toFixed(2)}%`
-                      : '#DIV/0!'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </Card>
-
-          {/* Overall Status */}
-          <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-center" style={{ color: colors.textPrimary }}>
-                Overall Status
-              </h3>
-              <p className="text-xs text-center mt-1" style={{ color: colors.textSecondary }}>
-                (Calculated from Actual Variance %)
-              </p>
-            </div>
-            <div className="flex items-center justify-center py-6">
-              {calculatedOverallStatus ? (
-                <div
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    borderRadius: '9999px',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    color: '#FFFFFF',
-                    backgroundColor:
-                      calculatedOverallStatus === 'Under Budget'
-                        ? '#10B981' // Green
-                        : calculatedOverallStatus === 'On Budget'
-                        ? '#F97316' // Orange
-                        : '#EF4444', // Red
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: '150px',
-                  }}
-                >
-                  {calculatedOverallStatus}
-                </div>
-              ) : (
-                <div
-                  style={{
-                    padding: '0.75rem 1.5rem',
-                    borderRadius: '9999px',
-                    fontSize: '1rem',
-                    fontWeight: 600,
-                    color: colors.textSecondary,
-                    backgroundColor: colors.backgroundSecondary,
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    minWidth: '150px',
-                  }}
-                >
-                  No Data
-                </div>
-              )}
-            </div>
-          </Card>
-        </div>
-
-        {/* Right Column */}
-        <div className="space-y-4">
-          {/* Cost at Completion */}
-          <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-center" style={{ color: colors.textPrimary }}>
-                Cost at Completion
-              </h3>
-            </div>
-            <table className="w-full" style={{ borderCollapse: 'collapse', border: `1px solid ${colors.borderLight || colors.border}` }}>
-              <tbody>
-                <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`,
-                    width: '40px'
-                  }}>
-                    1
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Forecasted Budget at Completion
-                  </td>
-                  <td className="py-2 px-4">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      value={getInputValue('forecastedBudgetAtCompletion', commercialData.forecastedBudgetAtCompletion)}
-                      onChange={(e) => handleInputChange('forecastedBudgetAtCompletion', e.target.value)}
-                      onBlur={(e) => {
-                        setInputValues((prev) => {
-                          const updated = { ...prev };
-                          delete updated.forecastedBudgetAtCompletion;
-                          return updated;
-                        });
-                      }}
-                      className="text-right w-full"
-                      style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        color: colors.textPrimary,
-                        borderColor: colors.borderLight,
-                      }}
-                    />
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundPrimary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    2
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Forecasted Cost at Completion
-                  </td>
-                  <td className="py-2 px-4">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      inputMode="decimal"
-                      value={getInputValue('forecastedCostAtCompletion', commercialData.forecastedCostAtCompletion)}
-                      onChange={(e) => handleInputChange('forecastedCostAtCompletion', e.target.value)}
-                      onBlur={(e) => {
-                        setInputValues((prev) => {
-                          const updated = { ...prev };
-                          delete updated.forecastedCostAtCompletion;
-                          return updated;
-                        });
-                      }}
-                      className="text-right w-full"
-                      style={{
-                        backgroundColor: colors.backgroundSecondary,
-                        color: colors.textPrimary,
-                        borderColor: colors.borderLight,
-                      }}
-                    />
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    3
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Variance Amount
-                  </td>
-                  <td className="py-2 px-4 text-right" style={{ color: colors.textPrimary }}>
-                    {formatCurrency(costVarianceAmount, currencySymbol)}
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundPrimary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    4
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Variance %
-                  </td>
-                  <td className="py-2 px-4 text-right" style={{ color: colors.textPrimary }}>
-                    {costVariancePercentage !== null && !isNaN(costVariancePercentage) && isFinite(costVariancePercentage)
-                      ? `${costVariancePercentage.toFixed(2)}%`
-                      : '#DIV/0!'}
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </Card>
-
-          {/* Project Performance Indicators */}
-          <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
-            <div className="mb-4">
-              <h3 className="text-lg font-semibold text-center" style={{ color: colors.textPrimary }}>
-                Project Performance Indicators
-              </h3>
-            </div>
-            <table className="w-full" style={{ borderCollapse: 'collapse', border: `1px solid ${colors.borderLight || colors.border}` }}>
-              <tbody>
-                <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`,
-                    width: '40px'
-                  }}>
-                    1
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Project Progress %
-                  </td>
-                  <td className="py-2 px-4 text-right" style={{ color: colors.textPrimary }}>
-                    {planningActualProgress !== null && !isNaN(planningActualProgress) && isFinite(planningActualProgress)
-                      ? `${planningActualProgress.toFixed(2)}%`
-                      : '-'}
-                    <span className="text-xs ml-2 block" style={{ color: colors.textSecondary }}>
-                      (from Planning)
-                    </span>
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundPrimary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    2
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Project Revenue %
-                  </td>
-                  <td className="py-2 px-4">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      inputMode="decimal"
-                      value={getInputValue('projectRevenuePercentage', commercialData.projectRevenuePercentage)}
-                      onChange={(e) => handleInputChange('projectRevenuePercentage', e.target.value)}
-                      onBlur={(e) => {
-                        setInputValues((prev) => {
-                          const updated = { ...prev };
-                          delete updated.projectRevenuePercentage;
-                          return updated;
-                        });
-                      }}
-                      className="text-right w-full"
-                      style={{
-                        backgroundColor: colors.backgroundSecondary,
-                        color: colors.textPrimary,
-                        borderColor: colors.borderLight,
-                      }}
-                    />
-                  </td>
-                </tr>
-                <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    3
-                  </td>
-                  <td className="py-2 px-4" style={{ 
-                    color: colors.textSecondary,
-                    borderRight: `1px solid ${colors.borderLight || colors.border}`
-                  }}>
-                    Project Cost %
-                  </td>
-                  <td className="py-2 px-4">
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      max="100"
-                      inputMode="decimal"
-                      value={getInputValue('projectCostPercentage', commercialData.projectCostPercentage)}
-                      onChange={(e) => handleInputChange('projectCostPercentage', e.target.value)}
-                      onBlur={(e) => {
-                        setInputValues((prev) => {
-                          const updated = { ...prev };
-                          delete updated.projectCostPercentage;
-                          return updated;
-                        });
-                      }}
-                      className="text-right w-full"
-                      style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        color: colors.textPrimary,
-                        borderColor: colors.borderLight,
-                      }}
-                    />
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </Card>
-        </div>
-      </div>
     </div>
   );
 }

@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef } from 'react';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
-import { formatCurrency } from '@/lib/currency';
+import { formatCurrency, formatCurrencyWithDecimals } from '@/lib/currency';
 import { 
   ChevronLeft, 
   ChevronRight, 
@@ -66,6 +66,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   
   const [currentSlide, setCurrentSlide] = useState(0);
   const [slides, setSlides] = useState<any[]>([]);
+  const [pageJumpValue, setPageJumpValue] = useState<string>('');
   const [assignedStaffPage, setAssignedStaffPage] = useState(0);
   const [balanceStaffPage, setBalanceStaffPage] = useState(0);
   const [checklistPage, setChecklistPage] = useState(0);
@@ -616,6 +617,39 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
+    // Slide 15: Commercial Report Cover
+      slides.push({
+      type: 'commercialCover',
+      title: 'Commercial Report',
+      content: {
+        project: data.project
+      }
+    });
+
+    // Slide 16: Commercial Checklist
+    if (data.commercialChecklist && data.commercialChecklist.length > 0) {
+      slides.push({
+        type: 'commercialChecklist',
+        title: 'Commercial Checklist',
+        content: {
+          project: data.project,
+          commercialChecklist: data.commercialChecklist
+        }
+      });
+    }
+
+    // Slide 17: Commercial Data (Contract Value)
+    if (data.commercial) {
+      slides.push({
+        type: 'commercial',
+        title: 'Commercial Information',
+        content: {
+          project: data.project,
+          commercial: data.commercial
+        }
+      });
+    }
+
     return slides;
   };
 
@@ -628,6 +662,22 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const prevSlide = () => {
     if (currentSlide > 0) {
       setCurrentSlide(currentSlide - 1);
+    }
+  };
+
+  const jumpToPage = (pageNumber: number) => {
+    const targetIndex = pageNumber - 1; // Convert to 0-based index
+    if (targetIndex >= 0 && targetIndex < slides.length) {
+      setCurrentSlide(targetIndex);
+      setPageJumpValue(''); // Clear input after jump
+    }
+  };
+
+  const handlePageJumpSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const pageNum = parseInt(pageJumpValue, 10);
+    if (!isNaN(pageNum) && pageNum >= 1 && pageNum <= slides.length) {
+      jumpToPage(pageNum);
     }
   };
 
@@ -675,6 +725,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         return renderPicturesSlide(slide.content, pageNumber, totalPages);
       case 'closeOut':
         return renderCloseOutSlide(slide.content, pageNumber, totalPages);
+      case 'commercialCover':
+        return renderCommercialCoverSlide(slide.content, pageNumber, totalPages);
+      case 'commercial':
+        return renderCommercialSlide(slide.content, pageNumber, totalPages);
+      case 'commercialChecklist':
+        return renderCommercialChecklistSlide(slide.content, pageNumber, totalPages);
       case 'clientFeedback':
         return renderClientFeedbackSlide(slide.content, pageNumber, totalPages);
       default:
@@ -5325,9 +5381,11 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           isActive ? 'ring-2 ring-offset-1' : 'opacity-60 hover:opacity-100'
                         }`}
                         style={{
-                          ringColor: colors.primary,
                           width: '50px',
-                          height: '50px'
+                          height: '50px',
+                          ...(isActive && {
+                            '--tw-ring-color': colors.primary
+                          } as React.CSSProperties)
                         }}
                       >
                         {thumbUrl ? (
@@ -5361,6 +5419,664 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const pictures = content.pictures || (Array.isArray(content) ? content : []);
     const slideKey = `${report.id}-pictures-${pictures.length}-${pictures.map((p: any) => p.id || p.media?.id).join('-')}`;
     return <PicturesSlideContent key={slideKey} content={content} pageNumber={pageNumber} totalPages={totalPages} />;
+  };
+
+  const renderCommercialCoverSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
+    
+    return (
+      <div className="h-full flex flex-col justify-center items-center p-12 relative overflow-hidden">
+        <ReportHeader project={project} pageTitle="Commercial Report" />
+        <div className="flex-1 flex items-center justify-center">
+          <h1 
+            className="text-6xl font-bold"
+            style={{ color: colors.primary }}
+          >
+            Commercial Report
+          </h1>
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
+  };
+
+  const renderCommercialSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
+    const commercial = content.commercial || {};
+
+    // Calculate derived values
+    const effectiveContractValue = 
+      (commercial.contractValue || 0) -
+      (commercial.provisionalSum || 0) +
+      (commercial.instructedProvisionalSum || 0) -
+      (commercial.omission || 0) +
+      (commercial.variations || 0) -
+      (commercial.dayworks || 0);
+
+    const totalBudget = 
+      (commercial.preliminaries || 0) +
+      (commercial.subContractors || 0) +
+      (commercial.suppliersMaterial || 0) +
+      (commercial.machinery || 0) +
+      (commercial.labors || 0);
+
+    const vat = commercial.vat !== null && commercial.vat !== undefined 
+      ? commercial.vat 
+      : effectiveContractValue * 0.05;
+
+    const gross = effectiveContractValue - totalBudget;
+    const grossPercentage = effectiveContractValue > 0 ? (gross / effectiveContractValue) * 100 : 0;
+
+    const actualVarianceAmount = (commercial.budgetUpToDate || 0) - (commercial.totalActualCostToDate || 0);
+    const actualVariancePercentage = (commercial.budgetUpToDate || 0) > 0 
+      ? (actualVarianceAmount / (commercial.budgetUpToDate || 1)) * 100 
+      : null;
+
+    const costVarianceAmount = (commercial.forecastedBudgetAtCompletion || 0) - (commercial.forecastedCostAtCompletion || 0);
+    const costVariancePercentage = (commercial.forecastedBudgetAtCompletion || 0) > 0 
+      ? (costVarianceAmount / (commercial.forecastedBudgetAtCompletion || 1)) * 100 
+      : null;
+
+    // Calculate overall status
+    const calculateOverallStatus = (): string => {
+      if (actualVariancePercentage === null || isNaN(actualVariancePercentage) || !isFinite(actualVariancePercentage)) {
+        return commercial.overallStatus || '-';
+      }
+      const variance = Number(actualVariancePercentage);
+      if (variance >= -1.0 && variance <= 1.0) {
+        return 'On Budget';
+      } else if (variance < -1.0) {
+        return 'Over Budget';
+      } else {
+        return 'Under Budget';
+      }
+    };
+    const overallStatus = calculateOverallStatus();
+
+    return (
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Commercial Information" />
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* Financial Summary Cards */}
+          <div className="mb-6 grid grid-cols-2 gap-4 flex-shrink-0">
+            {/* Contract Value Card */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}
+            >
+              <div className="mb-3 pb-3 border-b" style={{ borderColor: colors.border }}>
+                <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                  1. Effective Contract Value <span style={{ color: colors.textMuted }}>(excluding VAT)</span>
+                </p>
+                <p className="text-xl font-bold" style={{ color: colors.primary }}>
+                  {formatCurrencyWithDecimals(effectiveContractValue)}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between py-1">
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    1.1 Contract Value <span style={{ color: colors.textMuted }}>(excluding VAT)</span>
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.contractValue || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1" style={{ backgroundColor: `${colors.backgroundPrimary}40` }}>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    1.2 Provisional Sum
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.provisionalSum || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    1.3 Instructed Provisional Sum
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.instructedProvisionalSum || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1" style={{ backgroundColor: `${colors.backgroundPrimary}40` }}>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    1.4 Variations
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.variations || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    1.5 Omission
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.omission || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1" style={{ backgroundColor: `${colors.backgroundPrimary}40` }}>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    1.6 Dayworks
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.dayworks || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Budget Card */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}
+            >
+              <div className="mb-3 pb-3 border-b" style={{ borderColor: colors.border }}>
+                <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                  2. Budget
+                </p>
+                <p className="text-xl font-bold" style={{ color: colors.primary }}>
+                  {formatCurrencyWithDecimals(totalBudget)}
+                </p>
+              </div>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between py-1">
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    2.1 Preliminaries
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.preliminaries || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1" style={{ backgroundColor: `${colors.backgroundPrimary}40` }}>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    2.2 Sub Contractors
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.subContractors || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    2.3 Suppliers Material
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.suppliersMaterial || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1" style={{ backgroundColor: `${colors.backgroundPrimary}40` }}>
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    2.4 Machinery
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.machinery || 0)}
+                  </p>
+                </div>
+                <div className="flex items-center justify-between py-1">
+                  <p className="text-xs" style={{ color: colors.textSecondary }}>
+                    2.5 Labors
+                  </p>
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(commercial.labors || 0)}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Additional Cards */}
+          <div className="mb-6 grid grid-cols-2 gap-4 flex-shrink-0">
+            {/* VAT Card */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}
+            >
+              <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                VAT
+              </p>
+              <p className="text-xl font-bold" style={{ color: colors.primary }}>
+                {formatCurrencyWithDecimals(vat)}
+              </p>
+            </div>
+
+            {/* Expected Prolongation Cost Card */}
+            <div 
+              className="p-4 rounded-lg"
+              style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}
+            >
+              <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                Expected Prolongation Cost
+              </p>
+              <p className="text-xl font-bold" style={{ color: colors.primary }}>
+                {formatCurrencyWithDecimals(commercial.prolongationCostExpectedValue || 0)}
+              </p>
+            </div>
+          </div>
+
+          {/* Progress Bars */}
+          <div className="mt-6">
+            <div className="space-y-4 mb-4">
+              {/* Effective Contract Value Bar */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    Effective Contract Value
+                  </p>
+                  <span className="text-sm font-semibold" style={{ color: colors.success }}>
+                    {formatCurrencyWithDecimals(effectiveContractValue)}
+                  </span>
+                </div>
+                <div className="w-full h-8 rounded-full overflow-hidden relative" style={{ backgroundColor: `${colors.backgroundSecondary}` }}>
+                  <div 
+                    className="h-full flex items-center justify-end pr-3 transition-all duration-300"
+                    style={{ 
+                      width: `${Math.min(100, (effectiveContractValue / Math.max(effectiveContractValue, totalBudget)) * 100)}%`,
+                      backgroundColor: colors.success
+                    }}
+                  >
+                    <span className="text-xs font-semibold text-white">
+                      {formatCurrencyWithDecimals(effectiveContractValue)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Budget Bar */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                    Budget
+                  </p>
+                  <span className="text-sm font-semibold" style={{ color: colors.error }}>
+                    {formatCurrencyWithDecimals(totalBudget)}
+                  </span>
+                </div>
+                <div className="w-full h-8 rounded-full overflow-hidden relative" style={{ backgroundColor: `${colors.backgroundSecondary}` }}>
+                  <div 
+                    className="h-full flex items-center justify-end pr-3 transition-all duration-300"
+                    style={{ 
+                      width: `${Math.min(100, (totalBudget / Math.max(effectiveContractValue, totalBudget)) * 100)}%`,
+                      backgroundColor: colors.error
+                    }}
+                  >
+                    <span className="text-xs font-semibold text-white">
+                      {formatCurrencyWithDecimals(totalBudget)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Gross Information */}
+            <div className="mt-4 pt-4 border-t" style={{ borderColor: colors.border }}>
+              <div className="flex items-center justify-center gap-4">
+                <p className="text-sm font-medium" style={{ color: colors.textSecondary }}>
+                  Gross:
+                </p>
+                <p className="text-xl font-bold" style={{ color: gross >= 0 ? colors.success : colors.error }}>
+                  {formatCurrencyWithDecimals(gross)}
+                </p>
+                <p className="text-lg font-semibold" style={{ color: gross >= 0 ? colors.success : colors.error }}>
+                  ({grossPercentage.toFixed(2)}%)
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Actual Up to Date Results */}
+          {(commercial.budgetUpToDate !== null || commercial.totalActualCostToDate !== null) && (
+            <>
+              <div className="mt-8 mb-1">
+                <div className="flex items-center">
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                  <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                    Actual Up to Date Results
+                  </h3>
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                </div>
+              </div>
+
+              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Item
+                      </th>
+                      <th 
+                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Amount
+                      </th>
+                      <th 
+                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Variance
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        Budget Up to Date
+                      </td>
+                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {formatCurrency(commercial.budgetUpToDate || 0)}
+                      </td>
+                      <td className="py-0.5 px-2 text-right font-semibold" style={{ 
+                        color: actualVarianceAmount >= 0 ? colors.success : colors.error, 
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}>
+                        {formatCurrency(actualVarianceAmount)}
+                        {actualVariancePercentage !== null && ` (${actualVariancePercentage >= 0 ? '+' : ''}${actualVariancePercentage.toFixed(1)}%)`}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: `${colors.backgroundSecondary}40` }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        Total Actual Cost to Date
+                      </td>
+                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {formatCurrency(commercial.totalActualCostToDate || 0)}
+                      </td>
+                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        -
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Cost at Completion */}
+          {(commercial.forecastedBudgetAtCompletion !== null || commercial.forecastedCostAtCompletion !== null) && (
+            <>
+              <div className="mt-8 mb-1">
+                <div className="flex items-center">
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                  <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                    Cost at Completion
+                  </h3>
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                </div>
+              </div>
+
+              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Item
+                      </th>
+                      <th 
+                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Amount
+                      </th>
+                      <th 
+                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Variance
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        Forecasted Budget at Completion
+                      </td>
+                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {formatCurrency(commercial.forecastedBudgetAtCompletion || 0)}
+                      </td>
+                      <td className="py-0.5 px-2 text-right font-semibold" style={{ 
+                        color: costVarianceAmount >= 0 ? colors.success : colors.error, 
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}>
+                        {formatCurrency(costVarianceAmount)}
+                        {costVariancePercentage !== null && ` (${costVariancePercentage >= 0 ? '+' : ''}${costVariancePercentage.toFixed(1)}%)`}
+                      </td>
+                    </tr>
+                    <tr style={{ backgroundColor: `${colors.backgroundSecondary}40` }}>
+                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        Forecasted Cost at Completion
+                      </td>
+                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                        {formatCurrency(commercial.forecastedCostAtCompletion || 0)}
+                      </td>
+                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        -
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+          {/* Project Performance Indicators */}
+          {(commercial.projectProgressPercentage !== null || commercial.projectRevenuePercentage !== null || commercial.projectCostPercentage !== null) && (
+            <>
+              <div className="mt-8 mb-1">
+                <div className="flex items-center">
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                  <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                    Project Performance Indicators
+                  </h3>
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                </div>
+              </div>
+
+              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Indicator
+                      </th>
+                      <th 
+                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.7rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Percentage
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {commercial.projectProgressPercentage !== null && (
+                      <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
+                        <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                          Project Progress
+                        </td>
+                        <td className="py-0.5 px-2 text-right font-semibold" style={{ color: colors.primary, fontSize: '0.7rem', height: 'auto' }}>
+                          {(commercial.projectProgressPercentage || 0).toFixed(1)}%
+                        </td>
+                      </tr>
+                    )}
+                    {commercial.projectRevenuePercentage !== null && (
+                      <tr style={{ backgroundColor: `${colors.backgroundSecondary}40` }}>
+                        <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                          Project Revenue
+                        </td>
+                        <td className="py-0.5 px-2 text-right font-semibold" style={{ color: colors.primary, fontSize: '0.7rem', height: 'auto' }}>
+                          {(commercial.projectRevenuePercentage || 0).toFixed(1)}%
+                        </td>
+                      </tr>
+                    )}
+                    {commercial.projectCostPercentage !== null && (
+                      <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
+                        <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
+                          Project Cost
+                        </td>
+                        <td className="py-0.5 px-2 text-right font-semibold" style={{ color: colors.primary, fontSize: '0.7rem', height: 'auto' }}>
+                          {(commercial.projectCostPercentage || 0).toFixed(1)}%
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
+  };
+
+  const renderCommercialChecklistSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
+    const checklist = content.commercialChecklist || [];
+
+    if (checklist.length === 0) {
+      return (
+        <div className="h-full flex flex-col p-4 overflow-hidden">
+          <ReportHeader project={project} pageTitle="Commercial Checklist" />
+          <div className="flex-1 flex items-center justify-center">
+            <div className="text-center">
+              <ClipboardList className="w-16 h-16 mx-auto mb-4" style={{ color: colors.textSecondary }} />
+              <p style={{ color: colors.textSecondary }}>No checklist items recorded</p>
+            </div>
+          </div>
+          {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+        </div>
+      );
+    }
+
+    return (
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Commercial Checklist" />
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          <div className="grid grid-cols-2 gap-4">
+            {checklist.map((item: any, idx: number) => (
+              <div
+                key={item.id || idx}
+                className="p-4 rounded-lg"
+                style={{
+                  backgroundColor: colors.backgroundSecondary,
+                  border: `1px solid ${colors.border}`
+                }}
+              >
+                <div className="flex items-start justify-between mb-2">
+                  <div className="flex items-center space-x-2">
+                    <span 
+                      className="flex items-center justify-center w-6 h-6 rounded-full text-xs font-bold"
+                      style={{
+                        backgroundColor: colors.primary,
+                        color: '#FFFFFF'
+                      }}
+                    >
+                      {idx + 1}
+                    </span>
+                    <h4 className="font-semibold" style={{ color: colors.textPrimary, fontSize: '0.85rem' }}>
+                      {item.checkListItem || 'Check List Item'}
+                    </h4>
+                  </div>
+                </div>
+                <div className="flex items-center space-x-4 mt-3">
+                  {item.yesNo && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                        Yes/No:
+                      </span>
+                      <span 
+                        className="px-2 py-0.5 rounded text-xs font-semibold"
+                        style={{
+                          backgroundColor: item.yesNo === 'Yes' ? `${colors.success}20` : `${colors.error}20`,
+                          color: item.yesNo === 'Yes' ? colors.success : colors.error,
+                          border: `1px solid ${item.yesNo === 'Yes' ? colors.success : colors.error}40`
+                        }}
+                      >
+                        {item.yesNo}
+                      </span>
+                    </div>
+                  )}
+                  {item.status && (
+                    <div className="flex items-center space-x-2">
+                      <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
+                        Status:
+                      </span>
+                      <span 
+                        className="px-2 py-0.5 rounded text-xs font-semibold"
+                        style={{
+                          backgroundColor: `${colors.primary}15`,
+                          color: colors.primary,
+                          border: `1px solid ${colors.primary}30`
+                        }}
+                      >
+                        {item.status}
+                      </span>
+                    </div>
+                  )}
+                </div>
+            </div>
+          ))}
+        </div>
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
   };
 
   const renderCloseOutSlide = (content: any, pageNumber?: number, totalPages?: number) => {
@@ -5756,6 +6472,44 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           <p className="text-sm" style={{ color: colors.textSecondary }}>
             Slide {currentSlide + 1} of {slides.length}
           </p>
+          <form onSubmit={handlePageJumpSubmit} className="flex items-center space-x-2">
+            <span className="text-xs" style={{ color: colors.textSecondary }}>Go to:</span>
+            <input
+              type="number"
+              min="1"
+              max={slides.length}
+              value={pageJumpValue}
+              onChange={(e) => setPageJumpValue(e.target.value)}
+              placeholder={`1-${slides.length}`}
+              className="w-16 px-2 py-1 text-sm rounded border text-center"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                color: colors.textPrimary,
+                borderColor: colors.border
+              }}
+            />
+            <button
+              type="submit"
+              disabled={!pageJumpValue || isNaN(parseInt(pageJumpValue, 10)) || parseInt(pageJumpValue, 10) < 1 || parseInt(pageJumpValue, 10) > slides.length}
+              className="px-3 py-1 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              style={{
+                backgroundColor: colors.primary,
+                color: '#FFFFFF'
+              }}
+              onMouseEnter={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.opacity = '0.9';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!e.currentTarget.disabled) {
+                  e.currentTarget.style.opacity = '1';
+                }
+              }}
+            >
+              Go
+            </button>
+          </form>
           <div className="flex items-center space-x-2">
             <button
               onClick={prevSlide}
