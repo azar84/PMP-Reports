@@ -80,6 +80,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const [assignedRequiredPlantsPage, setAssignedRequiredPlantsPage] = useState(0);
   const [assetsPage, setAssetsPage] = useState(0);
   const [planningMilestonesPage, setPlanningMilestonesPage] = useState(0);
+  const [paymentCertificatePage, setPaymentCertificatePage] = useState(0);
 
   useEffect(() => {
     if (report.reportData) {
@@ -650,6 +651,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
 
+    // Slide 18: Payment Certificate
+    slides.push({
+      type: 'paymentCertificate',
+      title: 'Payment Certificate',
+      content: {
+        project: data.project,
+        summary: data.paymentCertificate?.summary || {
+          totalSubmitted: 0,
+          totalCertified: 0,
+          totalReceived: 0,
+          duePayments: 0,
+          duePaymentsCount: 0,
+          receivables: 0,
+          receivablesCount: 0,
+          totalRetentionHeld: 0,
+          balanceAdvancePaymentRecovery: 0
+        },
+        rows: data.paymentCertificate?.rows || []
+      }
+    });
+
     return slides;
   };
 
@@ -731,6 +753,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         return renderCommercialSlide(slide.content, pageNumber, totalPages);
       case 'commercialChecklist':
         return renderCommercialChecklistSlide(slide.content, pageNumber, totalPages);
+      case 'paymentCertificate':
+        return renderPaymentCertificateSlide(slide.content, pageNumber, totalPages);
       case 'clientFeedback':
         return renderClientFeedbackSlide(slide.content, pageNumber, totalPages);
       default:
@@ -5979,6 +6003,475 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </>
           )}
 
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
+  };
+
+  const renderPaymentCertificateSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
+    const summary = content.summary || {};
+    const rows = content.rows || [];
+
+    // Pagination logic
+    const itemsPerPage = 10;
+    const totalPagesForTable = Math.ceil(rows.length / itemsPerPage);
+    const startIndex = paymentCertificatePage * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedRows = rows.slice(startIndex, endIndex);
+
+    // Helper function to format date (handle timezone correctly)
+    const formatDate = (dateString: string | null | undefined) => {
+      if (!dateString) return '-';
+      try {
+        // Parse date string to avoid timezone issues
+        let date: Date;
+        if (typeof dateString === 'string') {
+          // If it's in YYYY-MM-DD format, parse it directly without timezone conversion
+          if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+            const datePart = dateString.split('T')[0];
+            const [year, month, day] = datePart.split('-');
+            date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          } else {
+            // For ISO strings with time, extract date part and parse
+            const datePart = dateString.split('T')[0];
+            if (datePart) {
+              const [year, month, day] = datePart.split('-');
+              date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+            } else {
+              date = new Date(dateString);
+            }
+          }
+        } else {
+          date = new Date(dateString);
+        }
+        
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+      } catch {
+        return '-';
+      }
+    };
+
+    // Helper function to get status color
+    const getStatusColor = (status: string | null | undefined) => {
+      if (!status) return { bg: colors.textMuted, text: colors.textMuted, border: colors.border };
+      const statusLower = status.toLowerCase();
+      if (statusLower === 'received') {
+        return { bg: colors.success, text: colors.success, border: colors.success };
+      } else if (statusLower === 'in process') {
+        return { bg: colors.warning, text: colors.warning, border: colors.warning };
+      } else if (statusLower === 'under-certification') {
+        return { bg: colors.info, text: colors.info, border: colors.info };
+      } else {
+        return { bg: colors.textMuted, text: colors.textMuted, border: colors.border };
+      }
+    };
+
+    // Helper function to calculate due status
+    const getDueStatus = (row: any) => {
+      if (!row.paymentDueDate || row.paymentStatus !== 'In Process') return '-';
+      try {
+        const dueDate = new Date(row.paymentDueDate);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        dueDate.setHours(0, 0, 0, 0);
+        const daysDiff = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        if (daysDiff < 0) {
+          return { text: `Overdue ${Math.abs(daysDiff)} days`, color: colors.error };
+        } else if (daysDiff === 0) {
+          return { text: 'Due today', color: colors.warning };
+        } else {
+          return { text: `${daysDiff} days remaining`, color: colors.success };
+        }
+      } catch {
+        return '-';
+      }
+    };
+
+    return (
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <ReportHeader project={project} pageTitle="Payment Certificate" />
+        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+          {/* Payment Status Cards */}
+          <div className="grid grid-cols-4 gap-3 mb-4">
+            {/* Total Submitted */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: colors.backgroundSecondary, 
+                border: `1px solid ${colors.border}`,
+                boxShadow: `0 1px 3px ${colors.border}20`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Total Submitted
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                {formatCurrencyWithDecimals(summary.totalSubmitted || 0)}
+              </p>
+            </div>
+
+            {/* Total Certified */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: colors.backgroundSecondary, 
+                borderLeft: `3px solid ${colors.primary}`,
+                borderTop: `1px solid ${colors.border}`,
+                borderRight: `1px solid ${colors.border}`,
+                borderBottom: `1px solid ${colors.border}`,
+                boxShadow: `0 1px 3px ${colors.border}20`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Total Certified
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.primary }}>
+                {formatCurrencyWithDecimals(summary.totalCertified || 0)}
+              </p>
+            </div>
+
+            {/* Total Received */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: `${colors.success}08`, 
+                border: `1px solid ${colors.success}30`,
+                boxShadow: `0 1px 3px ${colors.success}15`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.success }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Total Received
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.success }}>
+                {formatCurrencyWithDecimals(summary.totalReceived || 0)}
+              </p>
+            </div>
+
+            {/* Due Payments */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: `${colors.error}08`, 
+                border: `1px solid ${colors.error}30`,
+                boxShadow: `0 1px 3px ${colors.error}15`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.error }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Due Payments
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.error }}>
+                {formatCurrencyWithDecimals(summary.duePayments || 0)}
+              </p>
+              {summary.duePaymentsCount > 0 && (
+                <p className="text-xs mt-1 font-medium" style={{ color: colors.error }}>
+                  {summary.duePaymentsCount} exceeded
+                </p>
+              )}
+            </div>
+
+            {/* Receivables */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: `${colors.warning}08`, 
+                border: `1px solid ${colors.warning}30`,
+                boxShadow: `0 1px 3px ${colors.warning}15`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.warning }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Receivables
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.warning }}>
+                {formatCurrencyWithDecimals(summary.receivables || 0)}
+              </p>
+              {summary.receivablesCount > 0 && (
+                <p className="text-xs mt-1 font-medium" style={{ color: colors.textSecondary }}>
+                  {summary.receivablesCount} in process
+                </p>
+              )}
+            </div>
+
+            {/* Total Retention Held */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: colors.backgroundSecondary, 
+                border: `1px solid ${colors.border}`,
+                boxShadow: `0 1px 3px ${colors.border}20`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Total Retention Held
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                {formatCurrencyWithDecimals(summary.totalRetentionHeld || 0)}
+              </p>
+            </div>
+
+            {/* Balance Advance Payment Recovery */}
+            <div 
+              className="p-3 rounded-lg relative overflow-hidden"
+              style={{ 
+                backgroundColor: colors.backgroundSecondary, 
+                border: `1px solid ${colors.border}`,
+                boxShadow: `0 1px 3px ${colors.border}20`
+              }}
+            >
+              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                Balance Advance Recovery
+              </p>
+              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                {formatCurrencyWithDecimals(summary.balanceAdvancePaymentRecovery || 0)}
+              </p>
+            </div>
+          </div>
+
+          {/* Payments Table */}
+          {rows.length > 0 && (
+            <>
+              <div className="mt-8 mb-1">
+                <div className="flex items-center">
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                  <div className="flex items-center gap-3 px-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                      Payment Details
+                    </h3>
+                    {totalPagesForTable > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setPaymentCertificatePage(Math.max(0, paymentCertificatePage - 1))}
+                          disabled={paymentCertificatePage === 0}
+                          className="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                          style={{
+                            color: paymentCertificatePage === 0 ? colors.textMuted : colors.primary,
+                            backgroundColor: paymentCertificatePage === 0 ? 'transparent' : colors.backgroundSecondary,
+                            border: `1px solid ${paymentCertificatePage === 0 ? colors.border : colors.primary}`,
+                            cursor: paymentCertificatePage === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                          {paymentCertificatePage + 1} / {totalPagesForTable}
+                        </span>
+                        <button
+                          onClick={() => setPaymentCertificatePage(Math.min(totalPagesForTable - 1, paymentCertificatePage + 1))}
+                          disabled={paymentCertificatePage >= totalPagesForTable - 1}
+                          className="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                          style={{
+                            color: paymentCertificatePage >= totalPagesForTable - 1 ? colors.textMuted : colors.primary,
+                            backgroundColor: paymentCertificatePage >= totalPagesForTable - 1 ? 'transparent' : colors.backgroundSecondary,
+                            border: `1px solid ${paymentCertificatePage >= totalPagesForTable - 1 ? colors.border : colors.primary}`,
+                            cursor: paymentCertificatePage >= totalPagesForTable - 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                </div>
+              </div>
+
+                <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                  <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                    <thead>
+                      <tr>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Invoice
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Type
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Status
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Submission Date
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Certification Date
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Certified Amount
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Receivable Amount
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Received Amount
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Due Status
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedRows.map((row: any, idx: number) => {
+                      const statusColors = getStatusColor(row.paymentStatus);
+                      const dueStatus = getDueStatus(row);
+                      const certifiedAmount = parseFloat(row.grossValueCertified) || 0;
+                      const receivableAmount = parseFloat(row.netPayable) || 0;
+                      const receivedAmount = parseFloat(row.receivedPayment) || 0;
+
+                      return (
+                        <tr 
+                          key={startIndex + idx}
+                          style={{ 
+                            borderBottom: idx < paginatedRows.length - 1 ? `1px solid ${colors.primary}15` : 'none',
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundPrimary}20`
+                          }}
+                        >
+                          <td className="py-1 px-2" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {row.invoiceNumber || '-'}
+                          </td>
+                          <td className="py-1 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {row.paymentType || '-'}
+                          </td>
+                          <td className="py-1 px-2" style={{ height: 'auto' }}>
+                            {row.paymentStatus ? (
+                              <span 
+                                className="px-1.5 py-0.5 rounded-md text-xs font-semibold inline-block whitespace-nowrap"
+                                style={{ 
+                                  backgroundColor: `${statusColors.bg}15`,
+                                  color: statusColors.text,
+                                  border: `1px solid ${statusColors.border}30`,
+                                  fontSize: '0.65rem'
+                                }}
+                              >
+                                {row.paymentStatus}
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                            )}
+                          </td>
+                          <td className="py-1 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(row.dateSubmitted)}
+                          </td>
+                          <td className="py-1 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(row.certifiedDate)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {certifiedAmount > 0 ? formatCurrencyWithDecimals(certifiedAmount) : '-'}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {receivableAmount > 0 ? formatCurrencyWithDecimals(receivableAmount) : '-'}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {receivedAmount > 0 ? formatCurrencyWithDecimals(receivedAmount) : '-'}
+                          </td>
+                          <td className="py-1 px-2" style={{ height: 'auto' }}>
+                            {dueStatus && typeof dueStatus === 'object' ? (
+                              <span 
+                                className="text-xs font-semibold"
+                                style={{ color: dueStatus.color, fontSize: '0.65rem' }}
+                              >
+                                {dueStatus.text}
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>

@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
-import { Trash2, DollarSign, Clock, AlertCircle, CheckCircle2, TrendingUp, Info, Calendar } from 'lucide-react';
+import { Trash2, DollarSign, Clock, AlertCircle, CheckCircle2, TrendingUp, Info, Calendar, Lock, ArrowLeftRight } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
@@ -255,10 +255,18 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
       if (response.success && response.data) {
         const project = response.data;
         if (project.advancePaymentPercentage !== null && project.advancePaymentPercentage !== undefined) {
-          setAdvancePaymentPercentage(String(project.advancePaymentPercentage));
+          // Handle Prisma Decimal objects
+          const value = typeof project.advancePaymentPercentage === 'object' && 'toNumber' in project.advancePaymentPercentage
+            ? (project.advancePaymentPercentage as any).toNumber()
+            : Number(project.advancePaymentPercentage);
+          setAdvancePaymentPercentage(String(value));
         }
         if (project.retentionPercentage !== null && project.retentionPercentage !== undefined) {
-          setRetentionPercentage(String(project.retentionPercentage));
+          // Handle Prisma Decimal objects
+          const value = typeof project.retentionPercentage === 'object' && 'toNumber' in project.retentionPercentage
+            ? (project.retentionPercentage as any).toNumber()
+            : Number(project.retentionPercentage);
+          setRetentionPercentage(String(value));
         }
         if (project.paymentTermsDays !== null && project.paymentTermsDays !== undefined) {
           setPaymentTermsDays(String(project.paymentTermsDays));
@@ -272,28 +280,41 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
   const saveProjectSettings = useCallback(async () => {
     setIsSavingSettings(true);
     try {
+      // Helper function to safely convert to number or null
+      const toNumberOrNull = (value: string | undefined | null): number | null => {
+        if (!value || value.trim() === '') return null;
+        const num = Number(value);
+        return isNaN(num) ? null : num;
+      };
+
       const response = await put<{ success: boolean; data: any }>(`/api/admin/projects/${projectId}`, {
-        advancePaymentPercentage: advancePaymentPercentage ? Number(advancePaymentPercentage) : null,
-        retentionPercentage: retentionPercentage ? Number(retentionPercentage) : null,
-        paymentTermsDays: paymentTermsDays ? Number(paymentTermsDays) : null,
+        advancePaymentPercentage: toNumberOrNull(advancePaymentPercentage),
+        retentionPercentage: toNumberOrNull(retentionPercentage),
+        paymentTermsDays: toNumberOrNull(paymentTermsDays),
       });
       if (!response.success) {
-        throw new Error('Failed to save IPC settings');
+        throw new Error(response.error || 'Failed to save IPC settings');
       }
+      // Don't reload settings after save to prevent resetting user input
+      // The values are already in state, so no need to fetch again
     } catch (error: any) {
       console.error('Error saving project settings:', error);
+      // On error, restore the previous values
+      await fetchProjectSettings();
+      // Show user-friendly error message
+      alert(error.message || 'Failed to update project settings. Please try again.');
     } finally {
       setIsSavingSettings(false);
     }
-  }, [put, projectId, advancePaymentPercentage, retentionPercentage, paymentTermsDays]);
+  }, [put, projectId, advancePaymentPercentage, retentionPercentage, paymentTermsDays, fetchProjectSettings]);
 
   const fetchIPCData = useCallback(async () => {
     setIsLoading(true);
     setLoadError(null);
 
     try {
-      // Fetch project settings first to get percentages
-      await fetchProjectSettings();
+      // Don't fetch project settings here - it's already loaded on mount
+      // Just use the current state values for calculations
       
       const ipcResponse = await get<ProjectIPCApiResponse>(`/api/admin/projects/${projectId}/ipc`);
 
@@ -301,7 +322,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
         throw new Error(ipcResponse.error || 'Failed to load IPC data');
       }
 
-      // Get current percentages for calculations
+      // Get current percentages for calculations (use state values)
       const currentAdvancePercent = advancePaymentPercentage || '';
       const currentRetentionPercent = retentionPercentage || '';
       
@@ -318,7 +339,13 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
     } finally {
       setIsLoading(false);
     }
-  }, [buildRowsFromEntries, get, projectId, fetchProjectSettings, advancePaymentPercentage, retentionPercentage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [buildRowsFromEntries, get, projectId]);
+
+  // Fetch project settings once on mount
+  useEffect(() => {
+    fetchProjectSettings();
+  }, [fetchProjectSettings]);
 
   useEffect(() => {
     fetchIPCData();
@@ -773,11 +800,16 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
       receivables: 0, // All payments in process (regardless of due date)
       duePaymentsCount: 0,
       receivablesCount: 0,
+      totalRetentionHeld: 0, // Total retention held from certified Progress payments
+      balanceAdvancePaymentRecovery: 0, // Advance payment - total recoveries from certified payments
+      advancePaymentAmount: 0, // Original advance payment amount
+      totalAdvanceRecoveries: 0, // Total advance payment recoveries from certified Progress payments
     };
 
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 
+    // First pass: find advance payment amount and calculate recoveries/retention
     ipcRows.forEach((row) => {
       const submitted = parseFloat(row.grossValueSubmitted) || 0;
       const certified = parseFloat(row.grossValueCertified) || 0;
@@ -785,9 +817,60 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
       const overdue = parseFloat(row.overDueAmount) || 0;
       const dueDays = parseFloat(row.dueDays) || 0;
       const netPayable = parseFloat(row.netPayable) || 0;
+      const retention = parseFloat(row.retention) || 0;
+      const advanceRecovery = parseFloat(row.advancePaymentRecovery) || 0;
 
-      stats.totalSubmitted += submitted;
-      stats.totalCertified += certified;
+      // Find advance payment amount (from 'Adv' payment type)
+      if (row.paymentType === 'Adv' && certified > 0) {
+        stats.advancePaymentAmount = certified;
+      }
+
+      // Total Retention Held: sum retention from certified Progress payments
+      if (
+        row.paymentType === 'Progress' &&
+        certified > 0 &&
+        (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+      ) {
+        stats.totalRetentionHeld += retention;
+      }
+
+      // Total Advance Recoveries: sum advance recovery from certified Progress payments
+      if (
+        row.paymentType === 'Progress' &&
+        certified > 0 &&
+        (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+      ) {
+        stats.totalAdvanceRecoveries += advanceRecovery;
+      }
+
+      // Total Certified should only include Progress payments (not Advance or Retention Release)
+      // with certified values where payment status is "In Process" or "Received"
+      // Exclude "Under-Certification" status as those payments are not yet certified
+      if (
+        certified > 0 && 
+        row.paymentType === 'Progress' &&
+        (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+      ) {
+        stats.totalCertified += certified;
+      }
+
+      // Total Submitted = Total Certified + Progress payments that are still Under-Certification
+      if (row.paymentType === 'Progress') {
+        if (
+          certified > 0 && 
+          (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+        ) {
+          // Already counted in totalCertified, also count in totalSubmitted
+          stats.totalSubmitted += certified;
+        } else if (
+          certified > 0 && 
+          row.paymentStatus === 'Under-Certification'
+        ) {
+          // Progress payments under certification - add to totalSubmitted
+          stats.totalSubmitted += certified;
+        }
+      }
+      
       stats.totalReceived += received;
       stats.totalPending += certified - received;
       stats.totalOverdue += overdue;
@@ -823,6 +906,9 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
         stats.completedCount++;
       }
     });
+
+    // Calculate Balance Advance Payment Recovery = Advance Payment - Total Recoveries
+    stats.balanceAdvancePaymentRecovery = stats.advancePaymentAmount - stats.totalAdvanceRecoveries;
 
     return stats;
   }, [ipcRows]);
@@ -1259,14 +1345,41 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                 step="0.1"
                 value={advancePaymentPercentage}
                 onChange={(e) => {
-                  setAdvancePaymentPercentage(e.target.value);
+                  const value = e.target.value;
+                  // Allow any input during typing - don't validate or clamp yet
+                  setAdvancePaymentPercentage(value);
                   // Auto-save after a delay
                   if (autoSaveTimerRef.current) {
                     clearTimeout(autoSaveTimerRef.current);
                   }
                   autoSaveTimerRef.current = setTimeout(() => {
                     saveProjectSettings();
-                  }, 1000);
+                  }, 1500);
+                }}
+                onBlur={(e) => {
+                  // Validate and clamp only on blur
+                  const value = e.target.value.trim();
+                  if (value === '' || value === '-') {
+                    setAdvancePaymentPercentage('');
+                    saveProjectSettings();
+                    return;
+                  }
+                  const numValue = parseFloat(value);
+                  if (isNaN(numValue)) {
+                    // Invalid number, restore previous value
+                    fetchProjectSettings();
+                    return;
+                  }
+                  // Clamp to 0-100 range
+                  let finalValue = numValue;
+                  if (numValue < 0) {
+                    finalValue = 0;
+                  } else if (numValue > 100) {
+                    finalValue = 100;
+                  }
+                  setAdvancePaymentPercentage(String(finalValue));
+                  // Save with validated value
+                  saveProjectSettings();
                 }}
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 style={{
@@ -1288,14 +1401,41 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                 step="0.1"
                 value={retentionPercentage}
                 onChange={(e) => {
-                  setRetentionPercentage(e.target.value);
+                  const value = e.target.value;
+                  // Allow any input during typing - don't validate or clamp yet
+                  setRetentionPercentage(value);
                   // Auto-save after a delay
                   if (autoSaveTimerRef.current) {
                     clearTimeout(autoSaveTimerRef.current);
                   }
                   autoSaveTimerRef.current = setTimeout(() => {
                     saveProjectSettings();
-                  }, 1000);
+                  }, 1500);
+                }}
+                onBlur={(e) => {
+                  // Validate and clamp only on blur
+                  const value = e.target.value.trim();
+                  if (value === '' || value === '-') {
+                    setRetentionPercentage('');
+                    saveProjectSettings();
+                    return;
+                  }
+                  const numValue = parseFloat(value);
+                  if (isNaN(numValue)) {
+                    // Invalid number, restore previous value
+                    fetchProjectSettings();
+                    return;
+                  }
+                  // Clamp to 0-100 range
+                  let finalValue = numValue;
+                  if (numValue < 0) {
+                    finalValue = 0;
+                  } else if (numValue > 100) {
+                    finalValue = 100;
+                  }
+                  setRetentionPercentage(String(finalValue));
+                  // Save with validated value
+                  saveProjectSettings();
                 }}
                 className="w-full rounded-md border px-3 py-2 text-sm"
                 style={{
@@ -1437,6 +1577,41 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                 </div>
                 <div className="p-2 rounded-lg" style={{ backgroundColor: `${colors.primary}20` }}>
                   <DollarSign className="w-5 h-5" style={{ color: colors.primary }} />
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Additional Metrics - Third Row */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, border: `1px solid ${colors.border}` }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Total Retention Held
+                  </p>
+                  <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(summaryStats.totalRetentionHeld, '$')}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg" style={{ backgroundColor: `${colors.warning || colors.primary}20` }}>
+                  <Lock className="w-5 h-5" style={{ color: colors.warning || colors.primary }} />
+                </div>
+              </div>
+            </Card>
+
+            <Card className="p-4" style={{ backgroundColor: colors.backgroundPrimary, border: `1px solid ${colors.border}` }}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
+                    Balance Advance Payment Recovery
+                  </p>
+                  <p className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                    {formatCurrencyWithDecimals(summaryStats.balanceAdvancePaymentRecovery, '$')}
+                  </p>
+                </div>
+                <div className="p-2 rounded-lg" style={{ backgroundColor: `${colors.info || colors.primary}20` }}>
+                  <ArrowLeftRight className="w-5 h-5" style={{ color: colors.info || colors.primary }} />
                 </div>
               </div>
             </Card>

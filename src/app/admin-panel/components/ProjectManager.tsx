@@ -988,6 +988,164 @@ export default function ProjectManager() {
       if (commercialChecklistRes.success) {
         reportData.commercialChecklist = commercialChecklistRes.data;
       }
+
+      // IPC (Payment Certificates)
+      const ipcRes = await get<{ success: boolean; data: any }>(`/api/admin/projects/${selectedProject.id}/ipc`);
+      if (ipcRes.success && ipcRes.data) {
+        // API returns entries, need to convert to rows format for calculations
+        const ipcEntries = ipcRes.data.entries || [];
+        if (ipcEntries.length > 0) {
+        // Convert entries to rows format (similar to ProjectIPC component)
+        const ipcRows = ipcEntries.map((entry: any) => ({
+          invoiceNumber: entry.invoiceNumber || '',
+          paymentType: entry.paymentType || '',
+          grossValueCertified: entry.grossValueCertified?.toString() || '0',
+          receivedPayment: entry.receivedPayment?.toString() || '0',
+          netPayable: entry.netPayable?.toString() || '0',
+          retention: entry.retention?.toString() || '0',
+          advancePaymentRecovery: entry.advancePaymentRecovery?.toString() || '0',
+          paymentStatus: entry.paymentStatus || '',
+          paymentDueDate: entry.paymentDueDate ? new Date(entry.paymentDueDate).toISOString().split('T')[0] : '',
+          grossValueSubmitted: entry.grossValueSubmitted?.toString() || '0',
+          dateSubmitted: entry.dateSubmitted ? new Date(entry.dateSubmitted).toISOString() : null,
+          certifiedDate: entry.certifiedDate ? new Date(entry.certifiedDate).toISOString() : null,
+        }));
+        const stats = {
+          totalSubmitted: 0,
+          totalCertified: 0,
+          totalReceived: 0,
+          duePayments: 0,
+          duePaymentsCount: 0,
+          receivables: 0,
+          receivablesCount: 0,
+          totalRetentionHeld: 0,
+          balanceAdvancePaymentRecovery: 0,
+          advancePaymentAmount: 0,
+          totalAdvanceRecoveries: 0,
+        };
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+
+        ipcRows.forEach((row: any) => {
+          const certified = parseFloat(row.grossValueCertified) || 0;
+          const received = parseFloat(row.receivedPayment) || 0;
+          const netPayable = parseFloat(row.netPayable) || 0;
+          const retention = parseFloat(row.retention) || 0;
+          const advanceRecovery = parseFloat(row.advancePaymentRecovery) || 0;
+
+          // Find advance payment amount
+          if (row.paymentType === 'Adv' && certified > 0) {
+            stats.advancePaymentAmount = certified;
+          }
+
+          // Total Retention Held
+          if (
+            row.paymentType === 'Progress' &&
+            certified > 0 &&
+            (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+          ) {
+            stats.totalRetentionHeld += retention;
+          }
+
+          // Total Advance Recoveries
+          if (
+            row.paymentType === 'Progress' &&
+            certified > 0 &&
+            (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+          ) {
+            stats.totalAdvanceRecoveries += advanceRecovery;
+          }
+
+          // Total Certified
+          if (
+            certified > 0 && 
+            row.paymentType === 'Progress' &&
+            (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+          ) {
+            stats.totalCertified += certified;
+          }
+
+          // Total Submitted
+          if (row.paymentType === 'Progress') {
+            if (
+              certified > 0 && 
+              (row.paymentStatus === 'In Process' || row.paymentStatus === 'Received')
+            ) {
+              stats.totalSubmitted += certified;
+            } else if (
+              certified > 0 && 
+              row.paymentStatus === 'Under-Certification'
+            ) {
+              stats.totalSubmitted += certified;
+            }
+          }
+          
+          stats.totalReceived += received;
+
+          // Check if payment is "In Process"
+          if (row.paymentStatus === 'In Process') {
+            let calculatedDueDays = 0;
+            if (row.paymentDueDate) {
+              const dueDate = new Date(row.paymentDueDate);
+              dueDate.setHours(0, 0, 0, 0);
+              calculatedDueDays = Math.floor((dueDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+            }
+
+            stats.receivables += netPayable;
+            stats.receivablesCount++;
+
+            if (calculatedDueDays < 0) {
+              stats.duePayments += netPayable;
+              stats.duePaymentsCount++;
+            }
+          }
+        });
+
+        stats.balanceAdvancePaymentRecovery = stats.advancePaymentAmount - stats.totalAdvanceRecoveries;
+
+        reportData.paymentCertificate = {
+          rows: ipcRows,
+          summary: stats
+        };
+        } else {
+          // No IPC rows, but still add empty summary
+          reportData.paymentCertificate = {
+            rows: [],
+            summary: {
+              totalSubmitted: 0,
+              totalCertified: 0,
+              totalReceived: 0,
+              duePayments: 0,
+              duePaymentsCount: 0,
+              receivables: 0,
+              receivablesCount: 0,
+              totalRetentionHeld: 0,
+              balanceAdvancePaymentRecovery: 0,
+              advancePaymentAmount: 0,
+              totalAdvanceRecoveries: 0
+            }
+          };
+        }
+      } else {
+        // IPC API call failed or no data, add empty summary
+        reportData.paymentCertificate = {
+          rows: [],
+          summary: {
+            totalSubmitted: 0,
+            totalCertified: 0,
+            totalReceived: 0,
+            duePayments: 0,
+            duePaymentsCount: 0,
+            receivables: 0,
+            receivablesCount: 0,
+            totalRetentionHeld: 0,
+            balanceAdvancePaymentRecovery: 0,
+            advancePaymentAmount: 0,
+            totalAdvanceRecoveries: 0
+          }
+        };
+      }
     } catch (error) {
       console.error('Error collecting project data:', error);
     }

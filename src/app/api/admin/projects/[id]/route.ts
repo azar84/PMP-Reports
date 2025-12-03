@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput } from '@/lib/dateUtils';
+import { Prisma } from '@prisma/client';
 
 // GET - Fetch single project by ID
 export async function GET(
@@ -80,13 +81,35 @@ export async function PUT(
     // Extract staff fields that need special handling
     const { projectDirectorId, projectManagerId, ...validBody } = body;
     
+    // Filter out undefined values to avoid Prisma errors
+    const cleanedBody = Object.fromEntries(
+      Object.entries(validBody).filter(([_, value]) => value !== undefined)
+    );
+    
     // Convert date strings to DateTime objects if provided (parsed as date-only, no timezone conversion)
+    // Only include date fields if they're explicitly provided in the request
     const projectData: any = {
-      ...validBody,
-      startDate: parseDateFromInput(validBody.startDate),
-      endDate: parseDateFromInput(validBody.endDate),
+      ...cleanedBody,
     };
-
+    
+    // Only set startDate if it's provided in the request
+    if ('startDate' in cleanedBody) {
+      projectData.startDate = parseDateFromInput(cleanedBody.startDate);
+    }
+    
+    // Only set endDate if it's provided in the request
+    if ('endDate' in cleanedBody) {
+      projectData.endDate = parseDateFromInput(cleanedBody.endDate);
+    }
+    
+    // Convert Decimal fields explicitly to ensure proper storage
+    if ('advancePaymentPercentage' in projectData && projectData.advancePaymentPercentage !== null) {
+      projectData.advancePaymentPercentage = new Prisma.Decimal(projectData.advancePaymentPercentage);
+    }
+    if ('retentionPercentage' in projectData && projectData.retentionPercentage !== null) {
+      projectData.retentionPercentage = new Prisma.Decimal(projectData.retentionPercentage);
+    }
+    
     // Add director and manager IDs to project data if provided
     if (projectDirectorId !== undefined) {
       projectData.projectDirectorId = projectDirectorId || null;
@@ -437,10 +460,21 @@ export async function PUT(
     });
 
     return NextResponse.json({ success: true, data: result });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Error updating project:', error);
+    
+    // Provide more specific error messages
+    let errorMessage = 'Failed to update project';
+    if (error.code === 'P2002') {
+      errorMessage = 'A project with this code or name already exists';
+    } else if (error.code === 'P2025') {
+      errorMessage = 'Project not found';
+    } else if (error.message) {
+      errorMessage = error.message;
+    }
+    
     return NextResponse.json(
-      { success: false, error: 'Failed to update project' },
+      { success: false, error: errorMessage },
       { status: 500 }
     );
   }
