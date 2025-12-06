@@ -6,7 +6,6 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 
 const compat = new FlatCompat({
   baseDirectory: __dirname,
-  recommendedConfig: { js: { ignorePatterns: [] } },
 });
 
 const eslintConfig = [

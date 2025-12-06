@@ -13,10 +13,11 @@ const clientSchema = z.object({
 // GET - Fetch single client
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const clientId = parseInt(params.id);
+    const { id } = await params;
+    const clientId = parseInt(id);
     
     if (isNaN(clientId)) {
       return NextResponse.json(
@@ -59,10 +60,11 @@ export async function GET(
 // PUT - Update client
 export async function PUT(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const clientId = parseInt(params.id);
+    const { id } = await params;
+    const clientId = parseInt(id);
     
     if (isNaN(clientId)) {
       return NextResponse.json(
@@ -106,10 +108,11 @@ export async function PUT(
 // DELETE - Delete client
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const clientId = parseInt(params.id);
+    const { id } = await params;
+    const clientId = parseInt(id);
     
     if (isNaN(clientId)) {
       return NextResponse.json(
