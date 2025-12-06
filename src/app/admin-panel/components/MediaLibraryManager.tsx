@@ -74,7 +74,7 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
   selectedMedia = allowMultiple ? [] : null,
   designSystem
 }) => {
-  const colors = getAdminPanelColorsWithDesignSystem(designSystem);
+  const colors = getAdminPanelColorsWithDesignSystem(designSystem as any || null);
   const [media, setMedia] = useState<MediaItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
@@ -309,7 +309,7 @@ const MediaLibraryManager: React.FC<MediaLibraryManagerProps> = ({
         <div 
           className="p-6"
           style={{ 
-            background: `linear-gradient(135deg, ${designSystem?.primaryColorLight || colors.primary} 0%, ${colors.primary} 100%)`,
+            background: `linear-gradient(135deg, ${designSystem?.primaryLight || colors.primary} 0%, ${colors.primary} 100%)`,
             color: colors.backgroundPrimary
           }}
         >
@@ -1020,7 +1020,7 @@ const UrlImportModal: React.FC<{
     backgroundSecondary?: string;
   };
 }> = ({ onImport, onClose, uploading, designSystem }) => {
-  const colors = getAdminPanelColorsWithDesignSystem(designSystem);
+  const colors = getAdminPanelColorsWithDesignSystem(designSystem as any || null);
   const [formData, setFormData] = useState({
     url: '',
     title: '',

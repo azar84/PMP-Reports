@@ -621,7 +621,7 @@ export default function LabourManager() {
     // Apply availability filter
     let matchesAvailability = true;
     if (availabilityFilter === 'available') {
-      matchesAvailability = !labour.isUtilized || labour.isUtilized === false;
+      matchesAvailability = !labour.isUtilized;
     } else if (availabilityFilter === 'utilized') {
       matchesAvailability = labour.isUtilized === true;
     }
@@ -1983,7 +1983,6 @@ export default function LabourManager() {
                       setSelectedProjectId(null);
                       setSelectedTradeId(null);
                       setAvailableTrades([]);
-                      setMoveReason('');
                       setMoveNotes('');
                       setMoveErrorMessage('');
                     }}

@@ -1416,7 +1416,7 @@ const DesignSystemManager: React.FC = () => {
                     onClick={() => setPreviewMode(previewMode === 'light' ? 'dark' : 'light')}
                     className="flex items-center space-x-2 px-3 py-1 rounded-lg border border-gray-200/10"
                     style={{ 
-                      borderColor: colors.grayLight,
+                      borderColor: colors.borderLight || colors.border,
                       backgroundColor: colors.backgroundSecondary
                     }}
                   >

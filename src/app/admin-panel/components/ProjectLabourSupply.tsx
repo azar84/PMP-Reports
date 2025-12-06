@@ -86,17 +86,17 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
     const totalLabour = labourSupplies.reduce((sum, supply) => {
       const num = typeof supply.numberOfLabour === 'number' 
         ? supply.numberOfLabour 
-        : parseInt(supply.numberOfLabour.toString());
+        : parseInt(String(supply.numberOfLabour || 0));
       return sum + (isNaN(num) ? 0 : num);
     }, 0);
 
     const totalHourlyCost = labourSupplies.reduce((sum, supply) => {
       const numberOfLabour = typeof supply.numberOfLabour === 'number' 
         ? supply.numberOfLabour 
-        : parseInt(supply.numberOfLabour.toString());
+        : parseInt(String(supply.numberOfLabour || 0));
       const pricePerHour = typeof supply.pricePerHour === 'number'
         ? supply.pricePerHour
-        : parseFloat(supply.pricePerHour.toString());
+        : parseFloat(String(supply.pricePerHour || 0));
       
       if (isNaN(numberOfLabour) || isNaN(pricePerHour)) return sum;
       return sum + (numberOfLabour * pricePerHour);
@@ -106,10 +106,10 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
     const totalMonthlyCost = labourSupplies.reduce((sum, supply) => {
       const numberOfLabour = typeof supply.numberOfLabour === 'number' 
         ? supply.numberOfLabour 
-        : parseInt(supply.numberOfLabour.toString());
+        : parseInt(String(supply.numberOfLabour || 0));
       const pricePerHour = typeof supply.pricePerHour === 'number'
         ? supply.pricePerHour
-        : parseFloat(supply.pricePerHour.toString());
+        : parseFloat(String(supply.pricePerHour || 0));
       
       if (isNaN(numberOfLabour) || isNaN(pricePerHour)) return sum;
       // Monthly cost = numberOfLabour × pricePerHour × 260 hours
@@ -256,10 +256,10 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
   const calculateHourlyCost = (supply: ProjectLabourSupply) => {
     const numberOfLabour = typeof supply.numberOfLabour === 'number' 
       ? supply.numberOfLabour 
-      : parseInt(supply.numberOfLabour.toString());
+      : parseInt(String(supply.numberOfLabour || 0));
     const pricePerHour = typeof supply.pricePerHour === 'number'
       ? supply.pricePerHour
-      : parseFloat(supply.pricePerHour.toString());
+      : parseFloat(String(supply.pricePerHour || 0));
     
     if (isNaN(numberOfLabour) || isNaN(pricePerHour)) return 0;
     return numberOfLabour * pricePerHour;
@@ -513,7 +513,7 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                   const monthlyCost = calculateMonthlyCost(supply);
                   const pricePerHour = typeof supply.pricePerHour === 'number'
                     ? supply.pricePerHour
-                    : parseFloat(supply.pricePerHour.toString());
+                    : parseFloat(String(supply.pricePerHour || 0));
 
                   return (
                     <tr key={supply.id} className="border-b" style={{ borderColor: colors.border }}>

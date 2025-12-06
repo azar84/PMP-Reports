@@ -10,10 +10,11 @@ const updatePositionSchema = z.object({
 // GET - Fetch specific project position
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const positionId = parseInt(params.id);
+    const { id } = await params;
+    const positionId = parseInt(id);
 
     const position = await prisma.projectPosition.findUnique({
       where: { id: positionId },

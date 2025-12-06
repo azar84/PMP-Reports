@@ -293,7 +293,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
         paymentTermsDays: toNumberOrNull(paymentTermsDays),
       });
       if (!response.success) {
-        throw new Error(response.error || 'Failed to save IPC settings');
+        throw new Error('Failed to save IPC settings');
       }
       // Don't reload settings after save to prevent resetting user input
       // The values are already in state, so no need to fetch again

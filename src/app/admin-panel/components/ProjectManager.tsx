@@ -112,11 +112,16 @@ interface Client {
   officeAddress?: string;
   phone?: string;
   email?: string;
+  isActive?: boolean;
 }
 
 interface Consultant {
   id: number;
   name: string;
+  officeAddress?: string;
+  phone?: string;
+  email?: string;
+  isActive?: boolean;
   types?: Array<{ id: number; type: string }>;
   ConsultantToConsultantType?: Array<{
     consultant_types: { id: number; type: string };
@@ -724,8 +729,8 @@ export default function ProjectManager() {
     // Ensure we have full project data with all relationships
     // Fetch the complete project data to ensure we have all full objects, not just IDs
     let fullProjectData = selectedProject;
-    if (!selectedProject.projectDirector || !selectedProject.projectManager || 
-        !selectedProject.client || !selectedProject.projectManagementConsultant) {
+    if (!selectedProject.projectDirectorId || !selectedProject.projectManagerId || 
+        !selectedProject.clientId || !selectedProject.projectManagementConsultantId) {
       try {
         const projectRes = await get<{ success: boolean; data: Project }>(`/api/admin/projects/${selectedProject.id}`);
         if (projectRes.success) {
