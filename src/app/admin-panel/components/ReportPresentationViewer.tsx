@@ -81,6 +81,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const [assetsPage, setAssetsPage] = useState(0);
   const [planningMilestonesPage, setPlanningMilestonesPage] = useState(0);
   const [paymentCertificatePage, setPaymentCertificatePage] = useState(0);
+  const [suppliersPage, setSuppliersPage] = useState(0);
+  const [subcontractorsPage, setSubcontractorsPage] = useState(0);
 
   useEffect(() => {
     if (report.reportData) {
@@ -109,15 +111,26 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   // Keyboard navigation
   useEffect(() => {
     const handleKeyPress = (e: KeyboardEvent) => {
-      if (e.key === 'ArrowRight' || e.key === 'ArrowDown') {
+      // Prevent default behavior if not typing in an input field
+      const target = e.target as HTMLElement;
+      const isInputField = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
+      
+      if (isInputField) {
+        return; // Don't handle keyboard navigation when typing in input fields
+      }
+
+      if (e.key === 'ArrowRight') {
+        e.preventDefault();
         if (currentSlide < slides.length - 1) {
           setCurrentSlide(currentSlide + 1);
         }
-      } else if (e.key === 'ArrowLeft' || e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowLeft') {
+        e.preventDefault();
         if (currentSlide > 0) {
           setCurrentSlide(currentSlide - 1);
         }
       } else if (e.key === 'Escape') {
+        e.preventDefault();
         onClose();
       }
     };
@@ -672,6 +685,65 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }
     });
 
+    // Slide 19: Suppliers
+    slides.push({
+      type: 'suppliers',
+      title: 'Project Suppliers',
+      content: {
+        project: data.project,
+        summary: data.suppliers?.summary || {
+          totalSuppliers: 0,
+          totalPOAmountsWithoutVat: 0,
+          totalPOAmountsWithVat: 0,
+          totalPOVatAmount: 0,
+          totalDelivered: 0,
+          lpoBalance: 0,
+          totalInvoiced: 0,
+          totalPaid: 0,
+          committedPayments: 0,
+          balanceToBePaid: 0,
+          dueAmount: 0,
+        },
+        suppliers: data.suppliers?.suppliers || []
+      }
+    });
+
+    // Slide 20: Subcontractors
+    slides.push({
+      type: 'subcontractors',
+      title: 'Project Subcontractors',
+      content: {
+        project: data.project,
+        summary: data.subcontractors?.summary || {
+          totalSubcontractors: 0,
+          totalPOAmountsWithoutVat: 0,
+          totalPOAmountsWithVat: 0,
+          totalPOVatAmount: 0,
+          lpoBalance: 0,
+          totalInvoiced: 0,
+          totalPaid: 0,
+          committedPayments: 0,
+          balanceToBePaid: 0,
+          dueAmount: 0,
+        },
+        subcontractors: data.subcontractors?.subcontractors || []
+      }
+    });
+
+    // Slide 21: Closing Slide
+    slides.push({
+      type: 'closing',
+      title: 'Closing',
+      content: {
+        project: data.project,
+        reportMonth: report.reportMonth,
+        reportYear: report.reportYear,
+        generatedAt: data.generatedAt || new Date().toISOString(),
+        projectManagerName: projectManagerName,
+        projectDirectorName: projectDirectorName,
+      }
+    });
+
     return slides;
   };
 
@@ -755,6 +827,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         return renderCommercialChecklistSlide(slide.content, pageNumber, totalPages);
       case 'paymentCertificate':
         return renderPaymentCertificateSlide(slide.content, pageNumber, totalPages);
+      case 'suppliers':
+        return renderSuppliersSlide(slide.content, pageNumber, totalPages);
+      case 'subcontractors':
+        return renderSubcontractorsSlide(slide.content, pageNumber, totalPages);
+      case 'closing':
+        return renderClosingSlide(slide.content, pageNumber, totalPages);
       case 'clientFeedback':
         return renderClientFeedbackSlide(slide.content, pageNumber, totalPages);
       default:
@@ -895,7 +973,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   // Reusable Header Component
   const ReportHeader = ({ project, pageTitle }: { project: any; pageTitle?: string }) => (
-    <div className="mb-4 flex-shrink-0 w-full py-3 -mx-6 -mt-6 flex items-center justify-between px-6" style={{ backgroundColor: colors.primary, width: 'calc(100% + 3rem)' }}>
+    <div className="flex-shrink-0 py-3 flex items-center justify-between px-6" style={{ backgroundColor: colors.primary, position: 'absolute', top: 0, left: 0, right: 0, width: '100%', zIndex: 10, margin: 0 }}>
       {/* Left spacer for centering */}
       <div className="flex-1"></div>
       
@@ -931,8 +1009,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const primaryRgbaStrong = hexToRgba(colors.primary, 0.3);
     
     return (
-      <div className="mt-auto flex-shrink-0 w-full -mx-6 -mb-6" style={{ 
-        width: 'calc(100% + 3rem)'
+      <div className="mt-auto flex-shrink-0 w-full" style={{ 
+        position: 'absolute',
+        bottom: 0,
+        left: 0,
+        right: 0,
+        width: '100%'
       }}>
         {/* Decorative divider with gradient */}
         <div className="relative" style={{ paddingTop: '12px', paddingBottom: '8px' }}>
@@ -1088,11 +1170,11 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     });
     
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Stakeholders" />
-
-        {/* Contacts Section - Readable Layout */}
-        <div className="flex-1 w-full max-w-6xl mx-auto">
+        <div className="flex-1 overflow-y-auto p-6" style={{ paddingTop: '4.5rem' }}>
+          {/* Contacts Section - Readable Layout */}
+          <div className="w-full max-w-6xl mx-auto">
           <div className="h-full flex flex-col space-y-6">
             {/* Client */}
             {clientContacts.length > 0 && (
@@ -1232,6 +1314,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             )}
           </div>
         </div>
+        </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
@@ -1327,9 +1410,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const currentMilestones = controlMilestones.slice(startIndex, endIndex);
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Planning & Milestones" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {/* Date Comparison Table */}
           <div className="mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
             <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
@@ -1805,9 +1888,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     };
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Quality Management" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {/* E1 Log Entries Table */}
           {e1Entries.length > 0 && (
             <div className="mt-8 mb-6">
@@ -2304,9 +2387,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     };
     
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Risks & Areas of Concern" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {/* Risks Table */}
           {risks.length > 0 && (
             <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
@@ -2562,9 +2645,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const renderAreaOfConcernsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Areas of Concern" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {content.areaOfConcerns && content.areaOfConcerns.length > 0 ? (
             content.areaOfConcerns.map((concern: any, idx: number) => (
               <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
@@ -2625,9 +2708,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     };
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="HSE & NOC Tracker" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {/* HSE Checklist Table */}
           {hseItems.length > 0 && (
             <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
@@ -2971,10 +3054,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     });
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Checklist" />
           
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden max-w-6xl mx-auto w-full">
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           <div className="flex items-center justify-end mb-1">
             {allChecklistItems.length > 25 && (
               <div className="flex items-center gap-2">
@@ -3413,7 +3496,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     // No height ratio constraints - tables will size naturally
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Staff" />
 
         {/* Summary Section */}
@@ -4047,7 +4130,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const project = content.project || report.project;
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Labours" />
 
         {/* Summary Section */}
@@ -4618,9 +4701,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   const renderLabourSupplySlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Labour Supply" />
-        <div className="flex-1 overflow-y-auto space-y-4 max-w-4xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {content.map((supply: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{supply.trade || 'N/A'}</p>
@@ -4730,7 +4813,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const totalInvolvedPlants = allAssignedPlants.length;
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Plant & Equipment" />
 
         {/* Summary Section - Cards */}
@@ -4986,9 +5069,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const totalPagesForAssets = Math.ceil(totalItems / itemsPerPage);
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Assets" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {totalItems === 0 ? (
             <div className="text-center py-4">
               <Package className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
@@ -5286,7 +5369,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
     if (pictures.length === 0) {
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Pictures" />
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -5304,7 +5387,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const caption = currentPicture?.caption || currentPicture?.media?.filename || 'Project Picture';
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Pictures" />
         <div className="flex-1 min-h-0 flex items-center justify-center relative">
           <div className="w-full h-full flex gap-3">
@@ -5450,7 +5533,6 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     
     return (
       <div className="h-full flex flex-col justify-center items-center p-12 relative overflow-hidden">
-        <ReportHeader project={project} pageTitle="Commercial Report" />
         <div className="flex-1 flex items-center justify-center">
           <h1 
             className="text-6xl font-bold"
@@ -5518,9 +5600,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const overallStatus = calculateOverallStatus();
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Commercial Information" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {/* Financial Summary Cards */}
           <div className="mb-6 grid grid-cols-2 gap-4 flex-shrink-0">
             {/* Contract Value Card */}
@@ -6009,6 +6091,952 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
+  const renderSuppliersSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
+    const summary = content.summary || {};
+    const suppliers = content.suppliers || [];
+
+    // Pagination logic
+    const itemsPerPage = 10;
+    const totalPagesForTable = Math.ceil(suppliers.length / itemsPerPage);
+    const startIndex = suppliersPage * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedSuppliers = suppliers.slice(startIndex, endIndex);
+
+    return (
+      <div className="h-full flex flex-col overflow-hidden relative">
+        <ReportHeader project={project} pageTitle="Project Suppliers" />
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+          {/* Summary Cards */}
+          <div className="flex justify-center mb-4">
+            <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
+              {/* Total Suppliers */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Suppliers
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {summary.totalSuppliers || 0}
+                </p>
+              </div>
+
+              {/* Total PO Amounts (with VAT) */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  borderLeft: `3px solid ${colors.primary}`,
+                  borderTop: `1px solid ${colors.border}`,
+                  borderRight: `1px solid ${colors.border}`,
+                  borderBottom: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total PO Amounts
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.primary }}>
+                  {formatCurrencyWithDecimals(summary.totalPOAmountsWithVat || 0)}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                  With VAT
+                </p>
+              </div>
+
+              {/* Total Delivered */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.success}08`, 
+                  border: `1px solid ${colors.success}30`,
+                  boxShadow: `0 1px 3px ${colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Delivered
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.success }}>
+                  {formatCurrencyWithDecimals(summary.totalDelivered || 0)}
+                </p>
+              </div>
+
+              {/* LPO Balance */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${(summary.lpoBalance || 0) > 0 ? colors.warning : colors.success}08`, 
+                  border: `1px solid ${(summary.lpoBalance || 0) > 0 ? colors.warning : colors.success}30`,
+                  boxShadow: `0 1px 3px ${(summary.lpoBalance || 0) > 0 ? colors.warning : colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: (summary.lpoBalance || 0) > 0 ? colors.warning : colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  LPO Balance
+                </p>
+                <p className="text-lg font-bold" style={{ color: (summary.lpoBalance || 0) > 0 ? colors.warning : colors.success }}>
+                  {formatCurrencyWithDecimals(summary.lpoBalance || 0)}
+                </p>
+              </div>
+
+              {/* Total Invoiced */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Invoiced
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {formatCurrencyWithDecimals(summary.totalInvoiced || 0)}
+                </p>
+              </div>
+
+              {/* Total Paid */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.success}08`, 
+                  border: `1px solid ${colors.success}30`,
+                  boxShadow: `0 1px 3px ${colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Paid
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.success }}>
+                  {formatCurrencyWithDecimals(summary.totalPaid || 0)}
+                </p>
+              </div>
+
+              {/* Balance to be Paid */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${(summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success}08`, 
+                  border: `1px solid ${(summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success}30`,
+                  boxShadow: `0 1px 3px ${(summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: (summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Balance to be Paid
+                </p>
+                <p className="text-lg font-bold" style={{ color: (summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success }}>
+                  {formatCurrencyWithDecimals(summary.balanceToBePaid || 0)}
+                </p>
+              </div>
+
+              {/* Due Amount */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${(summary.dueAmount || 0) > 0 ? colors.error : colors.success}08`, 
+                  border: `1px solid ${(summary.dueAmount || 0) > 0 ? colors.error : colors.success}30`,
+                  boxShadow: `0 1px 3px ${(summary.dueAmount || 0) > 0 ? colors.error : colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: (summary.dueAmount || 0) > 0 ? colors.error : colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Due Amount
+                </p>
+                <p className="text-lg font-bold" style={{ color: (summary.dueAmount || 0) > 0 ? colors.error : colors.success }}>
+                  {formatCurrencyWithDecimals(summary.dueAmount || 0)}
+                </p>
+                {(summary.dueAmount || 0) > 0 && (
+                  <p className="text-xs mt-1 font-medium" style={{ color: colors.error }}>
+                    Past due date
+                  </p>
+                )}
+              </div>
+
+              {/* Committed Payments */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.warning}08`, 
+                  border: `1px solid ${colors.warning}30`,
+                  boxShadow: `0 1px 3px ${colors.warning}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.warning }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Committed Payments
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.warning }}>
+                  {formatCurrencyWithDecimals(summary.committedPayments || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Suppliers Table */}
+          {suppliers.length > 0 ? (
+            <>
+              <div className="mt-8 mb-1">
+                <div className="flex items-center">
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                  <div className="flex items-center gap-3 px-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                      Suppliers List
+                    </h3>
+                    {totalPagesForTable > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSuppliersPage(Math.max(0, suppliersPage - 1))}
+                          disabled={suppliersPage === 0}
+                          className="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                          style={{
+                            color: suppliersPage === 0 ? colors.textMuted : colors.primary,
+                            backgroundColor: suppliersPage === 0 ? 'transparent' : colors.backgroundSecondary,
+                            border: `1px solid ${suppliersPage === 0 ? colors.border : colors.primary}`,
+                            cursor: suppliersPage === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                          {suppliersPage + 1} / {totalPagesForTable}
+                        </span>
+                        <button
+                          onClick={() => setSuppliersPage(Math.min(totalPagesForTable - 1, suppliersPage + 1))}
+                          disabled={suppliersPage >= totalPagesForTable - 1}
+                          className="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                          style={{
+                            color: suppliersPage >= totalPagesForTable - 1 ? colors.textMuted : colors.primary,
+                            backgroundColor: suppliersPage >= totalPagesForTable - 1 ? 'transparent' : colors.backgroundSecondary,
+                            border: `1px solid ${suppliersPage >= totalPagesForTable - 1 ? colors.border : colors.primary}`,
+                            cursor: suppliersPage >= totalPagesForTable - 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                </div>
+              </div>
+
+              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Supplier Name
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        PO Values
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Delivered
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Balance
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Total Invoiced
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Due
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Paid
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Committed Payments
+                      </th>
+                      <th 
+                        className="text-center py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Performance Rating
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedSuppliers.map((supplier: any, index: number) => {
+                      const metrics = supplier.metrics || {};
+                      const committedPaymentsList = metrics.committedPaymentsList || [];
+                      
+                      // Helper to format date
+                      const formatDate = (dateString: string | null | undefined) => {
+                        if (!dateString) return '-';
+                        try {
+                          const datePart = dateString.split('T')[0];
+                          const [year, month, day] = datePart.split('-');
+                          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                          if (isNaN(date.getTime())) return '-';
+                          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                        } catch {
+                          return '-';
+                        }
+                      };
+                      
+                      return (
+                        <tr 
+                          key={supplier.id || index}
+                          style={{ 
+                            borderBottom: index < paginatedSuppliers.length - 1 ? `1px solid ${colors.primary}15` : 'none',
+                            backgroundColor: index % 2 === 0 ? 'transparent' : `${colors.backgroundPrimary}20`
+                          }}
+                        >
+                          <td className="py-1 px-2" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {supplier.supplier?.name || '-'}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.poValues || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.delivered || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: (metrics.balance || 0) > 0 ? colors.warning : colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.balance || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.totalInvoiced || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: (metrics.due || 0) > 0 ? colors.error : colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.due || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.paid || 0)}
+                          </td>
+                          <td className="py-1 px-2" style={{ fontSize: '0.65rem', height: 'auto' }}>
+                            {committedPaymentsList.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {committedPaymentsList.map((cp: any, cpIndex: number) => (
+                                  <div key={cpIndex}>
+                                    <div className="font-semibold" style={{ fontSize: '0.6rem', color: colors.warning }}>
+                                      {formatCurrencyWithDecimals(cp.amount || 0)}
+                                    </div>
+                                    <div className="text-xs mt-0.5" style={{ color: colors.textSecondary, fontSize: '0.55rem' }}>
+                                      {cp.type || 'Post Dated'} • {formatDate(cp.dueDate)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span style={{ color: colors.textMuted }}>
+                                {formatCurrencyWithDecimals(metrics.committedPayments || 0)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ fontSize: '0.65rem', height: 'auto' }}>
+                            {supplier.performanceRating ? (
+                              <span 
+                                className="px-2 py-1 rounded text-xs font-semibold inline-block"
+                                style={{
+                                  backgroundColor: supplier.performanceRating >= 4 ? `${colors.success}15` : 
+                                                  supplier.performanceRating >= 3 ? `${colors.warning}15` : 
+                                                  `${colors.error}15`,
+                                  color: supplier.performanceRating >= 4 ? colors.success : 
+                                         supplier.performanceRating >= 3 ? colors.warning : 
+                                         colors.error,
+                                  border: `1px solid ${supplier.performanceRating >= 4 ? colors.success : 
+                                                      supplier.performanceRating >= 3 ? colors.warning : 
+                                                      colors.error}30`
+                                }}
+                              >
+                                {supplier.performanceRating}/5
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted }}>-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              No suppliers found for this project.
+            </div>
+          )}
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
+  };
+
+  const renderSubcontractorsSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const project = content.project || report.project;
+    const summary = content.summary || {};
+    const subcontractors = content.subcontractors || [];
+
+    // Pagination logic
+    const itemsPerPage = 10;
+    const totalPagesForTable = Math.ceil(subcontractors.length / itemsPerPage);
+    const startIndex = subcontractorsPage * itemsPerPage;
+    const endIndex = startIndex + itemsPerPage;
+    const paginatedSubcontractors = subcontractors.slice(startIndex, endIndex);
+
+    return (
+      <div className="h-full flex flex-col overflow-hidden relative">
+        <ReportHeader project={project} pageTitle="Project Subcontractors" />
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+          {/* Summary Cards */}
+          <div className="flex justify-center mb-4">
+            <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
+              {/* Total Subcontractors */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Subcontractors
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {summary.totalSubcontractors || 0}
+                </p>
+              </div>
+
+              {/* Total PO Amounts (with VAT) */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  borderLeft: `3px solid ${colors.primary}`,
+                  borderTop: `1px solid ${colors.border}`,
+                  borderRight: `1px solid ${colors.border}`,
+                  borderBottom: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total PO Amounts
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.primary }}>
+                  {formatCurrencyWithDecimals(summary.totalPOAmountsWithVat || 0)}
+                </p>
+                <p className="text-xs mt-0.5" style={{ color: colors.textSecondary }}>
+                  With VAT
+                </p>
+              </div>
+
+              {/* LPO Balance */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${(summary.lpoBalance || 0) > 0 ? colors.warning : colors.success}08`, 
+                  border: `1px solid ${(summary.lpoBalance || 0) > 0 ? colors.warning : colors.success}30`,
+                  boxShadow: `0 1px 3px ${(summary.lpoBalance || 0) > 0 ? colors.warning : colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: (summary.lpoBalance || 0) > 0 ? colors.warning : colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  LPO Balance
+                </p>
+                <p className="text-lg font-bold" style={{ color: (summary.lpoBalance || 0) > 0 ? colors.warning : colors.success }}>
+                  {formatCurrencyWithDecimals(summary.lpoBalance || 0)}
+                </p>
+              </div>
+
+              {/* Total Invoiced */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Invoiced
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {formatCurrencyWithDecimals(summary.totalInvoiced || 0)}
+                </p>
+              </div>
+
+              {/* Total Paid */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.success}08`, 
+                  border: `1px solid ${colors.success}30`,
+                  boxShadow: `0 1px 3px ${colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Paid
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.success }}>
+                  {formatCurrencyWithDecimals(summary.totalPaid || 0)}
+                </p>
+              </div>
+
+              {/* Balance to be Paid */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${(summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success}08`, 
+                  border: `1px solid ${(summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success}30`,
+                  boxShadow: `0 1px 3px ${(summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: (summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Balance to be Paid
+                </p>
+                <p className="text-lg font-bold" style={{ color: (summary.balanceToBePaid || 0) > 0 ? colors.warning : colors.success }}>
+                  {formatCurrencyWithDecimals(summary.balanceToBePaid || 0)}
+                </p>
+              </div>
+
+              {/* Due Amount */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${(summary.dueAmount || 0) > 0 ? colors.error : colors.success}08`, 
+                  border: `1px solid ${(summary.dueAmount || 0) > 0 ? colors.error : colors.success}30`,
+                  boxShadow: `0 1px 3px ${(summary.dueAmount || 0) > 0 ? colors.error : colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: (summary.dueAmount || 0) > 0 ? colors.error : colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Due Amount
+                </p>
+                <p className="text-lg font-bold" style={{ color: (summary.dueAmount || 0) > 0 ? colors.error : colors.success }}>
+                  {formatCurrencyWithDecimals(summary.dueAmount || 0)}
+                </p>
+                {(summary.dueAmount || 0) > 0 && (
+                  <p className="text-xs mt-1 font-medium" style={{ color: colors.error }}>
+                    Past due date
+                  </p>
+                )}
+              </div>
+
+              {/* Committed Payments */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.warning}08`, 
+                  border: `1px solid ${colors.warning}30`,
+                  boxShadow: `0 1px 3px ${colors.warning}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.warning }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Committed Payments
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.warning }}>
+                  {formatCurrencyWithDecimals(summary.committedPayments || 0)}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Subcontractors Table */}
+          {subcontractors.length > 0 ? (
+            <>
+              <div className="mt-8 mb-1">
+                <div className="flex items-center">
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                  <div className="flex items-center gap-3 px-4">
+                    <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                      Subcontractors List
+                    </h3>
+                    {totalPagesForTable > 1 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setSubcontractorsPage(Math.max(0, subcontractorsPage - 1))}
+                          disabled={subcontractorsPage === 0}
+                          className="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                          style={{
+                            color: subcontractorsPage === 0 ? colors.textMuted : colors.primary,
+                            backgroundColor: subcontractorsPage === 0 ? 'transparent' : colors.backgroundSecondary,
+                            border: `1px solid ${subcontractorsPage === 0 ? colors.border : colors.primary}`,
+                            cursor: subcontractorsPage === 0 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ChevronLeft className="w-4 h-4" />
+                        </button>
+                        <span className="text-xs font-semibold" style={{ color: colors.textPrimary }}>
+                          {subcontractorsPage + 1} / {totalPagesForTable}
+                        </span>
+                        <button
+                          onClick={() => setSubcontractorsPage(Math.min(totalPagesForTable - 1, subcontractorsPage + 1))}
+                          disabled={subcontractorsPage >= totalPagesForTable - 1}
+                          className="px-2 py-1 rounded text-xs font-semibold transition-colors"
+                          style={{
+                            color: subcontractorsPage >= totalPagesForTable - 1 ? colors.textMuted : colors.primary,
+                            backgroundColor: subcontractorsPage >= totalPagesForTable - 1 ? 'transparent' : colors.backgroundSecondary,
+                            border: `1px solid ${subcontractorsPage >= totalPagesForTable - 1 ? colors.border : colors.primary}`,
+                            cursor: subcontractorsPage >= totalPagesForTable - 1 ? 'not-allowed' : 'pointer'
+                          }}
+                        >
+                          <ChevronRight className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
+                </div>
+              </div>
+
+              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                  <thead>
+                    <tr>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Subcontractor Name
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        PO Values
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Balance
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Total Invoiced
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Due
+                      </th>
+                      <th 
+                        className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Paid
+                      </th>
+                      <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Committed Payments
+                      </th>
+                      <th 
+                        className="text-center py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Performance Rating
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {paginatedSubcontractors.map((subcontractor: any, index: number) => {
+                      const metrics = subcontractor.metrics || {};
+                      const committedPaymentsList = metrics.committedPaymentsList || [];
+                      
+                      // Helper to format date
+                      const formatDate = (dateString: string | null | undefined) => {
+                        if (!dateString) return '-';
+                        try {
+                          const datePart = dateString.split('T')[0];
+                          const [year, month, day] = datePart.split('-');
+                          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+                          if (isNaN(date.getTime())) return '-';
+                          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                        } catch {
+                          return '-';
+                        }
+                      };
+                      
+                      return (
+                        <tr 
+                          key={subcontractor.id || index}
+                          style={{ 
+                            borderBottom: index < paginatedSubcontractors.length - 1 ? `1px solid ${colors.primary}15` : 'none',
+                            backgroundColor: index % 2 === 0 ? 'transparent' : `${colors.backgroundPrimary}20`
+                          }}
+                        >
+                          <td className="py-1 px-2" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {subcontractor.subcontractor?.name || '-'}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.poValues || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: (metrics.balance || 0) > 0 ? colors.warning : colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.balance || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.totalInvoiced || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: (metrics.due || 0) > 0 ? colors.error : colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.due || 0)}
+                          </td>
+                          <td className="py-1 px-2 text-right" style={{ color: colors.success, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatCurrencyWithDecimals(metrics.paid || 0)}
+                          </td>
+                          <td className="py-1 px-2" style={{ fontSize: '0.65rem', height: 'auto' }}>
+                            {committedPaymentsList.length > 0 ? (
+                              <div className="space-y-1.5">
+                                {committedPaymentsList.map((cp: any, cpIndex: number) => (
+                                  <div key={cpIndex}>
+                                    <div className="font-semibold" style={{ fontSize: '0.6rem', color: colors.warning }}>
+                                      {formatCurrencyWithDecimals(cp.amount || 0)}
+                                    </div>
+                                    <div className="text-xs mt-0.5" style={{ color: colors.textSecondary, fontSize: '0.55rem' }}>
+                                      {cp.type || 'Post Dated'} • {formatDate(cp.dueDate)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <span style={{ color: colors.textMuted }}>
+                                {formatCurrencyWithDecimals(metrics.committedPayments || 0)}
+                              </span>
+                            )}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ fontSize: '0.65rem', height: 'auto' }}>
+                            {subcontractor.performanceRating ? (
+                              <span 
+                                className="px-2 py-1 rounded text-xs font-semibold inline-block"
+                                style={{
+                                  backgroundColor: subcontractor.performanceRating >= 4 ? `${colors.success}15` : 
+                                                  subcontractor.performanceRating >= 3 ? `${colors.warning}15` : 
+                                                  `${colors.error}15`,
+                                  color: subcontractor.performanceRating >= 4 ? colors.success : 
+                                         subcontractor.performanceRating >= 3 ? colors.warning : 
+                                         colors.error,
+                                  border: `1px solid ${subcontractor.performanceRating >= 4 ? colors.success : 
+                                                      subcontractor.performanceRating >= 3 ? colors.warning : 
+                                                      colors.error}30`
+                                }}
+                              >
+                                {subcontractor.performanceRating}/5
+                              </span>
+                            ) : (
+                              <span style={{ color: colors.textMuted }}>-</span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          ) : (
+            <div className="text-center py-8" style={{ color: colors.textSecondary }}>
+              No subcontractors found for this project.
+            </div>
+          )}
+        </div>
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
+  };
+
   const renderPaymentCertificateSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
     const summary = content.summary || {};
@@ -6091,148 +7119,171 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     };
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Payment Certificate" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           {/* Payment Status Cards */}
-          <div className="grid grid-cols-4 gap-3 mb-4">
-            {/* Total Submitted */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: colors.backgroundSecondary, 
-                border: `1px solid ${colors.border}`,
-                boxShadow: `0 1px 3px ${colors.border}20`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Total Submitted
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                {formatCurrencyWithDecimals(summary.totalSubmitted || 0)}
-              </p>
-            </div>
-
-            {/* Total Certified */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: colors.backgroundSecondary, 
-                borderLeft: `3px solid ${colors.primary}`,
-                borderTop: `1px solid ${colors.border}`,
-                borderRight: `1px solid ${colors.border}`,
-                borderBottom: `1px solid ${colors.border}`,
-                boxShadow: `0 1px 3px ${colors.border}20`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Total Certified
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.primary }}>
-                {formatCurrencyWithDecimals(summary.totalCertified || 0)}
-              </p>
-            </div>
-
-            {/* Total Received */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: `${colors.success}08`, 
-                border: `1px solid ${colors.success}30`,
-                boxShadow: `0 1px 3px ${colors.success}15`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.success }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Total Received
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.success }}>
-                {formatCurrencyWithDecimals(summary.totalReceived || 0)}
-              </p>
-            </div>
-
-            {/* Due Payments */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: `${colors.error}08`, 
-                border: `1px solid ${colors.error}30`,
-                boxShadow: `0 1px 3px ${colors.error}15`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.error }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Due Payments
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.error }}>
-                {formatCurrencyWithDecimals(summary.duePayments || 0)}
-              </p>
-              {summary.duePaymentsCount > 0 && (
-                <p className="text-xs mt-1 font-medium" style={{ color: colors.error }}>
-                  {summary.duePaymentsCount} exceeded
+          <div className="flex justify-center mb-4">
+            <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
+              {/* Total Submitted */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Submitted
                 </p>
-              )}
-            </div>
-
-            {/* Receivables */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: `${colors.warning}08`, 
-                border: `1px solid ${colors.warning}30`,
-                boxShadow: `0 1px 3px ${colors.warning}15`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.warning }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Receivables
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.warning }}>
-                {formatCurrencyWithDecimals(summary.receivables || 0)}
-              </p>
-              {summary.receivablesCount > 0 && (
-                <p className="text-xs mt-1 font-medium" style={{ color: colors.textSecondary }}>
-                  {summary.receivablesCount} in process
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {formatCurrencyWithDecimals(summary.totalSubmitted || 0)}
                 </p>
-              )}
-            </div>
+              </div>
 
-            {/* Total Retention Held */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: colors.backgroundSecondary, 
-                border: `1px solid ${colors.border}`,
-                boxShadow: `0 1px 3px ${colors.border}20`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Total Retention Held
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                {formatCurrencyWithDecimals(summary.totalRetentionHeld || 0)}
-              </p>
-            </div>
+              {/* Total Certified */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  borderLeft: `3px solid ${colors.primary}`,
+                  borderTop: `1px solid ${colors.border}`,
+                  borderRight: `1px solid ${colors.border}`,
+                  borderBottom: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Certified
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.primary }}>
+                  {formatCurrencyWithDecimals(summary.totalCertified || 0)}
+                </p>
+              </div>
 
-            {/* Balance Advance Payment Recovery */}
-            <div 
-              className="p-3 rounded-lg relative overflow-hidden"
-              style={{ 
-                backgroundColor: colors.backgroundSecondary, 
-                border: `1px solid ${colors.border}`,
-                boxShadow: `0 1px 3px ${colors.border}20`
-              }}
-            >
-              <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
-              <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                Balance Advance Recovery
-              </p>
-              <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
-                {formatCurrencyWithDecimals(summary.balanceAdvancePaymentRecovery || 0)}
-              </p>
+              {/* Total Received */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.success}08`, 
+                  border: `1px solid ${colors.success}30`,
+                  boxShadow: `0 1px 3px ${colors.success}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.success }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Received
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.success }}>
+                  {formatCurrencyWithDecimals(summary.totalReceived || 0)}
+                </p>
+              </div>
+
+              {/* Due Payments */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.error}08`, 
+                  border: `1px solid ${colors.error}30`,
+                  boxShadow: `0 1px 3px ${colors.error}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.error }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Due Payments
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.error }}>
+                  {formatCurrencyWithDecimals(summary.duePayments || 0)}
+                </p>
+                {summary.duePaymentsCount > 0 && (
+                  <p className="text-xs mt-1 font-medium" style={{ color: colors.error }}>
+                    {summary.duePaymentsCount} exceeded
+                  </p>
+                )}
+              </div>
+
+              {/* Receivables */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: `${colors.warning}08`, 
+                  border: `1px solid ${colors.warning}30`,
+                  boxShadow: `0 1px 3px ${colors.warning}15`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.warning }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Receivables
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.warning }}>
+                  {formatCurrencyWithDecimals(summary.receivables || 0)}
+                </p>
+                {summary.receivablesCount > 0 && (
+                  <p className="text-xs mt-1 font-medium" style={{ color: colors.textSecondary }}>
+                    {summary.receivablesCount} in process
+                  </p>
+                )}
+              </div>
+
+              {/* Total Retention Held */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.primary }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Total Retention Held
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {formatCurrencyWithDecimals(summary.totalRetentionHeld || 0)}
+                </p>
+              </div>
+
+              {/* Balance Advance Payment Recovery */}
+              <div 
+                className="p-3 rounded-lg relative overflow-hidden"
+                style={{ 
+                  backgroundColor: colors.backgroundSecondary, 
+                  border: `1px solid ${colors.border}`,
+                  boxShadow: `0 1px 3px ${colors.border}20`,
+                  width: 'calc(25% - 0.75rem)',
+                  minWidth: '200px',
+                  flexShrink: 0
+                }}
+              >
+                <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.info }}></div>
+                <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
+                  Balance Advance Recovery
+                </p>
+                <p className="text-lg font-bold" style={{ color: colors.textPrimary }}>
+                  {formatCurrencyWithDecimals(summary.balanceAdvancePaymentRecovery || 0)}
+                </p>
+              </div>
             </div>
           </div>
 
@@ -6478,6 +7529,108 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     );
   };
 
+  const renderClosingSlide = (content: any, pageNumber?: number, totalPages?: number) => {
+    const { project, reportMonth, reportYear, generatedAt, projectManagerName, projectDirectorName } = content;
+    const monthName = getMonthName(reportMonth);
+    
+    // Format generation date
+    const formatDate = (dateString: string) => {
+      try {
+        const date = new Date(dateString);
+        return date.toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric'
+        });
+      } catch {
+        return new Date().toLocaleDateString('en-US', { 
+          year: 'numeric', 
+          month: 'long', 
+          day: 'numeric'
+        });
+      }
+    };
+
+    return (
+      <div className="h-full flex flex-col p-6 overflow-hidden">
+        <div className="flex-1 flex flex-col justify-center items-center">
+          <div className="w-full max-w-3xl text-center">
+            {/* Thank you message */}
+            <h1 
+              className="text-5xl font-bold mb-8"
+              style={{ color: colors.primary }}
+            >
+              Thank You
+            </h1>
+
+            {/* Project information */}
+            <div className="mb-12">
+              <h2 
+                className="text-2xl font-semibold mb-2"
+                style={{ color: colors.textPrimary }}
+              >
+                {project.projectName}
+              </h2>
+              <p 
+                className="text-lg mb-4"
+                style={{ color: colors.textSecondary }}
+              >
+                {project.projectCode}
+              </p>
+              <p 
+                className="text-base"
+                style={{ color: colors.textSecondary }}
+              >
+                {monthName} {reportYear} Monthly Report
+              </p>
+              <p 
+                className="text-sm mt-2"
+                style={{ color: colors.textMuted }}
+              >
+                Generated on {formatDate(generatedAt)}
+              </p>
+            </div>
+
+            {/* Project team */}
+            <div className="grid grid-cols-2 gap-12 mb-12">
+              <div className="text-center">
+                <p 
+                  className="text-sm font-medium mb-2 uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Project Manager
+                </p>
+                <p 
+                  className="text-lg font-semibold"
+                  style={{ color: colors.textPrimary }}
+                >
+                  {projectManagerName}
+                </p>
+              </div>
+              <div className="text-center">
+                <p 
+                  className="text-sm font-medium mb-2 uppercase tracking-wider"
+                  style={{ color: colors.textSecondary }}
+                >
+                  Project Director
+                </p>
+                <p 
+                  className="text-lg font-semibold"
+                  style={{ color: colors.textPrimary }}
+                >
+                  {projectDirectorName}
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer with page number */}
+        {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
+      </div>
+    );
+  };
+
   const renderCommercialChecklistSlide = (content: any, pageNumber?: number, totalPages?: number) => {
     const project = content.project || report.project;
     const checklist = content.commercialChecklist || [];
@@ -6498,9 +7651,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     }
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Commercial Checklist" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
           <div className="grid grid-cols-2 gap-4">
             {checklist.map((item: any, idx: number) => (
               <div
@@ -6578,7 +7731,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
     if (entries.length === 0) {
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Close Out" />
           <div className="flex-1 flex items-center justify-center">
             <div className="text-center">
@@ -6592,7 +7745,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     }
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Close Out" />
         
         {/* Summary Section */}
@@ -6804,7 +7957,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const hasNegativePoints = Array.isArray(negativePoints) && negativePoints.length > 0;
 
     return (
-      <div className="h-full flex flex-col p-6 overflow-hidden">
+      <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Client Feedback" />
         <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
           {/* Rating Section */}
@@ -7031,7 +8184,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       </div>
 
       {/* Slide Content - A3 Landscape Container */}
-      <div className="flex-1 overflow-hidden flex items-center justify-center p-4" style={{ backgroundColor: colors.backgroundPrimary }}>
+      <div className="flex-1 overflow-hidden flex items-center justify-center p-4" style={{ backgroundColor: '#0f0f0f' }}>
         {/* A3 Landscape: 420mm x 297mm (aspect ratio ~1.414:1) */}
         <div 
           className="relative overflow-hidden shadow-2xl"

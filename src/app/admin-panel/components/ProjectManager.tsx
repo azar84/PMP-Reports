@@ -100,6 +100,7 @@ interface Project {
   duration?: string;
   eot?: string;
   projectValue?: number;
+  status?: 'ongoing' | 'completed';
   lastUpdate: string;
   createdAt: string;
   updatedAt: string;
@@ -374,6 +375,7 @@ export default function ProjectManager() {
     duration: '',
     eot: '',
     projectValue: undefined,
+    status: 'ongoing',
   });
 
   useEffect(() => {
@@ -578,6 +580,8 @@ export default function ProjectManager() {
         endDate: '',
         duration: '',
         eot: '',
+        projectValue: undefined,
+        status: 'ongoing',
       });
     } catch (error) {
       console.error('Error saving project:', error);
@@ -1146,6 +1150,743 @@ export default function ProjectManager() {
           }
         };
       }
+
+      // Suppliers
+      const suppliersRes = await get<{ success: boolean; data: any[] }>(`/api/admin/project-suppliers?projectId=${selectedProject.id}`);
+      if (suppliersRes.success && suppliersRes.data) {
+        const projectSuppliers = suppliersRes.data;
+        const allPOs: any[] = [];
+        const allGRNs: any[] = [];
+        const allInvoices: any[] = [];
+        const allPayments: any[] = [];
+
+        // Store data organized by projectSupplierId for per-supplier calculations
+        const supplierDataMap: Record<number, {
+          pos: any[];
+          grns: any[];
+          invoices: any[];
+          payments: any[];
+        }> = {};
+
+        // Initialize map for each supplier
+        projectSuppliers.forEach((ps: any) => {
+          supplierDataMap[ps.id] = {
+            pos: [],
+            grns: [],
+            invoices: [],
+            payments: [],
+          };
+        });
+
+        // Fetch data for each supplier
+        for (const projectSupplier of projectSuppliers) {
+          try {
+            // Fetch POs
+            try {
+              const posRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/project-suppliers/${projectSupplier.id}/purchase-orders`);
+              if (posRes.success && posRes.data) {
+                const supplierPOs = posRes.data.map((po: any) => ({
+                  ...po,
+                  projectSupplierId: projectSupplier.id,
+                }));
+                allPOs.push(...supplierPOs);
+                supplierDataMap[projectSupplier.id].pos = supplierPOs;
+              }
+            } catch (error: any) {
+              // Ignore 404s
+              if (!error.message?.includes('404')) {
+                console.error(`Error loading POs for supplier ${projectSupplier.id}:`, error);
+              }
+            }
+
+            // Fetch Invoices
+            try {
+              const invoicesRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/project-suppliers/${projectSupplier.id}/invoices`);
+              if (invoicesRes.success && invoicesRes.data) {
+                allInvoices.push(...invoicesRes.data);
+                supplierDataMap[projectSupplier.id].invoices = invoicesRes.data;
+              }
+            } catch (error: any) {
+              if (!error.message?.includes('404')) {
+                console.error(`Error loading invoices for supplier ${projectSupplier.id}:`, error);
+              }
+            }
+
+            // Fetch Payments
+            try {
+              const paymentsRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/project-suppliers/${projectSupplier.id}/payments`);
+              if (paymentsRes.success && paymentsRes.data) {
+                const supplierPayments = paymentsRes.data.map((p: any) => ({
+                  ...p,
+                  liquidated: p.liquidated ?? false,
+                }));
+                allPayments.push(...supplierPayments);
+                supplierDataMap[projectSupplier.id].payments = supplierPayments;
+              }
+            } catch (error: any) {
+              if (!error.message?.includes('404')) {
+                console.error(`Error loading payments for supplier ${projectSupplier.id}:`, error);
+              }
+            }
+          } catch (error) {
+            console.error(`Failed to load data for supplier ${projectSupplier.id}:`, error);
+          }
+        }
+
+        // Fetch GRNs for each purchase order and organize by supplier
+        for (const po of allPOs) {
+          try {
+            const grnsRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/purchase-orders/${po.id}/grns`);
+            if (grnsRes.success && grnsRes.data) {
+              allGRNs.push(...grnsRes.data);
+              // Add GRNs to the supplier's data
+              if (po.projectSupplierId && supplierDataMap[po.projectSupplierId]) {
+                supplierDataMap[po.projectSupplierId].grns.push(...grnsRes.data);
+              }
+            }
+          } catch (error: any) {
+            // Ignore 404s
+            if (!error.message?.includes('404')) {
+              console.error(`Error loading GRNs for PO ${po.id}:`, error);
+            }
+          }
+        }
+
+        // Calculate summary statistics (similar to ProjectSuppliers component)
+        const vatPercent = 5; // Default VAT percent
+        const vatMultiplier = 1 + (vatPercent / 100);
+
+        // Helper to calculate paid amounts from invoices
+        const calculatePaidAmountsFromInvoices = (invoiceList: any[]) => {
+          const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+          invoiceList.forEach(invoice => {
+            if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+              const totalPaid = invoice.paymentInvoices.reduce(
+                (sum: any, pi: any) => ({
+                  paymentAmount: sum.paymentAmount + Number(pi.paymentAmount || 0),
+                  vatAmount: sum.vatAmount + Number(pi.vatAmount || 0),
+                }),
+                { paymentAmount: 0, vatAmount: 0 }
+              );
+              paidAmounts[invoice.id] = totalPaid;
+            } else {
+              paidAmounts[invoice.id] = { paymentAmount: 0, vatAmount: 0 };
+            }
+          });
+          return paidAmounts;
+        };
+
+        // Helper function to get invoice status
+        const getInvoiceStatus = (invoice: any): 'paid' | 'partially_paid' | 'unpaid' => {
+          if (invoice.status && ['paid', 'partially_paid', 'unpaid'].includes(invoice.status)) {
+            return invoice.status as 'paid' | 'partially_paid' | 'unpaid';
+          }
+          
+          let totalPaid = 0;
+          if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            totalPaid = invoice.paymentInvoices.reduce((sum: number, pi: any) => {
+              return sum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+          }
+          
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const tolerance = 0.01;
+          
+          if (totalPaid >= invoiceTotal - tolerance) {
+            return 'paid';
+          }
+          if (totalPaid > tolerance) {
+            return 'partially_paid';
+          }
+          return 'unpaid';
+        };
+
+        // Calculate per-supplier metrics
+        const suppliersWithMetrics = projectSuppliers.map((ps: any) => {
+          const supplierData = supplierDataMap[ps.id] || { pos: [], grns: [], invoices: [], payments: [] };
+          
+          // Calculate PO values (with VAT)
+          const poValues = supplierData.pos.reduce((sum, po) => {
+            return sum + Number(po.lpoValueWithVat || 0);
+          }, 0);
+
+          // Calculate Delivered (with VAT)
+          const deliveredBase = supplierData.grns.reduce((sum, grn) => {
+            return sum + Number(grn.deliveredAmount || 0);
+          }, 0);
+          const delivered = deliveredBase * vatMultiplier;
+
+          // Calculate Balance (LPO Balance with VAT)
+          const poAmountBase = supplierData.pos.reduce((sum, po) => {
+            return sum + Number(po.lpoValue || 0);
+          }, 0);
+          const balance = (poAmountBase - deliveredBase) * vatMultiplier;
+
+          // Calculate Total Invoiced
+          const totalInvoiced = supplierData.invoices.reduce((sum, invoice) => {
+            return sum + Number(invoice.totalAmount || 0);
+          }, 0);
+
+          // Calculate Total Paid
+          const paidAmounts = calculatePaidAmountsFromInvoices(supplierData.invoices);
+          const totalPaid = supplierData.invoices.reduce((sum, invoice) => {
+            const invoiceStatus = getInvoiceStatus(invoice);
+            if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+              const paidForInvoice = invoice.paymentInvoices.reduce((invoiceSum: number, pi: any) => {
+                return invoiceSum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+              }, 0);
+              return sum + paidForInvoice;
+            }
+            return sum;
+          }, 0);
+
+          // Calculate Committed Payments (with details)
+          const committedPaymentsList: Array<{
+            type: string;
+            dueDate: string | null;
+            amount: number;
+          }> = [];
+          const committedPaymentsTotal = supplierData.payments.reduce((sum, payment) => {
+            const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
+            if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
+              const amount = Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+              committedPaymentsList.push({
+                type: payment.paymentType || 'Post Dated',
+                dueDate: payment.dueDate ? new Date(payment.dueDate).toISOString().split('T')[0] : null,
+                amount: amount,
+              });
+              return sum + amount;
+            }
+            return sum;
+          }, 0);
+
+          // Calculate Balance to be Paid
+          const balanceToBePaid = supplierData.invoices.reduce((sum, invoice) => {
+            const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+            const invoiceTotal = Number(invoice.totalAmount || 0);
+            const remaining = invoiceTotal - totalPaidForInvoice;
+            return sum + (remaining > 0 ? remaining : 0);
+          }, 0);
+
+          // Calculate Due Amount
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dueAmount = supplierData.invoices.reduce((sum, invoice) => {
+            if (!invoice.dueDate) return sum;
+            
+            const dueDate = new Date(invoice.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            if (dueDate < today) {
+              const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+              const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+              const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+              return sum + (remaining > 0 ? remaining : 0);
+            }
+            return sum;
+          }, 0);
+
+          return {
+            id: ps.id,
+            supplierId: ps.supplierId,
+            notes: ps.notes,
+            performanceRating: ps.performanceRating,
+            performanceReview: ps.performanceReview,
+            supplier: {
+              id: ps.supplier.id,
+              name: ps.supplier.name,
+              vendorCode: ps.supplier.vendorCode,
+              type: ps.supplier.type,
+              contactPerson: ps.supplier.contactPerson,
+              contactNumber: ps.supplier.contactNumber,
+              email: ps.supplier.email,
+            },
+            metrics: {
+              poValues,
+              delivered,
+              balance,
+              totalInvoiced,
+              due: dueAmount,
+              paid: totalPaid,
+              committedPayments: committedPaymentsTotal,
+              committedPaymentsList,
+            }
+          };
+        });
+
+        // Calculate overall summary statistics
+        const totalInvoiced = allInvoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.totalAmount || 0);
+        }, 0);
+
+        const totalPaid = allInvoices.reduce((sum, invoice) => {
+          const invoiceStatus = getInvoiceStatus(invoice);
+          if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            const paidForInvoice = invoice.paymentInvoices.reduce((invoiceSum: number, pi: any) => {
+              return invoiceSum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+            return sum + paidForInvoice;
+          }
+          return sum;
+        }, 0);
+
+        const committedPayments = allPayments.reduce((sum, payment) => {
+          const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
+          if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
+            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          }
+          return sum;
+        }, 0);
+
+        const paidAmountsFromDBForBalance = calculatePaidAmountsFromInvoices(allInvoices);
+        const balanceToBePaid = allInvoices.reduce((sum, invoice) => {
+          const paid = paidAmountsFromDBForBalance[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+          const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const remaining = invoiceTotal - totalPaidForInvoice;
+          return sum + (remaining > 0 ? remaining : 0);
+        }, 0);
+
+        const totalDeliveredBase = allGRNs.reduce((sum, grn) => {
+          return sum + Number(grn.deliveredAmount || 0);
+        }, 0);
+        const totalDelivered = totalDeliveredBase * vatMultiplier;
+
+        const totalPOAmountsWithoutVat = allPOs.reduce((sum, po) => {
+          return sum + Number(po.lpoValue || 0);
+        }, 0);
+
+        const totalPOAmountsWithVat = allPOs.reduce((sum, po) => {
+          return sum + Number(po.lpoValueWithVat || 0);
+        }, 0);
+
+        const totalPOVatAmount = totalPOAmountsWithVat - totalPOAmountsWithoutVat;
+
+        const lpoBalanceBeforeVat = totalPOAmountsWithoutVat - totalDeliveredBase;
+        const lpoBalance = lpoBalanceBeforeVat * vatMultiplier;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const paidAmountsFromDB = calculatePaidAmountsFromInvoices(allInvoices);
+        const dueAmount = allInvoices.reduce((sum, invoice) => {
+          if (!invoice.dueDate) return sum;
+          
+          const dueDate = new Date(invoice.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          if (dueDate < today) {
+            const paid = paidAmountsFromDB[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+            const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+            return sum + (remaining > 0 ? remaining : 0);
+          }
+          return sum;
+        }, 0);
+
+        reportData.suppliers = {
+          suppliers: suppliersWithMetrics,
+          summary: {
+            totalSuppliers: projectSuppliers.length,
+            totalPOAmountsWithoutVat,
+            totalPOAmountsWithVat,
+            totalPOVatAmount,
+            totalDelivered,
+            lpoBalance,
+            totalInvoiced,
+            totalPaid,
+            committedPayments,
+            balanceToBePaid,
+            dueAmount,
+          }
+        };
+      } else {
+        // No suppliers or API call failed
+        reportData.suppliers = {
+          suppliers: [],
+          summary: {
+            totalSuppliers: 0,
+            totalPOAmountsWithoutVat: 0,
+            totalPOAmountsWithVat: 0,
+            totalPOVatAmount: 0,
+            totalDelivered: 0,
+            lpoBalance: 0,
+            totalInvoiced: 0,
+            totalPaid: 0,
+            committedPayments: 0,
+            balanceToBePaid: 0,
+            dueAmount: 0,
+          }
+        };
+      }
+
+      // Subcontractors
+      const subcontractorsRes = await get<{ success: boolean; data: any[] }>(`/api/admin/project-subcontractors?projectId=${selectedProject.id}`);
+      if (subcontractorsRes.success && subcontractorsRes.data) {
+        const projectSubcontractors = subcontractorsRes.data;
+        const allPOs: any[] = [];
+        const allInvoices: any[] = [];
+        const allPayments: any[] = [];
+
+        // Store data organized by projectSubcontractorId for per-subcontractor calculations
+        const subcontractorDataMap: Record<number, {
+          pos: any[];
+          invoices: any[];
+          payments: any[];
+        }> = {};
+
+        // Initialize map for each subcontractor
+        projectSubcontractors.forEach((ps: any) => {
+          subcontractorDataMap[ps.id] = {
+            pos: [],
+            invoices: [],
+            payments: [],
+          };
+        });
+
+        // Fetch data for each subcontractor
+        for (const projectSubcontractor of projectSubcontractors) {
+          try {
+            // Fetch POs
+            try {
+              const posRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/project-subcontractors/${projectSubcontractor.id}/purchase-orders`);
+              if (posRes.success && posRes.data) {
+                const subcontractorPOs = posRes.data.map((po: any) => ({
+                  ...po,
+                  projectSubcontractorId: projectSubcontractor.id,
+                }));
+                allPOs.push(...subcontractorPOs);
+                subcontractorDataMap[projectSubcontractor.id].pos = subcontractorPOs;
+              }
+            } catch (error: any) {
+              if (!error.message?.includes('404')) {
+                console.error(`Error loading POs for subcontractor ${projectSubcontractor.id}:`, error);
+              }
+            }
+
+            // Fetch Invoices
+            try {
+              const invoicesRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/project-subcontractors/${projectSubcontractor.id}/invoices`);
+              if (invoicesRes.success && invoicesRes.data) {
+                allInvoices.push(...invoicesRes.data);
+                subcontractorDataMap[projectSubcontractor.id].invoices = invoicesRes.data;
+              }
+            } catch (error: any) {
+              if (!error.message?.includes('404')) {
+                console.error(`Error loading invoices for subcontractor ${projectSubcontractor.id}:`, error);
+              }
+            }
+
+            // Fetch Payments
+            try {
+              const paymentsRes = await get<{ success: boolean; data?: any[] }>(`/api/admin/project-subcontractors/${projectSubcontractor.id}/payments`);
+              if (paymentsRes.success && paymentsRes.data) {
+                const subcontractorPayments = paymentsRes.data.map((p: any) => ({
+                  ...p,
+                  liquidated: p.liquidated ?? false,
+                }));
+                allPayments.push(...subcontractorPayments);
+                subcontractorDataMap[projectSubcontractor.id].payments = subcontractorPayments;
+              }
+            } catch (error: any) {
+              if (!error.message?.includes('404')) {
+                console.error(`Error loading payments for subcontractor ${projectSubcontractor.id}:`, error);
+              }
+            }
+          } catch (error) {
+            console.error(`Failed to load data for subcontractor ${projectSubcontractor.id}:`, error);
+          }
+        }
+
+        // Calculate summary statistics
+        const vatPercent = 5; // Default VAT percent
+        const vatMultiplier = 1 + (vatPercent / 100);
+
+        // Helper to calculate paid amounts from invoices
+        const calculatePaidAmountsFromInvoices = (invoiceList: any[]) => {
+          const paidAmounts: Record<number, { paymentAmount: number; vatAmount: number }> = {};
+          invoiceList.forEach(invoice => {
+            if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+              const totalPaid = invoice.paymentInvoices.reduce(
+                (sum: any, pi: any) => ({
+                  paymentAmount: sum.paymentAmount + Number(pi.paymentAmount || 0),
+                  vatAmount: sum.vatAmount + Number(pi.vatAmount || 0),
+                }),
+                { paymentAmount: 0, vatAmount: 0 }
+              );
+              paidAmounts[invoice.id] = totalPaid;
+            } else {
+              paidAmounts[invoice.id] = { paymentAmount: 0, vatAmount: 0 };
+            }
+          });
+          return paidAmounts;
+        };
+
+        // Helper function to get invoice status
+        const getInvoiceStatus = (invoice: any): 'paid' | 'partially_paid' | 'unpaid' => {
+          if (invoice.status && ['paid', 'partially_paid', 'unpaid'].includes(invoice.status)) {
+            return invoice.status as 'paid' | 'partially_paid' | 'unpaid';
+          }
+          
+          let totalPaid = 0;
+          if (invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            totalPaid = invoice.paymentInvoices.reduce((sum: number, pi: any) => {
+              return sum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+          }
+          
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const tolerance = 0.01;
+          
+          if (totalPaid >= invoiceTotal - tolerance) {
+            return 'paid';
+          }
+          if (totalPaid > tolerance) {
+            return 'partially_paid';
+          }
+          return 'unpaid';
+        };
+
+        // Calculate per-subcontractor metrics
+        const subcontractorsWithMetrics = projectSubcontractors.map((ps: any) => {
+          const subcontractorData = subcontractorDataMap[ps.id] || { pos: [], invoices: [], payments: [] };
+          
+          // Calculate PO values (with VAT) - including change orders
+          const poValues = subcontractorData.pos.reduce((sum, po) => {
+            let poValue = Number(po.lpoValueWithVat || 0);
+            // Add change orders if they exist
+            if (po.changeOrders && Array.isArray(po.changeOrders)) {
+              po.changeOrders.forEach((co: any) => {
+                if (co.type === 'addition') {
+                  poValue += Number(co.amountWithVat || 0);
+                } else if (co.type === 'omission') {
+                  poValue -= Number(co.amountWithVat || 0);
+                }
+              });
+            }
+            return sum + poValue;
+          }, 0);
+
+          // For subcontractors, we don't have delivered amount (no GRNs)
+          // We'll use invoiced amount as a proxy for delivered
+          const delivered = 0; // Subcontractors don't have GRNs
+
+          // Calculate Balance (PO Balance with VAT)
+          // Since we don't have delivered, balance = PO values (already includes change orders)
+          const balance = poValues;
+
+          // Calculate Total Invoiced
+          const totalInvoiced = subcontractorData.invoices.reduce((sum, invoice) => {
+            return sum + Number(invoice.totalAmount || 0);
+          }, 0);
+
+          // Calculate Total Paid
+          const paidAmounts = calculatePaidAmountsFromInvoices(subcontractorData.invoices);
+          const totalPaid = subcontractorData.invoices.reduce((sum, invoice) => {
+            const invoiceStatus = getInvoiceStatus(invoice);
+            if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+              const paidForInvoice = invoice.paymentInvoices.reduce((invoiceSum: number, pi: any) => {
+                return invoiceSum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+              }, 0);
+              return sum + paidForInvoice;
+            }
+            return sum;
+          }, 0);
+
+          // Calculate Committed Payments (with details)
+          const committedPaymentsList: Array<{
+            type: string;
+            dueDate: string | null;
+            amount: number;
+          }> = [];
+          const committedPaymentsTotal = subcontractorData.payments.reduce((sum, payment) => {
+            const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
+            if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
+              const amount = Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+              committedPaymentsList.push({
+                type: payment.paymentType || 'Post Dated',
+                dueDate: payment.dueDate ? new Date(payment.dueDate).toISOString().split('T')[0] : null,
+                amount: amount,
+              });
+              return sum + amount;
+            }
+            return sum;
+          }, 0);
+
+          // Calculate Balance to be Paid
+          const balanceToBePaid = subcontractorData.invoices.reduce((sum, invoice) => {
+            const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+            const invoiceTotal = Number(invoice.totalAmount || 0);
+            const remaining = invoiceTotal - totalPaidForInvoice;
+            return sum + (remaining > 0 ? remaining : 0);
+          }, 0);
+
+          // Calculate Due Amount
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const dueAmount = subcontractorData.invoices.reduce((sum, invoice) => {
+            if (!invoice.dueDate) return sum;
+            
+            const dueDate = new Date(invoice.dueDate);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            if (dueDate < today) {
+              const paid = paidAmounts[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+              const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+              const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+              return sum + (remaining > 0 ? remaining : 0);
+            }
+            return sum;
+          }, 0);
+
+          return {
+            id: ps.id,
+            subcontractorId: ps.subcontractorId,
+            scopeOfWork: ps.scopeOfWork,
+            subcontractAgreement: ps.subcontractAgreement,
+            performanceRating: ps.performanceRating,
+            performanceReview: ps.performanceReview,
+            subcontractor: {
+              id: ps.subcontractor.id,
+              name: ps.subcontractor.name,
+              vendorCode: ps.subcontractor.vendorCode,
+              type: ps.subcontractor.type,
+              contactPerson: ps.subcontractor.contactPerson,
+              contactNumber: ps.subcontractor.contactNumber,
+              email: ps.subcontractor.email,
+            },
+            metrics: {
+              poValues,
+              delivered,
+              balance,
+              totalInvoiced,
+              due: dueAmount,
+              paid: totalPaid,
+              committedPayments: committedPaymentsTotal,
+              committedPaymentsList,
+            }
+          };
+        });
+
+        // Calculate overall summary statistics
+        const totalInvoiced = allInvoices.reduce((sum, invoice) => {
+          return sum + Number(invoice.totalAmount || 0);
+        }, 0);
+
+        const totalPaid = allInvoices.reduce((sum, invoice) => {
+          const invoiceStatus = getInvoiceStatus(invoice);
+          if (invoiceStatus === 'paid' && invoice.paymentInvoices && invoice.paymentInvoices.length > 0) {
+            const paidForInvoice = invoice.paymentInvoices.reduce((invoiceSum: number, pi: any) => {
+              return invoiceSum + Number(pi.paymentAmount || 0) + Number(pi.vatAmount || 0);
+            }, 0);
+            return sum + paidForInvoice;
+          }
+          return sum;
+        }, 0);
+
+        const committedPayments = allPayments.reduce((sum, payment) => {
+          const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
+          if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
+            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          }
+          return sum;
+        }, 0);
+
+        const paidAmountsFromDBForBalance = calculatePaidAmountsFromInvoices(allInvoices);
+        const balanceToBePaid = allInvoices.reduce((sum, invoice) => {
+          const paid = paidAmountsFromDBForBalance[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+          const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+          const invoiceTotal = Number(invoice.totalAmount || 0);
+          const remaining = invoiceTotal - totalPaidForInvoice;
+          return sum + (remaining > 0 ? remaining : 0);
+        }, 0);
+
+        // Calculate Total PO Amounts (including change orders)
+        const totalPOAmountsWithoutVat = allPOs.reduce((sum, po) => {
+          let poValue = Number(po.lpoValue || 0);
+          if (po.changeOrders && Array.isArray(po.changeOrders)) {
+            po.changeOrders.forEach((co: any) => {
+              if (co.type === 'addition') {
+                poValue += Number(co.amount || 0);
+              } else if (co.type === 'omission') {
+                poValue -= Number(co.amount || 0);
+              }
+            });
+          }
+          return sum + poValue;
+        }, 0);
+
+        const totalPOAmountsWithVat = allPOs.reduce((sum, po) => {
+          let poValue = Number(po.lpoValueWithVat || 0);
+          if (po.changeOrders && Array.isArray(po.changeOrders)) {
+            po.changeOrders.forEach((co: any) => {
+              if (co.type === 'addition') {
+                poValue += Number(co.amountWithVat || 0);
+              } else if (co.type === 'omission') {
+                poValue -= Number(co.amountWithVat || 0);
+              }
+            });
+          }
+          return sum + poValue;
+        }, 0);
+
+        const totalPOVatAmount = totalPOAmountsWithVat - totalPOAmountsWithoutVat;
+
+        // For subcontractors, balance = PO values (no delivered amount)
+        const lpoBalance = totalPOAmountsWithVat;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const paidAmountsFromDB = calculatePaidAmountsFromInvoices(allInvoices);
+        const dueAmount = allInvoices.reduce((sum, invoice) => {
+          if (!invoice.dueDate) return sum;
+          
+          const dueDate = new Date(invoice.dueDate);
+          dueDate.setHours(0, 0, 0, 0);
+          
+          if (dueDate < today) {
+            const paid = paidAmountsFromDB[invoice.id] || { paymentAmount: 0, vatAmount: 0 };
+            const totalPaidForInvoice = paid.paymentAmount + paid.vatAmount;
+            const remaining = Number(invoice.totalAmount || 0) - totalPaidForInvoice;
+            return sum + (remaining > 0 ? remaining : 0);
+          }
+          return sum;
+        }, 0);
+
+        reportData.subcontractors = {
+          subcontractors: subcontractorsWithMetrics,
+          summary: {
+            totalSubcontractors: projectSubcontractors.length,
+            totalPOAmountsWithoutVat,
+            totalPOAmountsWithVat,
+            totalPOVatAmount,
+            lpoBalance,
+            totalInvoiced,
+            totalPaid,
+            committedPayments,
+            balanceToBePaid,
+            dueAmount,
+          }
+        };
+      } else {
+        // No subcontractors or API call failed
+        reportData.subcontractors = {
+          subcontractors: [],
+          summary: {
+            totalSubcontractors: 0,
+            totalPOAmountsWithoutVat: 0,
+            totalPOAmountsWithVat: 0,
+            totalPOVatAmount: 0,
+            lpoBalance: 0,
+            totalInvoiced: 0,
+            totalPaid: 0,
+            committedPayments: 0,
+            balanceToBePaid: 0,
+            dueAmount: 0,
+          }
+        };
+      }
     } catch (error) {
       console.error('Error collecting project data:', error);
     }
@@ -1223,6 +1964,7 @@ export default function ProjectManager() {
       duration: project.duration || '',
       eot: project.eot || '',
       projectValue: project.projectValue ?? undefined,
+      status: (project.status as 'ongoing' | 'completed') || 'ongoing',
     };
     
     setFormData(newFormData);
@@ -6303,6 +7045,25 @@ export default function ProjectManager() {
                     borderColor: colors.borderLight
                   }}
                 />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Status
+                </label>
+                <select
+                  value={formData.status || 'ongoing'}
+                  onChange={(e) => setFormData({ ...formData, status: e.target.value as 'ongoing' | 'completed' })}
+                  className="w-full p-3 rounded-lg border"
+                  style={{
+                    backgroundColor: colors.backgroundPrimary,
+                    color: colors.textPrimary,
+                    borderColor: colors.borderLight
+                  }}
+                >
+                  <option value="ongoing">Ongoing</option>
+                  <option value="completed">Completed</option>
+                </select>
               </div>
             </div>
 

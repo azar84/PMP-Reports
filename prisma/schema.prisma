@@ -501,6 +501,7 @@ model Project {
   duration                           String?
   eot                                String?
   projectValue                       Decimal
+  status                             String   @default("ongoing") // "ongoing" or "completed"
   // IPC Settings
   advancePaymentPercentage           Decimal? // e.g., 10.0 for 10%
   retentionPercentage                Decimal? // e.g., 5.0 for 5%

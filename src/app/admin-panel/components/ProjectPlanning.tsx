@@ -249,7 +249,7 @@ export default function ProjectPlanning({
     const completion = new Date(base);
     completion.setDate(completion.getDate() + days);
 
-    return completion.toLocaleDateString();
+    return formatDateForDisplay(completion);
   }, [projectEndDate, planningState.eotDays]);
 
   const handleFieldChange = (field: keyof typeof emptyPlanningState, value: string) => {

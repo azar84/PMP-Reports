@@ -77,32 +77,41 @@ export function parseDateFromInput(dateString: string | null | undefined): Date 
 }
 
 /**
- * Formats a date for display (e.g., "Jan 15, 2024")
+ * Formats a date for display in DD-MM-YYYY format (e.g., "15-01-2024")
  * Uses local date methods, but extracts date part from ISO strings to avoid timezone shifts
  */
 export function formatDateForDisplay(date: string | Date | null | undefined): string {
   if (!date) return '-';
   
   try {
+    let day: number, month: number, year: number;
+    
     // If it's a string with YYYY-MM-DD format, extract and parse it properly
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
       const datePart = date.split('T')[0].split(' ')[0];
-      const [year, month, day] = datePart.split('-').map(Number);
-      const d = new Date(year, month - 1, day);
-      if (isNaN(d.getTime())) return '-';
-      return d.toLocaleDateString();
-    }
-    
-    // For Date objects, use as-is
-    if (date instanceof Date) {
+      [year, month, day] = datePart.split('-').map(Number);
+    } else if (date instanceof Date) {
+      // For Date objects, use local date methods
       if (isNaN(date.getTime())) return '-';
-      return date.toLocaleDateString();
+      year = date.getFullYear();
+      month = date.getMonth() + 1; // getMonth() is 0-indexed
+      day = date.getDate();
+    } else {
+      // For other string formats, try to parse
+      const d = new Date(date);
+      if (isNaN(d.getTime())) return '-';
+      year = d.getFullYear();
+      month = d.getMonth() + 1;
+      day = d.getDate();
     }
     
-    // For other string formats, try to parse
-    const d = new Date(date);
-    if (isNaN(d.getTime())) return '-';
-    return d.toLocaleDateString();
+    // Validate
+    if (isNaN(year) || isNaN(month) || isNaN(day)) return '-';
+    
+    // Format as DD-MM-YYYY
+    const dayStr = String(day).padStart(2, '0');
+    const monthStr = String(month).padStart(2, '0');
+    return `${dayStr}-${monthStr}-${year}`;
   } catch (error) {
     console.error('Error formatting date for display:', error);
     return '-';

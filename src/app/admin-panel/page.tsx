@@ -34,7 +34,8 @@ import {
   HardHat,
   Shield,
   Factory,
-  FileBarChart
+  FileBarChart,
+  ArrowRight
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
@@ -52,6 +53,7 @@ import PlantManager from './components/PlantManager';
 import ContactManager from './components/ContactManager';
 import SupplierManager from './components/SupplierManager';
 import RolesManager from './components/RolesManager';
+import MainDashboard from './components/MainDashboard';
 import type { PermissionKey } from '@/lib/permissionsCatalog';
 import { PERMISSIONS } from '@/lib/permissionsCatalog';
 
@@ -89,7 +91,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   
   return [
-    { id: 'dashboard', name: 'Home', icon: Home, color: colors.primary, permission: null },
+    { id: 'dashboard', name: 'Dashboard', icon: Home, color: colors.primary, permission: null },
     { id: 'reports', name: 'Reports', icon: FileBarChart, color: colors.primary, permission: 'projects.view' },
     { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary, permission: 'projects.view' },
     { id: 'clients', name: 'Clients', icon: Building2, color: colors.info, permission: 'clients.view' },
@@ -194,9 +196,13 @@ export default function AdminPanel() {
     scheduledJobs: 0,
     activeSettings: 0,
     totalProjects: 0,
+    ongoingProjects: 0,
     totalClients: 0,
     totalConsultants: 0,
-    totalStaff: 0
+    totalStaff: 0,
+    totalLabours: 0,
+    totalSuppliers: 0,
+    totalPlants: 0
   });
 
   const navigationItems = useMemo(() => getNavigationItems(designSystem), [designSystem]);
@@ -252,22 +258,32 @@ export default function AdminPanel() {
 
         console.log('🔍 Admin Panel: Fetching dashboard stats...');
         // Fetch dashboard stats and project data
-        const [statsResponse, projectsRes, clientsRes, consultantsRes, staffRes] = await Promise.all([
+        const [statsResponse, projectsRes, clientsRes, consultantsRes, staffRes, laboursRes, suppliersRes, plantsRes] = await Promise.all([
           get<{ success: boolean; data: any }>('/api/admin/dashboard-stats'),
           get<{ success: boolean; data: any[] }>('/api/admin/projects'),
           get<{ success: boolean; data: any[] }>('/api/admin/clients'),
           get<{ success: boolean; data: any[] }>('/api/admin/consultants'),
           get<{ success: boolean; data: any[] }>('/api/admin/company-staff'),
+          get<{ success: boolean; data: any[] }>('/api/admin/labours'),
+          get<{ success: boolean; data: { suppliers: any[] } }>('/api/admin/suppliers'),
+          get<{ success: boolean; data: any[] }>('/api/admin/plants'),
         ]);
         
         console.log('🔍 Admin Panel: Dashboard stats response:', statsResponse);
         if (statsResponse.success) {
+          const projects = projectsRes.success ? projectsRes.data : [];
+          const ongoingProjects = projects.filter((p: any) => p.status === 'ongoing').length;
+          
           setDashboardStats({
             ...statsResponse.data,
-            totalProjects: projectsRes.success ? projectsRes.data.length : 0,
+            totalProjects: projects.length,
+            ongoingProjects: ongoingProjects,
             totalClients: clientsRes.success ? clientsRes.data.length : 0,
             totalConsultants: consultantsRes.success ? consultantsRes.data.length : 0,
             totalStaff: staffRes.success ? staffRes.data.length : 0,
+            totalLabours: laboursRes.success ? laboursRes.data.length : 0,
+            totalSuppliers: suppliersRes.success ? (suppliersRes.data.suppliers?.length || 0) : 0,
+            totalPlants: plantsRes.success ? plantsRes.data.length : 0,
           });
         }
         setLoadingStats(false);
@@ -494,101 +510,10 @@ export default function AdminPanel() {
             className="p-8 space-y-8"
             style={{ backgroundColor: colors.backgroundPrimary }}
           >
-
-            {/* Key Metric Cards */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-              <Card 
-                className="p-6 rounded-xl"
-                style={{ 
-                  backgroundColor: colors.backgroundSecondary,
-                  border: 'none'
-                }}
-              >
-                <div className="flex flex-col">
-                  <p 
-                    className="text-3xl font-bold mb-1"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    {loadingStats ? '...' : dashboardStats.totalProjects}
-                  </p>
-                  <p 
-                    className="text-sm font-medium"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    Total Projects
-                  </p>
-                </div>
-              </Card>
-
-              <Card 
-                className="p-6 rounded-xl"
-                style={{ 
-                  backgroundColor: colors.backgroundSecondary,
-                  border: 'none'
-                }}
-              >
-                <div className="flex flex-col">
-                  <p 
-                    className="text-3xl font-bold mb-1"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    {loadingStats ? '...' : dashboardStats.totalClients}
-                  </p>
-                  <p 
-                    className="text-sm font-medium"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    Active Clients
-                  </p>
-                </div>
-              </Card>
-
-              <Card 
-                className="p-6 rounded-xl"
-                style={{ 
-                  backgroundColor: colors.backgroundSecondary,
-                  border: 'none'
-                }}
-              >
-                <div className="flex flex-col">
-                  <p 
-                    className="text-3xl font-bold mb-1"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    {loadingStats ? '...' : dashboardStats.totalConsultants}
-                  </p>
-                  <p 
-                    className="text-sm font-medium"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    Consultants
-                  </p>
-                </div>
-              </Card>
-
-              <Card 
-                className="p-6 rounded-xl"
-                style={{ 
-                  backgroundColor: colors.backgroundSecondary,
-                  border: 'none'
-                }}
-              >
-                <div className="flex flex-col">
-                  <p 
-                    className="text-3xl font-bold mb-1"
-                    style={{ color: colors.textPrimary }}
-                  >
-                    {loadingStats ? '...' : dashboardStats.totalStaff}
-                  </p>
-                  <p 
-                    className="text-sm font-medium"
-                    style={{ color: colors.textSecondary }}
-                  >
-                    Company Staff
-                  </p>
-                </div>
-              </Card>
-            </div>
+            {/* Main Dashboard */}
+            {hasPermission(grantedPermissions, 'projects.view') && (
+              <MainDashboard />
+            )}
 
           </div>
         );

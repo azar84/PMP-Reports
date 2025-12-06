@@ -40,6 +40,20 @@ export async function GET(
         },
         projectContacts: true,
         projectChecklistItems: true,
+        projectSuppliers: {
+          include: {
+            supplier: true,
+            purchaseOrders: true,
+            invoices: true,
+          },
+        },
+        projectSubcontractors: {
+          include: {
+            subcontractor: true,
+            purchaseOrders: true,
+            invoices: true,
+          },
+        },
       },
     });
 

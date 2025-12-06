@@ -65,6 +65,7 @@ const projectSchema = z.object({
   duration: z.string().optional().or(z.literal('')),
   eot: z.string().optional().or(z.literal('')),
   projectValue: z.number().positive().optional().or(z.null()),
+  status: z.enum(['ongoing', 'completed']).optional().default('ongoing'),
   contacts: z.array(z.object({
     contactId: z.number(),
     isPrimary: z.boolean().default(false),
@@ -84,6 +85,20 @@ export async function GET() {
         costConsultant: true,
         projectDirector: true,
         projectManager: true,
+        projectCommercial: true,
+        projectPlanning: true,
+        projectSuppliers: {
+          include: {
+            supplier: true,
+            purchaseOrders: true,
+          },
+        },
+        projectSubcontractors: {
+          include: {
+            subcontractor: true,
+            purchaseOrders: true,
+          },
+        },
         projectPositions: {
           include: {
             staffAssignments: {
