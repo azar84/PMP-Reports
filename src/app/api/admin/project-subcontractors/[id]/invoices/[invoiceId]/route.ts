@@ -32,7 +32,7 @@ export async function PUT(
     // Get the existing invoice to get projectId
     const existingInvoice = await prisma.projectSubcontractorInvoice.findUnique({
       where: { id: invoiceIdNum },
-      select: { projectId: true, paymentType: true },
+      select: { projectId: true, paymentType: true, purchaseOrderId: true, changeOrderId: true },
     });
 
     if (!existingInvoice) {
@@ -334,7 +334,7 @@ export async function PUT(
   } catch (error: any) {
     console.error('Error updating invoice:', error);
     // Handle unique constraint violation
-    if (error.code === 'P2002') {
+    if ((error as any)?.code === 'P2002') {
       return NextResponse.json(
         { success: false, error: 'An invoice with this number already exists for this subcontractor' },
         { status: 400 }

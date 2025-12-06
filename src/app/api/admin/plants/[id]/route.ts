@@ -45,10 +45,10 @@ export const PUT = withRBAC(PERMISSIONS.PROJECTS_UPDATE, async (request, context
       plateNumber: validated.plateNumber?.trim() || null,
       plantType: validated.plantType,
       isOwned: validated.isOwned ?? false,
-      monthlyCost:
-        validated.monthlyCost !== undefined && validated.monthlyCost !== null
-          ? new Prisma.Decimal(validated.monthlyCost)
-          : new Prisma.Decimal(0),
+       monthlyCost:
+         validated.monthlyCost !== undefined && validated.monthlyCost !== null
+           ? validated.monthlyCost
+           : 0,
       isActive: validated.isActive ?? true,
     },
   });

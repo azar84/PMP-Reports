@@ -156,7 +156,7 @@ export async function POST(request: NextRequest) {
         { status: 400 }
       );
     }
-    if (error.code === 'P2002') {
+    if ((error as any)?.code === 'P2002') {
       return NextResponse.json(
         { success: false, error: 'This labour is already assigned to this trade' },
         { status: 409 }

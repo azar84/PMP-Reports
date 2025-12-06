@@ -171,10 +171,10 @@ export const PUT = withRBAC(PERMISSIONS.PROJECTS_UPDATE, async (request, _contex
       endDate,
       status: validated.status || 'Active',
       notes: validated.notes?.trim() || null,
-      monthlyCost:
-        validated.monthlyCost !== undefined && validated.monthlyCost !== null
-          ? new Prisma.Decimal(validated.monthlyCost)
-          : null,
+       monthlyCost:
+         validated.monthlyCost !== undefined && validated.monthlyCost !== null
+           ? validated.monthlyCost
+           : null,
     },
     include: {
       plant: true,

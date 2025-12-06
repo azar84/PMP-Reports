@@ -374,7 +374,7 @@ export async function POST(
   } catch (error: any) {
     console.error('Error creating invoice:', error);
     // Handle unique constraint violation
-    if (error.code === 'P2002') {
+    if ((error as any)?.code === 'P2002') {
       return NextResponse.json(
         { success: false, error: 'An invoice with this number already exists for this subcontractor' },
         { status: 400 }

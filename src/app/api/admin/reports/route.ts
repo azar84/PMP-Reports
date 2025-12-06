@@ -176,7 +176,7 @@ export async function POST(request: NextRequest) {
   } catch (error: any) {
     console.error('Error creating report:', error);
     
-    if (error.code === 'P2002') {
+    if ((error as any)?.code === 'P2002') {
       return NextResponse.json(
         { success: false, error: 'Report already exists for this project, month, and year' },
         { status: 409 }

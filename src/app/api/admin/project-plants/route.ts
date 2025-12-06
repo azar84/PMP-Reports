@@ -150,8 +150,8 @@ export const POST = withRBAC(PERMISSIONS.PROJECTS_UPDATE, async (request, contex
         isOwned: validated.plantData.isOwned ?? false,
         monthlyCost:
           validated.plantData.monthlyCost !== undefined && validated.plantData.monthlyCost !== null
-            ? new Prisma.Decimal(validated.plantData.monthlyCost)
-            : new Prisma.Decimal(0),
+            ? validated.plantData.monthlyCost
+            : 0,
         isActive: validated.plantData.isActive ?? true,
       },
     });
@@ -246,7 +246,7 @@ export const POST = withRBAC(PERMISSIONS.PROJECTS_UPDATE, async (request, contex
       notes: validated.notes?.trim() || null,
       monthlyCost:
         validated.monthlyCost !== undefined && validated.monthlyCost !== null
-          ? new Prisma.Decimal(validated.monthlyCost)
+          ? validated.monthlyCost
           : null,
     },
     include: {
