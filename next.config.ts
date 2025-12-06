@@ -1,4 +1,5 @@
 import type { NextConfig } from "next";
+import webpack from 'webpack';
 
 const nextConfig: NextConfig = {
   output: 'standalone',
@@ -82,21 +83,12 @@ const nextConfig: NextConfig = {
         os: false,
       };
       
-      // Ignore node: protocol imports in client bundle
-      config.resolve.alias = {
-        ...config.resolve.alias,
-        'node:fs': false,
-        'node:https': false,
-        'node:http': false,
-        'node:net': false,
-        'node:tls': false,
-        'node:crypto': false,
-        'node:stream': false,
-        'node:url': false,
-        'node:zlib': false,
-        'node:path': false,
-        'node:os': false,
-      };
+      // Use IgnorePlugin to ignore node: protocol imports
+      config.plugins.push(
+        new webpack.IgnorePlugin({
+          resourceRegExp: /^node:/,
+        })
+      );
     }
     return config;
   },
