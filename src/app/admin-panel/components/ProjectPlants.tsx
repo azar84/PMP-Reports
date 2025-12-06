@@ -1197,7 +1197,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             const slotLabel = item.isSlot ? `Unit ${index + 1}` : 'Plant Assignment';
                             
                             return (
-                              <tr key={item.isSlot ? item.slot.id : assignment?.id || `empty-${index}`} className="border-b" style={{ borderColor: colors.border }}>
+                              <tr key={item.isSlot ? (item as any).slot?.id : assignment?.id || `empty-${index}`} className="border-b" style={{ borderColor: colors.border }}>
                                 <td className="py-3 px-4 pl-8">
                                   <span style={{ color: colors.textSecondary }}>{slotLabel}</span>
                                 </td>

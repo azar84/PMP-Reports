@@ -51,7 +51,7 @@ interface ProjectPicturesApiResponse {
 export default function ProjectPictures({ projectId, projectName }: ProjectPicturesProps) {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
-  const { get, post, put, del } = useAdminApi();
+  const { get, post, put, delete: del } = useAdminApi();
 
   const [pictures, setPictures] = useState<ProjectPicture[]>([]);
   const [isLoading, setIsLoading] = useState<boolean>(true);
@@ -172,7 +172,7 @@ export default function ProjectPictures({ projectId, projectName }: ProjectPictu
     setSaveError(null);
 
     try {
-      const response = await del(`/api/admin/projects/${projectId}/pictures/${pictureId}`);
+      const response = await del<{ success: boolean; error?: string }>(`/api/admin/projects/${projectId}/pictures/${pictureId}`);
       if (!response.success) {
         throw new Error(response.error || 'Failed to delete picture');
       }

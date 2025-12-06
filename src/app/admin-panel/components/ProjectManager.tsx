@@ -73,17 +73,35 @@ interface Project {
   projectName: string;
   projectDescription?: string;
   clientId?: number;
-  client?: { id: number; name: string };
+  client?: Client;
   projectManagementConsultantId?: number;
-  projectManagementConsultant?: { id: number; name: string };
+  projectManagementConsultant?: Consultant;
   designConsultantId?: number;
-  designConsultant?: { id: number; name: string };
+  designConsultant?: Consultant;
   supervisionConsultantId?: number;
-  supervisionConsultant?: { id: number; name: string };
+  supervisionConsultant?: Consultant;
   costConsultantId?: number;
-  costConsultant?: { id: number; name: string };
+  costConsultant?: Consultant;
   projectDirectorId?: number; // For project creation
   projectManagerId?: number; // For project creation
+  projectDirector?: {
+    id: number;
+    staffName: string;
+    employeeNumber?: string;
+    position?: string;
+    email?: string;
+    phone?: string;
+    isActive?: boolean;
+  };
+  projectManager?: {
+    id: number;
+    staffName: string;
+    employeeNumber?: string;
+    position?: string;
+    email?: string;
+    phone?: string;
+    isActive?: boolean;
+  };
   projectStaff?: Array<{
     id: number;
     designation: string;
@@ -202,6 +220,7 @@ export default function ProjectManager() {
     | 'commercial'
     | 'suppliers'
     | 'subcontractors'
+    | 'ipc'
   >('overview');
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [selectedSubcontractorId, setSelectedSubcontractorId] = useState<number | null>(null);
@@ -1978,7 +1997,7 @@ export default function ProjectManager() {
 
   const handleTogglePrimaryContact = async (projectContactId: number, isPrimary: boolean) => {
     try {
-      const response = await put(`/api/admin/project-contacts`, {
+      const response = await put<{ success: boolean }>(`/api/admin/project-contacts`, {
         id: projectContactId,
         isPrimary: !isPrimary,
       });
@@ -1996,7 +2015,7 @@ export default function ProjectManager() {
 
   const handleRemoveProjectContact = async (projectContactId: number) => {
     try {
-      const response = await del(`/api/admin/project-contacts?id=${projectContactId}`);
+      const response = await del<{ success: boolean }>(`/api/admin/project-contacts?id=${projectContactId}`);
       
       if (response.success) {
         // Refresh project contacts
@@ -2013,7 +2032,7 @@ export default function ProjectManager() {
     if (editingProject?.id) {
       // For existing projects, create the relationship immediately
       try {
-        const response = await post('/api/admin/project-contacts', {
+        const response = await post<{ success: boolean }>('/api/admin/project-contacts', {
           projectId: editingProject.id,
           contactId: contactId,
           isPrimary: isPrimary,
