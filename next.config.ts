@@ -64,6 +64,42 @@ const nextConfig: NextConfig = {
       },
     ];
   },
+  webpack: (config, { isServer }) => {
+    // Handle Node.js built-in modules for client-side code
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        https: false,
+        http: false,
+        net: false,
+        tls: false,
+        crypto: false,
+        stream: false,
+        url: false,
+        zlib: false,
+        path: false,
+        os: false,
+      };
+      
+      // Ignore node: protocol imports in client bundle
+      config.resolve.alias = {
+        ...config.resolve.alias,
+        'node:fs': false,
+        'node:https': false,
+        'node:http': false,
+        'node:net': false,
+        'node:tls': false,
+        'node:crypto': false,
+        'node:stream': false,
+        'node:url': false,
+        'node:zlib': false,
+        'node:path': false,
+        'node:os': false,
+      };
+    }
+    return config;
+  },
 };
 
 export default nextConfig;

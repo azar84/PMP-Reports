@@ -1,6 +1,5 @@
 import jsPDF from 'jspdf';
 import html2canvas from 'html2canvas';
-import PptxGenJS from 'pptxgenjs';
 import { generateSlidesFromReportData } from './reportSlidesGenerator';
 
 interface ReportData {
@@ -445,6 +444,9 @@ export async function generatePDF(report: ReportData): Promise<void> {
  * Generate PowerPoint from report data - matches presentation viewer formatting
  */
 export async function generatePowerPoint(report: ReportData): Promise<void> {
+  // Dynamic import to avoid bundling Node.js modules in client build
+  const PptxGenJS = (await import('pptxgenjs')).default;
+  
   const { project, reportData, reportMonth, reportYear } = report;
   const monthName = getMonthName(reportMonth);
   const fileName = `${project.projectCode}_${monthName}_${reportYear}_Report.pptx`;
