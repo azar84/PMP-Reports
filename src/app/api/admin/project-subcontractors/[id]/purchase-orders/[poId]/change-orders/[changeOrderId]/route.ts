@@ -55,7 +55,7 @@ export async function PUT(
 
     const updateData: any = {};
     if (validatedData.chRefNo !== undefined) updateData.chRefNo = validatedData.chRefNo;
-    if (validatedData.chDate !== undefined) updateData.chDate = parseDateFromInput(validatedData.chDate);
+    if (validatedData.chDate !== undefined) updateData.chDate = parseDateFromInput(validatedData.chDate) || undefined;
     if (validatedData.type !== undefined) updateData.type = validatedData.type;
     if (validatedData.amount !== undefined) updateData.amount = amount;
     if (validatedData.vatPercent !== undefined || validatedData.amount !== undefined) updateData.vatPercent = vatPercent;

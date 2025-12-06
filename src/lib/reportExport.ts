@@ -194,14 +194,14 @@ export async function generatePDF(report: ReportData): Promise<void> {
         const clientContacts = contacts?.filter((c: any) => c.contact?.entityType === 'client') || [];
         if (clientContacts.length > 0) {
           pdf.setFontSize(12);
-          pdf.setFont(undefined, 'bold');
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(82, 67, 233);
           pdf.text('CLIENT', 20, yPos);
           yPos += 8;
 
           if (slideProject?.client?.name) {
             pdf.setFontSize(16);
-            pdf.setFont(undefined, 'bold');
+            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(82, 67, 233);
             pdf.text(slideProject.client.name, 20, yPos);
             yPos += 10;
@@ -222,13 +222,13 @@ export async function generatePDF(report: ReportData): Promise<void> {
             }
 
             pdf.setFontSize(10);
-            pdf.setFont(undefined, 'bold');
+            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(31, 41, 55);
             pdf.text(`${contact.contact?.firstName || ''} ${contact.contact?.lastName || ''}`, x, y, { maxWidth: contactWidth - 5 });
             
             if (contact.contact?.position) {
               pdf.setFontSize(8);
-              pdf.setFont(undefined, 'normal');
+              pdf.setFont('helvetica', 'normal');
               pdf.setTextColor(107, 114, 128);
               pdf.text(contact.contact.position, x, y + 5, { maxWidth: contactWidth - 5 });
             }
@@ -272,7 +272,7 @@ export async function generatePDF(report: ReportData): Promise<void> {
           }
 
           pdf.setFontSize(12);
-          pdf.setFont(undefined, 'bold');
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(82, 67, 233);
           pdf.text('CONSULTANTS', 20, yPos);
           yPos += 15;
@@ -285,14 +285,14 @@ export async function generatePDF(report: ReportData): Promise<void> {
 
             // Consultant type and company
             pdf.setFontSize(10);
-            pdf.setFont(undefined, 'bold');
+            pdf.setFont('helvetica', 'bold');
             pdf.setTextColor(107, 114, 128);
             pdf.text(data.displayName, 30, yPos);
             yPos += 6;
 
             if (data.company?.name) {
               pdf.setFontSize(14);
-              pdf.setFont(undefined, 'bold');
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(82, 67, 233);
               pdf.text(data.company.name, 30, yPos);
               yPos += 8;
@@ -313,13 +313,13 @@ export async function generatePDF(report: ReportData): Promise<void> {
               }
 
               pdf.setFontSize(9);
-              pdf.setFont(undefined, 'bold');
+              pdf.setFont('helvetica', 'bold');
               pdf.setTextColor(31, 41, 55);
               pdf.text(`${contact.contact?.firstName || ''} ${contact.contact?.lastName || ''}`, x, y, { maxWidth: contactWidth - 5 });
               
               if (contact.contact?.position) {
                 pdf.setFontSize(7);
-                pdf.setFont(undefined, 'normal');
+                pdf.setFont('helvetica', 'normal');
                 pdf.setTextColor(107, 114, 128);
                 pdf.text(contact.contact.position, x, y + 4, { maxWidth: contactWidth - 5 });
               }
@@ -358,7 +358,7 @@ export async function generatePDF(report: ReportData): Promise<void> {
         // Table header
         let yPos = 65;
         pdf.setFontSize(9);
-        pdf.setFont(undefined, 'bold');
+        pdf.setFont("helvetica", 'bold');
         pdf.setTextColor(82, 67, 233);
         pdf.text('Item #', 20, yPos);
         pdf.text('Phase', 35, yPos);
@@ -381,11 +381,11 @@ export async function generatePDF(report: ReportData): Promise<void> {
           }
 
           pdf.setFontSize(8);
-          pdf.setFont(undefined, 'bold');
+          pdf.setFont('helvetica', 'bold');
           pdf.setTextColor(31, 41, 55);
           pdf.text(item.itemNumber || '-', 20, yPos);
           
-          pdf.setFont(undefined, 'normal');
+          pdf.setFont('helvetica', 'normal');
           pdf.text((item.phase || '-').substring(0, 50), 35, yPos, { maxWidth: 80 });
           pdf.text(formatDate(item.plannedDate), 120, yPos);
           pdf.text(formatDate(item.actualDate), 160, yPos);
@@ -493,7 +493,7 @@ export async function generatePowerPoint(report: ReportData): Promise<void> {
           y: 2.4,
           w: 6,
           h: 0,
-          line: { color: primaryColor, width: 2, opacity: 0.3 }
+          line: { color: primaryColor, width: 2,  }
         });
         
         // Project Code
@@ -524,7 +524,7 @@ export async function generatePowerPoint(report: ReportData): Promise<void> {
           y: 3.7,
           w: 1.5,
           h: 0,
-          line: { color: primaryColor, width: 1, opacity: 0.3 }
+          line: { color: primaryColor, width: 1,  }
         });
         coverSlide.addText(`${monthName} ${year}`, {
           x: 0.5,
@@ -541,7 +541,7 @@ export async function generatePowerPoint(report: ReportData): Promise<void> {
           y: 3.7,
           w: 1.5,
           h: 0,
-          line: { color: primaryColor, width: 1, opacity: 0.3 }
+          line: { color: primaryColor, width: 1,  }
         });
 
         // Featured Picture placeholder

@@ -23,11 +23,17 @@ interface DesignSystem {
   backgroundPrimary: string;
   backgroundSecondary: string;
   backgroundDark: string;
+  headerBackgroundColor: string;
+  sidebarHeaderBackgroundColor: string;
+  sidebarBackgroundColor: string;
 
   // Text Colors
   textPrimary: string;
   textSecondary: string;
   textMuted: string;
+  headerTextColor: string;
+  sidebarTextColor: string;
+  sidebarHeaderColor: string;
   // Typography
   fontFamily: string;
   fontFamilyMono: string;

@@ -34,7 +34,7 @@ export async function PUT(
       where: { id: grnIdNum },
       data: {
         grnRefNo,
-        grnDate: parseDateFromInput(grnDate),
+         grnDate: parseDateFromInput(grnDate)!!,
         deliveredAmount: parseFloat(deliveredAmount),
       },
     });

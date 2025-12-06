@@ -78,7 +78,7 @@ export async function POST(
         projectSupplierId: purchaseOrder.projectSupplierId,
         purchaseOrderId,
         grnRefNo,
-        grnDate: parseDateFromInput(grnDate),
+        grnDate: parseDateFromInput(grnDate)!,
         deliveredAmount: parseFloat(deliveredAmount),
       },
     });

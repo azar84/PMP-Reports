@@ -2,7 +2,7 @@
 
 import { X } from 'lucide-react';
 import { Button } from './Button';
-import { useDesignSystem } from '@/hooks/useDesignSystem';
+import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 
 interface DocumentViewerProps {
   url: string;
@@ -12,7 +12,7 @@ interface DocumentViewerProps {
 
 export function DocumentViewer({ url, fileName, onClose }: DocumentViewerProps) {
   const { designSystem } = useDesignSystem();
-  const colors = designSystem?.colors || {};
+  const colors = getAdminPanelColorsWithDesignSystem(designSystem);
 
   // Determine file type from URL
   const fileExtension = url.split('.').pop()?.toLowerCase() || '';
@@ -53,7 +53,7 @@ export function DocumentViewer({ url, fileName, onClose }: DocumentViewerProps) 
           </div>
           <Button
             variant="ghost"
-            size="icon"
+             size="sm"
             onClick={onClose}
             className="h-8 w-8"
           >
