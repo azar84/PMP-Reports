@@ -108,12 +108,12 @@ export async function PUT(
     
     // Only set startDate if it's provided in the request
     if ('startDate' in cleanedBody) {
-      projectData.startDate = parseDateFromInput(cleanedBody.startDate);
+      projectData.startDate = parseDateFromInput(cleanedBody.startDate as string | null | undefined);
     }
     
     // Only set endDate if it's provided in the request
     if ('endDate' in cleanedBody) {
-      projectData.endDate = parseDateFromInput(cleanedBody.endDate);
+      projectData.endDate = parseDateFromInput(cleanedBody.endDate as string | null | undefined);
     }
     
     // Convert Decimal fields explicitly to ensure proper storage

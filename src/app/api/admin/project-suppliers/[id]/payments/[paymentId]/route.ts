@@ -148,8 +148,8 @@ export async function PUT(
         totalVatAmount,
         paymentMethod,
         paymentType: paymentMethod === 'Post Dated' ? paymentType : null,
-        paymentDate: parseDateFromInput(paymentDate),
-        dueDate: paymentMethod === 'Post Dated' && dueDate ? parseDateFromInput(dueDate) : null,
+         paymentDate: parseDateFromInput(paymentDate)!,
+         dueDate: paymentMethod === 'Post Dated' && dueDate ? (parseDateFromInput(dueDate) || undefined) : undefined,
         liquidated: paymentMethod === 'Post Dated' ? (liquidated === true) : false,
         notes: notes || null,
         paymentInvoices: {

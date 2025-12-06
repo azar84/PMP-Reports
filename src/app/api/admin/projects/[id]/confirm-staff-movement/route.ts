@@ -87,7 +87,7 @@ export async function POST(
               toProjectName: newAssignment.projectName,
               toPositionId: existingProjectStaff.positionId, // Will be updated after assignment
               toPositionName: newAssignment.positionName,
-              movedBy: user.name || user.username || 'System',
+               movedBy: (user as any).name || user.username || 'System',
               notes: `Moved from ${existingAssignment.projectName} (${existingAssignment.positionName}) to ${newAssignment.projectName} (${newAssignment.positionName})`,
             },
           });

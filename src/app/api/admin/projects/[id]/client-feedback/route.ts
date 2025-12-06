@@ -118,14 +118,14 @@ export async function PUT(request: NextRequest, { params }: { params: RouteParam
       where: { projectId },
       update: {
         rating: validRating,
-        positivePoints: positivePoints.length > 0 ? positivePoints : null,
-        negativePoints: negativePoints.length > 0 ? negativePoints : null,
+         positivePoints: positivePoints.length > 0 ? positivePoints : undefined,
+         negativePoints: negativePoints.length > 0 ? negativePoints : undefined,
       },
       create: {
         projectId,
         rating: validRating,
-        positivePoints: positivePoints.length > 0 ? positivePoints : null,
-        negativePoints: negativePoints.length > 0 ? negativePoints : null,
+         positivePoints: positivePoints.length > 0 ? positivePoints : undefined,
+         negativePoints: negativePoints.length > 0 ? negativePoints : undefined,
       },
     });
 

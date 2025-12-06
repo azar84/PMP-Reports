@@ -108,7 +108,7 @@ function sanitizeLogEntries(rawEntries: any[], defaultTypes: string[]): Sanitize
         sortOrder: typeof entry?.sortOrder === 'number' ? entry.sortOrder : index,
       };
     })
-    .filter(Boolean) as SanitizedEntry[];
+    .filter(Boolean) as SanitizedLogEntry[];
 }
 
 function sanitizeChecklistEntries(rawEntries: any[], defaultTypes: string[]): SanitizedChecklistEntry[] {

@@ -90,7 +90,7 @@ export async function POST(
         projectSubcontractorId: purchaseOrder.projectSubcontractorId,
         purchaseOrderId,
         chRefNo: validatedData.chRefNo,
-        chDate: parseDateFromInput(validatedData.chDate),
+        chDate: parseDateFromInput(validatedData.chDate)!,
         type: validatedData.type,
         amount: validatedData.amount, // Store as positive, type indicates addition/omission
         vatPercent: vatPercent,

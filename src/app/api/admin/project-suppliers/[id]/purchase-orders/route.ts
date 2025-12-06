@@ -85,7 +85,7 @@ export async function POST(
         projectId: projectSupplier.projectId,
         projectSupplierId,
         lpoNumber: validatedData.lpoNumber,
-        lpoDate,
+         lpoDate: lpoDate!,
         lpoValue: validatedData.lpoValue,
         vatPercent,
         lpoValueWithVat,
