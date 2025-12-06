@@ -1296,7 +1296,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                       <Button
                                         onClick={() => {
                                           if (item.isSlot) {
-                                            openAssignmentModal(requirement, item.slot.slotIndex);
+                                            openAssignmentModal(requirement, (item as any).slot?.slotIndex);
                                           } else {
                                             openAssignmentModal(requirement);
                                           }

@@ -230,7 +230,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
           monthlyRate:
             position.monthlyRate !== undefined && position.monthlyRate !== null
               ? Number(position.monthlyRate)
-              : null,
+              : undefined,
           staffAssignments: position.staffAssignments.map((assignment) => ({
             ...assignment,
             staff: assignment.staff
@@ -1413,7 +1413,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                       employeeNumber: '',
                       email: '',
                       phone: '',
-                      position: '',
+                      position: undefined,
                       isActive: true,
                     });
                     setErrorMessage('');
@@ -1837,7 +1837,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                       borderColor: colors.borderLight
                     }}
                   >
-                    {editingPosition.designation}
+                    {editingPosition?.designation}
                   </div>
                   <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
                     Position names are managed company-wide and cannot be changed here
