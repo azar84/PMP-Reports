@@ -1297,7 +1297,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
   const filteredGRNs = useMemo(() => {
     return poFilterId
       ? Object.entries(grns).filter(([poId]) => Number(poId) === poFilterId).reduce((acc, [poId, poGrns]) => {
-          acc[poId] = poGrns;
+          acc[Number(poId)] = poGrns;
           return acc;
         }, {} as Record<number, GRN[]>)
       : grns;
@@ -1857,7 +1857,6 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 setGrnFormData({
                   grnRefNo: '',
                   grnDate: '',
-                  advancePayment: '',
                   deliveredAmount: '',
                 });
               }}
