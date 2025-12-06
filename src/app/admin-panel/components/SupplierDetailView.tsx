@@ -1352,7 +1352,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={onBack}
             className="h-9 w-9"
           >
@@ -1978,7 +1978,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 </h3>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => {
                     setShowPOForm(false);
                     setEditingPO(null);
@@ -2162,7 +2162,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           <div className="flex items-center justify-center gap-2">
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleEditPO(po)}
                               className="h-7 w-7"
                               style={{ color: colors.info }}
@@ -2171,7 +2171,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleDeletePO(po.id, po.lpoNumber)}
                               className="h-7 w-7"
                               style={{ color: colors.error }}
@@ -2213,7 +2213,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     </h3>
                           <Button
                             variant="ghost"
-                                        size="icon"
+                                        size="sm"
                                         onClick={() => {
                                           setShowGRNForm(null);
                                           setEditingGRN(null);
@@ -2483,7 +2483,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             <div className="flex items-center justify-center gap-2">
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                                                 onClick={() => handleEditGRN(grn)}
                                 className="h-7 w-7"
                                                 style={{ color: colors.info }}
@@ -2492,7 +2492,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                               </Button>
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                                 onClick={() => handleDeleteGRN(grn.purchaseOrderId, grn.id, grn.grnRefNo)}
                                 className="h-7 w-7"
                                                 style={{ color: colors.error }}
@@ -2534,7 +2534,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     </h3>
                                       <Button
                                         variant="ghost"
-                                        size="icon"
+                                        size="sm"
                                         onClick={() => {
                         setShowInvoiceForm(false);
                         setEditingInvoice(null);
@@ -3294,7 +3294,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           <div className="flex items-center justify-center gap-2">
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                               onClick={() => handleEditInvoice(invoice)}
                               className="h-7 w-7"
                                                 style={{ color: colors.info }}
@@ -3303,7 +3303,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                               </Button>
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                               onClick={() => handleDeleteInvoice(invoice.id, invoice.invoiceNumber)}
                               className="h-7 w-7"
                                                 style={{ color: colors.error }}
@@ -3345,7 +3345,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     </h3>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={() => {
                         setShowPaymentForm(false);
                         setEditingPayment(null);
@@ -4131,7 +4131,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           <div className="flex items-center justify-center gap-2">
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleEditPayment(payment)}
                               className="h-7 w-7"
                               style={{ color: colors.info }}
@@ -4140,7 +4140,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => {
                                 const invoiceNumbers = payment.paymentInvoices?.map(pi => pi.invoice.invoiceNumber).join(', ') || 'payment';
                                 handleDeletePayment(payment.id, invoiceNumbers);

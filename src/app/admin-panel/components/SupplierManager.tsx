@@ -817,7 +817,7 @@ export default function SupplierManager() {
                   <div className="flex flex-row items-center gap-2 md:flex-col md:items-end">
                     <Button
                       variant="outline"
-                      size="icon"
+                      size="sm"
                       onClick={() => handleEditSupplier(supplier)}
                       aria-label="Edit vendor"
                       className="h-9 w-9"
@@ -830,7 +830,7 @@ export default function SupplierManager() {
                     </Button>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={() => handleDeleteSupplier(supplier.id)}
                       aria-label="Delete vendor"
                       className="h-9 w-9"

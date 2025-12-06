@@ -198,10 +198,16 @@ export default function SiteSettingsManager() {
     }
   };
 
-  const handleInputChange = (field: keyof SiteSettings, value: string) => {
-    setSettings(prev => ({ ...prev, [field]: value }));
-    // Auto-save individual field after a short delay
-    debounceFieldUpdate(field, value);
+  const handleInputChange = (field: keyof SiteSettings, value: string | number | null) => {
+    // Convert numeric fields
+    if (field === 'vatPercent' || field === 'smtpPort' || field === 'emailRateLimitPerHour') {
+      const numValue = value === '' || value === null ? null : (typeof value === 'number' ? value : parseFloat(value));
+      setSettings(prev => ({ ...prev, [field]: numValue }));
+      debounceFieldUpdate(field, numValue);
+    } else {
+      setSettings(prev => ({ ...prev, [field]: value }));
+      debounceFieldUpdate(field, value);
+    }
   };
 
   // Debounced individual field update

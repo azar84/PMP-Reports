@@ -987,7 +987,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
               {supplierFilterTerm && (
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => setSupplierFilterTerm('')}
                   className="h-10 w-10 hover:bg-opacity-20 transition-all"
                   style={{ 
@@ -1132,7 +1132,7 @@ export default function ProjectSuppliers({ projectId, projectName, onViewSupplie
                   <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemoveSupplier(projectSupplier.id, supplier.name);

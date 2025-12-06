@@ -526,7 +526,7 @@ export default function ProjectVendors({ projectId, projectName }: ProjectVendor
                     <div className="flex items-center gap-2">
                       <Button
                         variant="outline"
-                        size="icon"
+                        size="sm"
                         onClick={() => handleEdit(evaluation)}
                         aria-label={`Edit feedback for ${evaluation.supplier?.name ?? 'vendor'}`}
                       >
@@ -534,7 +534,7 @@ export default function ProjectVendors({ projectId, projectName }: ProjectVendor
                       </Button>
                       <Button
                         variant="ghost"
-                        size="icon"
+                        size="sm"
                         onClick={() => handleDelete(evaluation)}
                         aria-label={`Delete feedback for ${evaluation.supplier?.name ?? 'vendor'}`}
                       >

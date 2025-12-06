@@ -91,6 +91,10 @@ interface ProjectPosition {
   designation: string;
   requiredUtilization: number;
   monthlyRate?: number; // Monthly rate from positions table
+  status?: string; // Status for editing
+  startDate?: string | null; // Start date for editing
+  endDate?: string | null; // End date for editing
+  notes?: string | null; // Notes for editing
   createdAt: string;
   updatedAt: string;
   staffAssignments: ProjectStaffAssignment[];
@@ -475,8 +479,8 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     setErrorMessage('');
 
     try {
-      const response = await put<{ success: boolean; data: any }>(`/api/admin/project-positions/${editingPosition.id}`, {
-        requiredUtilization: editingPosition.requiredUtilization,
+      const response = await put<{ success: boolean; data: any }>(`/api/admin/project-positions/${editingPosition?.id}`, {
+        requiredUtilization: editingPosition?.requiredUtilization,
       });
 
       if (response.success) {
@@ -1843,33 +1847,13 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     Position names are managed company-wide and cannot be changed here
                   </p>
                 </div>
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                    Utilization % (for this project)
-                  </label>
-                  <input
-                    type="number"
-                    value={editingPosition.utilization || 0}
-                    onChange={(e) => setEditingPosition(prev => prev ? { ...prev, utilization: parseInt(e.target.value) || 0 } : null)}
-                    min="0"
-                    max=""
-                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                    style={{ 
-                      backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary,
-                      borderColor: colors.border
-                    }}
-                  />
-                  <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
-                    Individual utilization for this project (can exceed 100%)
-                  </p>
-                </div>
+                {/* Utilization is managed at the staff assignment level, not position level */}
                 <div>
                   <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                     Status
                   </label>
                   <select
-                    value={editingPosition.status || 'Active'}
+                    value={editingPosition?.status || 'Active'}
                     onChange={(e) => setEditingPosition(prev => prev ? { ...prev, status: e.target.value } : null)}
                     className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
                     style={{ 
@@ -1932,7 +1916,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                         </label>
                         <input
                           type="date"
-                          value={editingPosition.startDate || ''}
+                          value={editingPosition?.startDate || ''}
                           onChange={(e) => setEditingPosition(prev => prev ? { ...prev, startDate: e.target.value } : null)}
                           disabled={editUseFullDuration}
                           className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
@@ -1949,7 +1933,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                         </label>
                         <input
                           type="date"
-                          value={editingPosition.endDate || ''}
+                          value={editingPosition?.endDate || ''}
                           onChange={(e) => setEditingPosition(prev => prev ? { ...prev, endDate: e.target.value } : null)}
                           disabled={editUseFullDuration}
                           className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:opacity-50"
@@ -1969,7 +1953,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     Notes
                   </label>
                   <textarea
-                    value={editingPosition.notes || ''}
+                    value={editingPosition?.notes || ''}
                     onChange={(e) => setEditingPosition(prev => prev ? { ...prev, notes: e.target.value } : null)}
                     placeholder="Additional notes about this position..."
                     rows={3}
@@ -2072,7 +2056,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     ...editingPosition,
                     requiredUtilization: parseInt(e.target.value) || 100
                   })}
-                  value={editingPosition.requiredUtilization || 100}
+                  value={editingPosition?.requiredUtilization || 100}
                   min="0"
                   max="1000"
                   className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -2092,7 +2076,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   Current Status
                 </h4>
                 <div className="text-sm" style={{ color: colors.textSecondary }}>
-                  <p>Total assigned: {editingPosition.staffAssignments.reduce((sum, assignment) => sum + assignment.utilization, 0)}%</p>
+                  <p>Total assigned: {editingPosition?.staffAssignments?.reduce((sum, assignment) => sum + assignment.utilization, 0) || 0}%</p>
                   <p>Required: {editingPosition.requiredUtilization}%</p>
                   <p>Remaining: {Math.max(0, editingPosition.requiredUtilization - editingPosition.staffAssignments.reduce((sum, assignment) => sum + assignment.utilization, 0))}%</p>
                 </div>

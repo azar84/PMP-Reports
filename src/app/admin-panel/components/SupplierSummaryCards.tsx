@@ -47,6 +47,7 @@ interface Invoice {
   invoiceAmount: number;
   vatAmount: number;
   downPaymentRecovery: number | null;
+  contraChargesAmount?: number | null;
   totalAmount: number;
   status: string;
   paymentInvoices?: Array<{

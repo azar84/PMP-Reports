@@ -99,6 +99,7 @@ interface PurchaseOrdersResponse {
 }
 
 interface Invoice {
+  contraChargesAmount?: number | null;
   id: number;
   projectId: number;
   projectSubcontractorId: number;
@@ -1330,7 +1331,7 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
               {subcontractorFilterTerm && (
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => setSubcontractorFilterTerm('')}
                   className="h-10 w-10 hover:bg-opacity-20 transition-all"
                   style={{ 
@@ -1492,7 +1493,7 @@ export default function ProjectSubcontractors({ projectId, projectName, onViewSu
                   <div className="absolute top-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10" onClick={(e) => e.stopPropagation()}>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={(e) => {
                         e.stopPropagation();
                         handleRemoveSubcontractor(projectSubcontractor.id, subcontractor.name);

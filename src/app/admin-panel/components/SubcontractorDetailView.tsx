@@ -1438,7 +1438,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
         <div className="flex items-center gap-4">
           <Button
             variant="ghost"
-            size="icon"
+            size="sm"
             onClick={onBack}
             className="h-9 w-9"
           >
@@ -2584,7 +2584,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                 </h3>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => {
                     setShowPOForm(false);
                     setEditingPO(null);
@@ -2773,7 +2773,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           <div className="flex items-center justify-center gap-2">
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleEditPO(po)}
                               className="h-7 w-7"
                               style={{ color: colors.info }}
@@ -2782,7 +2782,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleDeletePO(po.id, po.lpoNumber)}
                               className="h-7 w-7"
                               style={{ color: colors.error }}
@@ -2825,7 +2825,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     </h3>
                           <Button
                             variant="ghost"
-                                        size="icon"
+                                        size="sm"
                                         onClick={() => {
                                           setShowChangeOrderForm(null);
                                           setEditingChangeOrder(null);
@@ -3127,7 +3127,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             <div className="flex items-center justify-center gap-2">
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                                                 onClick={() => handleEditChangeOrder(changeOrder)}
                                 className="h-7 w-7"
                                                 style={{ color: colors.info }}
@@ -3136,7 +3136,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                               </Button>
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                                 onClick={() => handleDeleteChangeOrder(changeOrder.purchaseOrderId, changeOrder.id, changeOrder.chRefNo)}
                                 className="h-7 w-7"
                                                 style={{ color: colors.error }}
@@ -3178,7 +3178,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     </h3>
                                       <Button
                                         variant="ghost"
-                                        size="icon"
+                                        size="sm"
                                         onClick={() => {
                         setShowInvoiceForm(false);
                         setEditingInvoice(null);
@@ -4236,7 +4236,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           <div className="flex items-center justify-center gap-2">
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                               onClick={() => handleEditInvoice(invoice)}
                               className="h-7 w-7"
                                                 style={{ color: colors.info }}
@@ -4245,7 +4245,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                               </Button>
                                               <Button
                                                 variant="ghost"
-                                                size="icon"
+                                                size="sm"
                               onClick={() => handleDeleteInvoice(invoice.id, invoice.invoiceNumber)}
                               className="h-7 w-7"
                                                 style={{ color: colors.error }}
@@ -4287,7 +4287,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     </h3>
                     <Button
                       variant="ghost"
-                      size="icon"
+                      size="sm"
                       onClick={() => {
                         setShowPaymentForm(false);
                         setEditingPayment(null);
@@ -4299,6 +4299,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           paymentType: null,
                           paymentDate: '',
                           dueDate: '',
+                          liquidated: false,
                           notes: '',
                         });
                       }}
@@ -4786,6 +4787,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           paymentType: null,
                           paymentDate: '',
                           dueDate: '',
+                          liquidated: false,
                           notes: '',
                         });
                       }}
@@ -4821,15 +4823,16 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     setShowPaymentForm(true);
                     setEditingPayment(null);
                     setError(null);
-                    setPaymentFormData({
-                      selectedInvoiceIds: [],
-                      invoicePayments: {},
-                      paymentMethod: 'Current Dated',
-                      paymentType: null,
-                      paymentDate: '',
-                      dueDate: '',
-                      notes: '',
-                    });
+                     setPaymentFormData({
+                       selectedInvoiceIds: [],
+                       invoicePayments: {},
+                       paymentMethod: 'Current Dated',
+                       paymentType: null,
+                       paymentDate: '',
+                       dueDate: '',
+                       liquidated: false,
+                       notes: '',
+                     });
                   }}
                 >
                   Add Payment
@@ -4956,7 +4959,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           <div className="flex items-center justify-center gap-2">
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => handleEditPayment(payment)}
                               className="h-7 w-7"
                               style={{ color: colors.info }}
@@ -4965,7 +4968,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             </Button>
                             <Button
                               variant="ghost"
-                              size="icon"
+                              size="sm"
                               onClick={() => {
                                 const invoiceNumbers = payment.paymentInvoices?.map(pi => pi.invoice.invoiceNumber).join(', ') || 'payment';
                                 handleDeletePayment(payment.id, invoiceNumbers);
@@ -5157,7 +5160,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         onClick={() => {
                           setIsEditingPerformance(false);
                           setPerformanceFormData({
-                            performanceRating: (projectSubcontractor.performanceRating as 'Bad' | 'Good' | 'Very Good') || '',
+                            performanceRating: projectSubcontractor.performanceRating || null,
                             performanceReview: projectSubcontractor.performanceReview || '',
                           });
                         }}
