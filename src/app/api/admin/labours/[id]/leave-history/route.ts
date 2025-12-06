@@ -1,9 +1,9 @@
 import { NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 
-export async function GET(_req: Request, { params }: { params: { id: string } }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
-    const id = params?.id;
+    const { id } = await params;
     const labourId = parseInt(id as string, 10);
 
     if (!id || Number.isNaN(labourId) || labourId <= 0) {

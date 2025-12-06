@@ -16,10 +16,11 @@ const updateProjectStaffSchema = z.object({
 // GET - Fetch specific project staff assignment
 export async function GET(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const projectStaffId = parseInt(params.id);
+    const { id } = await params;
+    const projectStaffId = parseInt(id);
 
     const projectStaff = await prisma.projectStaff.findUnique({
       where: { id: projectStaffId },
