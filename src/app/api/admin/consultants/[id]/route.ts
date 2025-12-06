@@ -30,7 +30,11 @@ export async function GET(
     const consultant = await prisma.consultant.findUnique({
       where: { id: consultantId },
       include: {
-        types: true,
+        ConsultantToConsultantType: {
+          include: {
+            consultant_types: true
+          }
+        },
         projectsAsPMC: {
           select: {
             id: true,
@@ -113,7 +117,11 @@ export async function PUT(
         },
       },
       include: {
-        types: true,
+        ConsultantToConsultantType: {
+          include: {
+            consultant_types: true
+          }
+        },
         projectsAsPMC: {
           select: {
             id: true,

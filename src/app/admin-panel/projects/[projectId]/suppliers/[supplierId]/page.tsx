@@ -258,7 +258,7 @@ export default function ProjectSupplierDetailPage() {
           <div className="flex items-center gap-4">
             <Button
               variant="ghost"
-              size="icon"
+              size="sm"
               onClick={() => router.back()}
               className="h-9 w-9"
             >
@@ -441,7 +441,7 @@ export default function ProjectSupplierDetailPage() {
                 </h3>
                 <Button
                   variant="ghost"
-                  size="icon"
+                  size="sm"
                   onClick={() => {
                     setShowPOForm(false);
                     setEditingPO(null);
@@ -623,7 +623,7 @@ export default function ProjectSupplierDetailPage() {
                       <div className="flex items-center justify-center gap-2">
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           onClick={() => handleEditPO(po)}
                           className="h-7 w-7"
                           style={{ color: colors.info }}
@@ -632,7 +632,7 @@ export default function ProjectSupplierDetailPage() {
                         </Button>
                         <Button
                           variant="ghost"
-                          size="icon"
+                          size="sm"
                           onClick={() => handleDeletePO(po.id, po.lpoNumber)}
                           className="h-7 w-7"
                           style={{ color: colors.error }}
