@@ -481,7 +481,7 @@ export async function PUT(
     let errorMessage = 'Failed to update project';
     if (error.code === 'P2002') {
       errorMessage = 'A project with this code or name already exists';
-    } else if (error.code === 'P2025') {
+    } else if ((error as any)?.code === 'P2025') {
       errorMessage = 'Project not found';
     } else if (error.message) {
       errorMessage = error.message;

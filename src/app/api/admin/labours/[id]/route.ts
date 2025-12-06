@@ -78,7 +78,7 @@ export async function PUT(
         { status: 400 }
       );
     }
-    if (error.code === 'P2025') {
+    if ((error as any)?.code === 'P2025') {
       return NextResponse.json(
         { success: false, error: 'Labour not found' },
         { status: 404 }
@@ -113,7 +113,7 @@ export async function DELETE(
     return NextResponse.json({ success: true });
   } catch (error) {
     console.error('Error deleting labour:', error);
-    if (error.code === 'P2025') {
+    if ((error as any)?.code === 'P2025') {
       return NextResponse.json(
         { success: false, error: 'Labour not found' },
         { status: 404 }

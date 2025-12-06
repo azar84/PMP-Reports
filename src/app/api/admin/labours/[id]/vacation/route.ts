@@ -108,9 +108,9 @@ export async function PUT(
             await tx.leaveHistory.update({
               where: { id: existingLeave.id },
               data: {
-                returnDate: parseDateOnly(validatedData.returnDate),
+                returnDate: parseDateOnly(validatedData.returnDate) || undefined,
                 isReturned: true,
-                leaveEndDate: parseDateOnly(validatedData.returnDate),
+                 leaveEndDate: parseDateOnly(validatedData.returnDate) || undefined,
                 notes: `On leave from ${parseDateOnly(validatedData.startDate)?.toLocaleDateString()} to ${parseDateOnly(validatedData.returnDate)?.toLocaleDateString()}. Returned on ${parseDateOnly(validatedData.returnDate)?.toLocaleDateString()}`,
               },
             });

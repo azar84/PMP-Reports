@@ -36,7 +36,6 @@ export async function GET(request: NextRequest) {
         entityId: entityIdNum,
       },
       orderBy: [
-        { isPrimary: 'desc' },
         { createdAt: 'desc' },
       ],
     });

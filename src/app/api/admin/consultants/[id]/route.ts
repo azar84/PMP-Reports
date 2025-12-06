@@ -112,8 +112,13 @@ export async function PUT(
       where: { id: consultantId },
       data: {
         ...consultantData,
-        types: {
-          set: types.map(typeId => ({ id: typeId })),
+        ConsultantToConsultantType: {
+          deleteMany: {},
+          create: types.map(typeId => ({
+            consultant_types: {
+              connect: { id: typeId }
+            }
+          })),
         },
       },
       include: {
