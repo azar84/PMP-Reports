@@ -1597,7 +1597,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
           // Handle both false and null cases (null means not set/not liquidated yet)
           const isNotLiquidated = payment.liquidated === false || payment.liquidated === null;
           if (payment.paymentMethod === 'Post Dated' && isNotLiquidated) {
-            return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
+          return sum + Number(payment.totalPaymentAmount || 0) + Number(payment.totalVatAmount || 0);
           }
           return sum;
         }, 0);
@@ -1876,10 +1876,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                 setInvoiceFormData({
                   invoiceNumber: '',
                   invoiceDate: '',
+                  dueDate: '',
                   paymentType: hasDownPayment ? 'Progress Payment' : 'Down Payment',
                   downPayment: '',
                   selectedPurchaseOrderId: null,
+                  selectedProgressPOId: null,
                   selectedGrnIds: [],
+                  vatAmount: '',
+                  downPaymentRecovery: '',
                 });
               }}
             >
@@ -2349,7 +2353,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                   <div className="flex items-center gap-2">
                                     <Filter className="h-5 w-5 transition-colors" style={{ color: grnFilterPOId ? colors.primary : colors.textSecondary }} />
                                     <h3 className="text-base font-semibold transition-colors" style={{ color: grnFilterPOId ? colors.primary : colors.textPrimary }}>
-                                      Filter by Purchase Order
+                                        Filter by Purchase Order
                                     </h3>
                                     {grnFilterPOId && (
                                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
@@ -2361,15 +2365,15 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                     )}
                                   </div>
                                   <div className="flex items-center gap-3 flex-wrap">
-                                    <select
-                                      value={grnFilterPOId || ''}
-                                      onChange={(e) => setGrnFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                                      <select
+                                        value={grnFilterPOId || ''}
+                                        onChange={(e) => setGrnFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
                                       className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
                                   style={{
                                     backgroundColor: colors.backgroundSecondary,
                                         borderColor: grnFilterPOId ? `${colors.primary}40` : colors.borderLight,
-                                        color: colors.textPrimary,
-                                        outline: 'none',
+                                          color: colors.textPrimary,
+                                          outline: 'none',
                                         minWidth: '250px',
                                         boxShadow: grnFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none',
                                       }}
@@ -2380,21 +2384,21 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                       onBlur={(e) => {
                                         e.target.style.borderColor = grnFilterPOId ? `${colors.primary}40` : colors.borderLight;
                                         e.target.style.boxShadow = grnFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none';
-                                      }}
-                                    >
-                                      <option value="">All Purchase Orders</option>
-                                      {purchaseOrders.map((po) => (
-                                        <option key={po.id} value={po.id}>
-                                          {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    {grnFilterPOId && (() => {
-                                      const filteredCount = Object.entries(grns).reduce((count, [poId, poGrns]) => {
-                                        return Number(poId) === grnFilterPOId ? count + poGrns.length : count;
-                                      }, 0);
-                                      const selectedPO = purchaseOrders.find(po => po.id === grnFilterPOId);
-                                      return (
+                                        }}
+                                      >
+                                        <option value="">All Purchase Orders</option>
+                                        {purchaseOrders.map((po) => (
+                                          <option key={po.id} value={po.id}>
+                                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                                          </option>
+                                        ))}
+                                      </select>
+                                {grnFilterPOId && (() => {
+                                  const filteredCount = Object.entries(grns).reduce((count, [poId, poGrns]) => {
+                                    return Number(poId) === grnFilterPOId ? count + poGrns.length : count;
+                                  }, 0);
+                                  const selectedPO = purchaseOrders.find(po => po.id === grnFilterPOId);
+                                  return (
                                         <div 
                                           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
                                           style={{
@@ -2407,7 +2411,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
                                           <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${colors.primary}20` }}>
                                             {filteredCount} {filteredCount === 1 ? 'GRN' : 'GRNs'}
-                                          </span>
+                                        </span>
                                           <button
                                             onClick={() => setGrnFilterPOId(null)}
                                             className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
@@ -2416,9 +2420,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           >
                                             <X className="h-4 w-4" />
                                           </button>
-                                        </div>
-                                      );
-                                    })()}
+                                    </div>
+                                  );
+                                })()}
                                   </div>
                                 </div>
                               </Card>
@@ -2541,10 +2545,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                         setInvoiceFormData({
                                             invoiceNumber: '',
                                             invoiceDate: '',
+                                            dueDate: '',
                           paymentType: hasDownPayment ? 'Progress Payment' : 'Down Payment',
                           downPayment: '',
                           selectedPurchaseOrderId: null,
+                          selectedProgressPOId: null,
                           selectedGrnIds: [],
+                          vatAmount: '',
+                          downPaymentRecovery: '',
                                           });
                                         }}
                       className="h-7 w-7"
@@ -2993,10 +3001,14 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                         setInvoiceFormData({
                                             invoiceNumber: '',
                                             invoiceDate: '',
+                                            dueDate: '',
                           paymentType: hasDownPayment ? 'Progress Payment' : 'Down Payment',
                           downPayment: '',
                           selectedPurchaseOrderId: null,
+                          selectedProgressPOId: null,
                           selectedGrnIds: [],
+                          vatAmount: '',
+                          downPaymentRecovery: '',
                                           });
                                         }}
                                         disabled={isSaving}
@@ -3031,7 +3043,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                   <div className="flex items-center gap-2">
                                     <Filter className="h-5 w-5 transition-colors" style={{ color: invoiceFilterPOId ? colors.primary : colors.textSecondary }} />
                                     <h3 className="text-base font-semibold transition-colors" style={{ color: invoiceFilterPOId ? colors.primary : colors.textPrimary }}>
-                                      Filter by Purchase Order
+                                        Filter by Purchase Order
                                     </h3>
                                     {invoiceFilterPOId && (
                                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
@@ -3043,15 +3055,15 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                     )}
                                   </div>
                                   <div className="flex items-center gap-3 flex-wrap">
-                                    <select
-                                      value={invoiceFilterPOId || ''}
-                                      onChange={(e) => setInvoiceFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                                      <select
+                                        value={invoiceFilterPOId || ''}
+                                        onChange={(e) => setInvoiceFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
                                       className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
-                                      style={{
-                                        backgroundColor: colors.backgroundSecondary,
+                                        style={{
+                                          backgroundColor: colors.backgroundSecondary,
                                         borderColor: invoiceFilterPOId ? `${colors.primary}40` : colors.borderLight,
-                                        color: colors.textPrimary,
-                                        outline: 'none',
+                                          color: colors.textPrimary,
+                                          outline: 'none',
                                         minWidth: '250px',
                                         boxShadow: invoiceFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none',
                                       }}
@@ -3062,27 +3074,27 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                       onBlur={(e) => {
                                         e.target.style.borderColor = invoiceFilterPOId ? `${colors.primary}40` : colors.borderLight;
                                         e.target.style.boxShadow = invoiceFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none';
-                                      }}
-                                    >
-                                      <option value="">All Purchase Orders</option>
-                                      {purchaseOrders.map((po) => (
-                                        <option key={po.id} value={po.id}>
-                                          {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    {invoiceFilterPOId && (() => {
-                                      const filteredInvoices = invoices.filter((invoice) => {
-                                        if (invoice.paymentType === 'Down Payment') {
-                                          return invoice.purchaseOrderId === invoiceFilterPOId;
-                                        }
-                                        if (invoice.paymentType === 'Progress Payment') {
-                                          return invoice.invoiceGRNs.some(ig => ig.grn.purchaseOrderId === invoiceFilterPOId);
-                                        }
-                                        return false;
-                                      });
-                                      const selectedPO = purchaseOrders.find(po => po.id === invoiceFilterPOId);
-                                      return (
+                                        }}
+                                      >
+                                        <option value="">All Purchase Orders</option>
+                                        {purchaseOrders.map((po) => (
+                                          <option key={po.id} value={po.id}>
+                                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                                          </option>
+                                        ))}
+                                      </select>
+                                {invoiceFilterPOId && (() => {
+                                  const filteredInvoices = invoices.filter((invoice) => {
+                                    if (invoice.paymentType === 'Down Payment') {
+                                      return invoice.purchaseOrderId === invoiceFilterPOId;
+                                    }
+                                    if (invoice.paymentType === 'Progress Payment') {
+                                      return invoice.invoiceGRNs.some(ig => ig.grn.purchaseOrderId === invoiceFilterPOId);
+                                    }
+                                    return false;
+                                  });
+                                  const selectedPO = purchaseOrders.find(po => po.id === invoiceFilterPOId);
+                                  return (
                                         <div 
                                           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
                                           style={{
@@ -3095,7 +3107,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
                                           <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${colors.primary}20` }}>
                                             {filteredInvoices.length} {filteredInvoices.length === 1 ? 'invoice' : 'invoices'}
-                                          </span>
+                                        </span>
                                           <button
                                             onClick={() => setInvoiceFilterPOId(null)}
                                             className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
@@ -3104,9 +3116,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           >
                                             <X className="h-4 w-4" />
                                           </button>
-                                        </div>
-                                      );
-                                    })()}
+                                    </div>
+                                  );
+                                })()}
                                   </div>
                                 </div>
                               </Card>
@@ -3908,7 +3920,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                   <div className="flex items-center gap-2">
                     <Filter className="h-5 w-5 transition-colors" style={{ color: paymentFilterPOId ? colors.primary : colors.textSecondary }} />
                     <h3 className="text-base font-semibold transition-colors" style={{ color: paymentFilterPOId ? colors.primary : colors.textPrimary }}>
-                      Filter by Purchase Order
+                        Filter by Purchase Order
                     </h3>
                     {paymentFilterPOId && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{
@@ -3920,15 +3932,15 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                     )}
                   </div>
                   <div className="flex items-center gap-3 flex-wrap">
-                    <select
-                      value={paymentFilterPOId || ''}
-                      onChange={(e) => setPaymentFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
+                      <select
+                        value={paymentFilterPOId || ''}
+                        onChange={(e) => setPaymentFilterPOId(e.target.value ? parseInt(e.target.value) : null)}
                       className="w-full rounded-lg border px-4 py-2.5 text-sm font-medium focus:outline-none transition-all duration-200 cursor-pointer hover:shadow-sm"
-                      style={{
-                        backgroundColor: colors.backgroundSecondary,
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
                         borderColor: paymentFilterPOId ? `${colors.primary}40` : colors.borderLight,
-                        color: colors.textPrimary,
-                        outline: 'none',
+                          color: colors.textPrimary,
+                          outline: 'none',
                         minWidth: '250px',
                         boxShadow: paymentFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none',
                       }}
@@ -3939,37 +3951,37 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                       onBlur={(e) => {
                         e.target.style.borderColor = paymentFilterPOId ? `${colors.primary}40` : colors.borderLight;
                         e.target.style.boxShadow = paymentFilterPOId ? `0 0 0 3px ${colors.primary}15` : 'none';
-                      }}
-                    >
-                      <option value="">All Purchase Orders</option>
-                      {purchaseOrders.map((po) => (
-                        <option key={po.id} value={po.id}>
-                          {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
-                        </option>
-                      ))}
-                    </select>
-                    {paymentFilterPOId && (() => {
-                      const filteredPayments = payments.filter((payment) => {
-                        // Check if any invoice in this payment has GRNs that belong to the selected PO
-                        return payment.paymentInvoices?.some(pi => {
-                          const invoice = pi.invoice;
-                          if (!invoice) return false;
-                          
-                          // For Down Payment invoices, check purchaseOrderId
-                          if (invoice.paymentType === 'Down Payment') {
-                            return invoice.purchaseOrderId === paymentFilterPOId;
-                          }
-                          
-                          // For Progress Payment invoices, check if any GRN belongs to the selected PO
-                          if (invoice.paymentType === 'Progress Payment') {
-                            return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
-                          }
-                          
-                          return false;
-                        });
-                      });
-                      const selectedPO = purchaseOrders.find(po => po.id === paymentFilterPOId);
-                      return (
+                        }}
+                      >
+                        <option value="">All Purchase Orders</option>
+                        {purchaseOrders.map((po) => (
+                          <option key={po.id} value={po.id}>
+                            {po.lpoNumber} - {formatCurrencyWithDecimals(Number(po.lpoValueWithVat))}
+                          </option>
+                        ))}
+                      </select>
+                {paymentFilterPOId && (() => {
+                  const filteredPayments = payments.filter((payment) => {
+                    // Check if any invoice in this payment has GRNs that belong to the selected PO
+                    return payment.paymentInvoices?.some(pi => {
+                      const invoice = pi.invoice;
+                      if (!invoice) return false;
+                      
+                      // For Down Payment invoices, check purchaseOrderId
+                      if (invoice.paymentType === 'Down Payment') {
+                        return invoice.purchaseOrderId === paymentFilterPOId;
+                      }
+                      
+                      // For Progress Payment invoices, check if any GRN belongs to the selected PO
+                      if (invoice.paymentType === 'Progress Payment') {
+                        return invoice.invoiceGRNs?.some(ig => ig.grn?.purchaseOrderId === paymentFilterPOId);
+                      }
+                      
+                      return false;
+                    });
+                  });
+                  const selectedPO = purchaseOrders.find(po => po.id === paymentFilterPOId);
+                  return (
                         <div 
                           className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 hover:shadow-md"
                           style={{
@@ -3982,7 +3994,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           <span>{selectedPO?.lpoNumber || 'Unknown PO'}</span>
                           <span className="text-xs px-2 py-0.5 rounded" style={{ backgroundColor: `${colors.primary}20` }}>
                             {filteredPayments.length} of {payments.length} payment{payments.length !== 1 ? 's' : ''}
-                          </span>
+                        </span>
                           <button
                             onClick={() => setPaymentFilterPOId(null)}
                             className="ml-1 hover:bg-white/20 rounded p-0.5 transition-all duration-200"
@@ -3991,9 +4003,9 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           >
                             <X className="h-4 w-4" />
                           </button>
-                        </div>
-                      );
-                    })()}
+                    </div>
+                  );
+                })()}
                   </div>
                 </div>
               </Card>
