@@ -317,9 +317,9 @@ export default function SupplierManager() {
       try {
         let response;
         if (editingSupplierId) {
-          response = await put(`/api/admin/suppliers/${editingSupplierId}`, payload);
+          response = await put<{ success: boolean; error?: string }>(`/api/admin/suppliers/${editingSupplierId}`, payload);
         } else {
-          response = await post('/api/admin/suppliers', payload);
+          response = await post<{ success: boolean; error?: string }>('/api/admin/suppliers', payload);
         }
 
         if (!response?.success) {

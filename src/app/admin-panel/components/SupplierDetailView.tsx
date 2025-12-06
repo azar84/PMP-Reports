@@ -2223,7 +2223,6 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                                           setGrnFormData({
                                             grnRefNo: '',
                                             grnDate: '',
-                                            advancePayment: '',
                                             deliveredAmount: '',
                                           });
                                         }}
@@ -3368,6 +3367,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           paymentType: null,
                           paymentDate: '',
                           dueDate: '',
+                          liquidated: false,
                           notes: '',
                         });
                       }}
@@ -3855,6 +3855,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                           paymentType: null,
                           paymentDate: '',
                           dueDate: '',
+                          liquidated: false,
                           notes: '',
                         });
                       }}
@@ -3897,6 +3898,7 @@ export default function SupplierDetailView({ projectId, projectName, supplierId,
                       paymentType: null,
                       paymentDate: '',
                       dueDate: '',
+                      liquidated: false,
                       notes: '',
                     });
                   }}

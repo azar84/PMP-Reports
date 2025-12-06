@@ -647,14 +647,13 @@ export default function AdminPanel() {
                     }}
                   />
                 )}
-                <item.icon 
-                  className="w-5 h-5 flex-shrink-0" 
-                  style={{ 
+                <div style={{ 
                     color: activeSection === item.id 
                       ? colors.primary
                       : 'var(--color-sidebar-text-color)'
-                  }}
-                />
+                  }}>
+                  <item.icon className="w-5 h-5 flex-shrink-0" />
+                </div>
                 {sidebarOpen && (
                 <span 
                     className={`${activeSection === item.id ? 'font-medium' : ''} whitespace-nowrap`}
