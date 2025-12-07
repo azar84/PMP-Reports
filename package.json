@@ -12,7 +12,7 @@
     "demo:data": "node scripts/demo-data.js",
     "migrate:grn-invoices": "node scripts/safe-grn-migration.js",
     "postinstall": "prisma generate",
-    "vercel-build": "prisma migrate deploy && npm run db:seed && npm run db:seed:positions && next build"
+    "vercel-build": "node scripts/vercel-build.js"
   },
   "prisma": {
     "seed": "node prisma/seed.js"
