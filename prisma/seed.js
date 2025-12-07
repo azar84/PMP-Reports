@@ -190,7 +190,17 @@ async function main() {
     });
     console.log('✅ Default admin user created (username: admin, password: admin123)');
   } else {
-    console.log('ℹ️  Admin user already exists, updating access.');
+    // Update existing admin user to ensure password and access are correct
+    adminUserRecord = await prisma.adminUser.update({
+      where: { id: adminUserRecord.id },
+      data: {
+        passwordHash, // Always update password hash to ensure it's correct
+        email,
+        isActive: true,
+        hasAllProjectsAccess: true,
+      },
+    });
+    console.log('ℹ️  Admin user already exists, updated password and access.');
   }
 
   if (adminUserRecord) {
