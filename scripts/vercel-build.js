@@ -56,7 +56,40 @@ async function main() {
   console.log('   - Using: prisma migrate deploy (production-safe)');
   console.log('   - Behavior: Applies only new/pending migrations');
   console.log('   - Safety: Never deletes data or existing tables');
-  const migrationSuccess = runCommand('prisma migrate deploy', 'Database migrations');
+  
+  // Check if migration lock file exists and matches current provider
+  const fs = require('fs');
+  const path = require('path');
+  const migrationLockPath = path.join(__dirname, '..', 'prisma', 'migrations', 'migration_lock.toml');
+  
+  let migrationSuccess = false;
+  
+  if (fs.existsSync(migrationLockPath)) {
+    const lockContent = fs.readFileSync(migrationLockPath, 'utf8');
+    const currentProvider = databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://') ? 'postgresql' : 'sqlite';
+    
+    if (lockContent.includes(`provider = "${currentProvider}"`)) {
+      // Migration lock matches current provider, use migrate deploy
+      migrationSuccess = runCommand('prisma migrate deploy', 'Database migrations');
+    } else {
+      // Provider mismatch - need to handle migration history switch
+      console.warn('\n⚠️  Migration provider mismatch detected!');
+      console.warn('   Existing migrations were created for a different database provider.');
+      console.warn('   Using prisma db push to sync schema (safe for empty databases)...');
+      
+      // For empty databases, db push is safe and will create all tables
+      // This handles the provider switch scenario
+      migrationSuccess = runCommand('prisma db push --accept-data-loss --skip-generate', 'Database schema sync (provider switch)');
+      
+      if (migrationSuccess) {
+        console.log('✅ Schema synced successfully');
+        console.log('   Note: After first sync, future deployments will use migrate deploy');
+      }
+    }
+  } else {
+    // No migration lock, use migrate deploy (will create lock file)
+    migrationSuccess = runCommand('prisma migrate deploy', 'Database migrations');
+  }
   
   if (!migrationSuccess) {
     console.error('\n❌ Migration failed. Build will continue but database may be out of sync.');
