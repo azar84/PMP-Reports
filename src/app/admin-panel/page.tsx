@@ -248,11 +248,7 @@ export default function AdminPanel() {
         console.log('🔍 Admin Panel: Fetching site settings...');
         // Fetch site settings
         const settingsResponse = await get<{ success: boolean; data: SiteSettings }>('/api/admin/site-settings');
-        console.log('🔍 Admin Panel: Site settings response:', settingsResponse);
         if (settingsResponse.success) {
-          console.log('🔍 Admin Panel: Logo URL:', settingsResponse.data.logoUrl);
-          console.log('🔍 Admin Panel: Logo Light URL:', settingsResponse.data.logoLightUrl);
-          console.log('🔍 Admin Panel: Logo Dark URL:', settingsResponse.data.logoDarkUrl);
           setSiteSettings(settingsResponse.data);
         }
 
@@ -553,10 +549,8 @@ export default function AdminPanel() {
             {sidebarOpen ? (
               <div className="flex flex-col items-center w-full flex-1 min-w-0">
                 {(() => {
-                  // Try to get logo from any available logo field
-                  const logoUrl = siteSettings?.logoUrl || siteSettings?.logoLightUrl || siteSettings?.logoDarkUrl;
-                  console.log('🔍 Sidebar Header - Logo URL:', logoUrl);
-                  console.log('🔍 Sidebar Header - Site Settings:', siteSettings);
+                  // Use the single logo URL
+                  const logoUrl = siteSettings?.logoUrl;
                   
                   if (logoUrl) {
                     return (

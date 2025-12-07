@@ -152,11 +152,7 @@ export default function SiteSettingsManager() {
   
   // File upload states
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadingLogoLight, setUploadingLogoLight] = useState(false);
-  const [uploadingLogoDark, setUploadingLogoDark] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
-  const [uploadingFaviconLight, setUploadingFaviconLight] = useState(false);
-  const [uploadingFaviconDark, setUploadingFaviconDark] = useState(false);
   
   // Email test states
   const [testEmail, setTestEmail] = useState('');
@@ -165,11 +161,7 @@ export default function SiteSettingsManager() {
   
   // File input refs
   const logoFileRef = useRef<HTMLInputElement>(null);
-  const logoLightFileRef = useRef<HTMLInputElement>(null);
-  const logoDarkFileRef = useRef<HTMLInputElement>(null);
   const faviconFileRef = useRef<HTMLInputElement>(null);
-  const faviconLightFileRef = useRef<HTMLInputElement>(null);
-  const faviconDarkFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -257,14 +249,10 @@ export default function SiteSettingsManager() {
     }
   };
 
-  const handleFileUpload = async (file: File, type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const handleFileUpload = async (file: File, type: 'logo' | 'favicon') => {
     const setUploading = {
       logo: setUploadingLogo,
-      logoLight: setUploadingLogoLight,
-      logoDark: setUploadingLogoDark,
       favicon: setUploadingFavicon,
-      faviconLight: setUploadingFaviconLight,
-      faviconDark: setUploadingFaviconDark,
     }[type];
 
     try {
@@ -284,11 +272,7 @@ export default function SiteSettingsManager() {
       if (result.success) {
         const fieldMap = {
           logo: 'logoUrl',
-          logoLight: 'logoLightUrl',
-          logoDark: 'logoDarkUrl',
           favicon: 'faviconUrl',
-          faviconLight: 'faviconLightUrl',
-          faviconDark: 'faviconDarkUrl',
         } as const;
         
         handleInputChange(fieldMap[type], result.data.publicUrl);
@@ -308,7 +292,7 @@ export default function SiteSettingsManager() {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const handleDrop = (e: React.DragEvent, type: 'logo' | 'favicon') => {
     e.preventDefault();
     const files = e.dataTransfer.files;
     if (files.length > 0) {
@@ -316,21 +300,17 @@ export default function SiteSettingsManager() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
     const files = e.target.files;
     if (files && files.length > 0) {
       handleFileUpload(files[0], type);
     }
   };
 
-  const removeImage = (type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const removeImage = (type: 'logo' | 'favicon') => {
     const fieldMap = {
       logo: 'logoUrl',
-      logoLight: 'logoLightUrl',
-      logoDark: 'logoDarkUrl',
       favicon: 'faviconUrl',
-      faviconLight: 'faviconLightUrl',
-      faviconDark: 'faviconDarkUrl',
     } as const;
     
     handleInputChange(fieldMap[type], '');
@@ -582,7 +562,7 @@ export default function SiteSettingsManager() {
                   ? 'var(--color-primary)' 
                   : 'var(--color-text-secondary)'
               }} />
-              <span>Sidebar Colors</span>
+              <span>Company Settings</span>
             </div>
           </button>
         </nav>
@@ -624,346 +604,204 @@ export default function SiteSettingsManager() {
             </div>
           </Card>
 
-          {/* Logo Settings Grid - 2 columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Light Logo Settings */}
-            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
-              <div className="flex items-center space-x-2 mb-4">
-                <Image className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Light Logo</h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>For dark backgrounds</p>
-                </div>
+          {/* Logo Settings */}
+          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
+            <div className="flex items-center space-x-2 mb-4">
+              <Image className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Site Logo</h3>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Used for sidebar and login page</p>
               </div>
+            </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                    Logo URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com/logo-light.png"
-                    value={settings.logoLightUrl || ''}
-                    onChange={(e) => handleInputChange('logoLightUrl', e.target.value)}
-                    className="h-10"
-                    style={{ 
-                      color: 'var(--color-text-primary)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
-                    }}
-                  />
-                </div>
-
-                {/* Media Selector */}
-                <MediaSelector
-                  value={settings.logoLightUrl ? {
-                    id: 0,
-                    filename: 'Selected Logo',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.logoLightUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('logoLightUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media library"
-                  placeholder="Choose from uploaded images..."
-                  className="mb-3"
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  Logo URL
+                </label>
+                <Input
+                  type="url"
+                  placeholder="https://example.com/logo.png"
+                  value={settings.logoUrl || ''}
+                  onChange={(e) => handleInputChange('logoUrl', e.target.value)}
+                  className="h-10"
+                  style={{ 
+                    color: 'var(--color-text-primary)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    borderColor: 'var(--color-gray-light)'
+                  }}
                 />
+              </div>
 
-                {/* Light Logo Preview */}
-                {settings.logoLightUrl && (
-                  <div className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-gray-700">Preview on dark:</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeImage('logoLight')}
-                        className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-center bg-gray-800 rounded p-2">
-                      <img
-                        src={settings.logoLightUrl}
-                        alt="Light Logo Preview"
-                        className="max-h-12 max-w-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    </div>
+              {/* Media Selector */}
+              <MediaSelector
+                value={settings.logoUrl ? {
+                  id: 0,
+                  filename: 'Selected Logo',
+                  fileType: 'image' as const,
+                  mimeType: 'image/*',
+                  fileSize: 0,
+                  publicUrl: settings.logoUrl
+                } : null}
+                onChange={(media) => handleMediaSelect('logoUrl', media)}
+                acceptedTypes={['image/*']}
+                label="Select from media library"
+                placeholder="Choose from uploaded images..."
+                className="mb-3"
+              />
+
+              {/* Logo Preview */}
+              {settings.logoUrl && (
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-700">Preview:</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeImage('logo')}
+                      className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
-                )}
-
-                {/* File Upload Area */}
-                <div
-                  className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
-                  style={{ borderColor: 'var(--color-gray-light)' }}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, 'logoLight')}
-                  onClick={() => logoLightFileRef.current?.click()}
-                >
-                  <input
-                    ref={logoLightFileRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelect(e, 'logoLight')}
-                    className="hidden"
-                  />
-                  {uploadingLogoLight ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
-                      <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
-                      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                        <span className="font-medium">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG up to 2MB</p>
-                    </>
-                  )}
+                  <div className="flex items-center justify-center bg-white border rounded p-2">
+                    <img
+                      src={settings.logoUrl}
+                      alt="Logo Preview"
+                      className="max-h-12 max-w-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
                 </div>
-              </div>
-            </Card>
+              )}
 
-            {/* Dark Logo Settings */}
-            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
-              <div className="flex items-center space-x-2 mb-4">
-                <Image className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Dark Logo</h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>For light backgrounds</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                    Logo URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com/logo-dark.png"
-                    value={settings.logoDarkUrl || ''}
-                    onChange={(e) => handleInputChange('logoDarkUrl', e.target.value)}
-                    className="h-10"
-                    style={{ 
-                      color: 'var(--color-text-primary)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
-                    }}
-                  />
-                </div>
-
-                {/* Media Selector */}
-                <MediaSelector
-                  value={settings.logoDarkUrl ? {
-                    id: 0,
-                    filename: 'Selected Logo',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.logoDarkUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('logoDarkUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media library"
-                  placeholder="Choose from uploaded images..."
-                  className="mb-3"
+              {/* File Upload Area */}
+              <div
+                className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
+                style={{ borderColor: 'var(--color-gray-light)' }}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, 'logo')}
+                onClick={() => logoFileRef.current?.click()}
+              >
+                <input
+                  ref={logoFileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileSelect(e, 'logo')}
+                  className="hidden"
                 />
-
-                {/* Dark Logo Preview */}
-                {settings.logoDarkUrl && (
-                  <div className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-gray-700">Preview on light:</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeImage('logoDark')}
-                        className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-center bg-white border rounded p-2">
-                      <img
-                        src={settings.logoDarkUrl}
-                        alt="Dark Logo Preview"
-                        className="max-h-12 max-w-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    </div>
+                {uploadingLogo ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
                   </div>
+                ) : (
+                  <>
+                    <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
+                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <span className="font-medium">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG up to 2MB</p>
+                  </>
                 )}
-
-                {/* File Upload Area */}
-                <div
-                  className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
-                  style={{ borderColor: 'var(--color-gray-light)' }}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, 'logoDark')}
-                  onClick={() => logoDarkFileRef.current?.click()}
-                >
-                  <input
-                    ref={logoDarkFileRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelect(e, 'logoDark')}
-                    className="hidden"
-                  />
-                  {uploadingLogoDark ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
-                      <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
-                      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                        <span className="font-medium">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG up to 2MB</p>
-                    </>
-                  )}
-                </div>
               </div>
-            </Card>
-          </div>
+            </div>
+          </Card>
 
           {/* Favicon Settings */}
           <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
-                          <div className="flex items-center space-x-2 mb-4">
-                <Globe className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Favicon</h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Small icon displayed in browser tabs</p>
-                </div>
+            <div className="flex items-center space-x-2 mb-4">
+              <Globe className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Site Favicon</h3>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Small icon displayed in browser tabs</p>
               </div>
+            </div>
 
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Main Favicon */}
+            <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Main Favicon
+                  Favicon URL
                 </label>
                 <Input
                   type="url"
                   placeholder="https://example.com/favicon.ico"
                   value={settings.faviconUrl || ''}
                   onChange={(e) => handleInputChange('faviconUrl', e.target.value)}
-                  className="h-10 mb-2"
+                  className="h-10"
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
                     borderColor: 'var(--color-gray-light)'
                   }}
                 />
-                <MediaSelector
-                  value={settings.faviconUrl ? {
-                    id: 0,
-                    filename: 'Selected Favicon',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.faviconUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('faviconUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media"
-                  placeholder="Choose favicon..."
-                  className="mb-2"
-                />
-                {settings.faviconUrl && (
-                  <div className="border border-gray-200 rounded p-2 text-center">
-                    <img src={settings.faviconUrl} alt="Favicon" className="w-4 h-4 mx-auto" />
-                  </div>
-                )}
               </div>
 
-              {/* Light Favicon */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Light Favicon
-                </label>
-                <Input
-                  type="url"
-                  placeholder="https://example.com/favicon-light.ico"
-                  value={settings.faviconLightUrl || ''}
-                  onChange={(e) => handleInputChange('faviconLightUrl', e.target.value)}
-                  className="h-10 mb-2"
-                  style={{ 
-                    color: 'var(--color-text-primary)',
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
-                  }}
-                />
-                <MediaSelector
-                  value={settings.faviconLightUrl ? {
-                    id: 0,
-                    filename: 'Selected Favicon',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.faviconLightUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('faviconLightUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media"
-                  placeholder="Choose favicon..."
-                  className="mb-2"
-                />
-                {settings.faviconLightUrl && (
-                  <div className="border border-gray-200 rounded p-2 text-center bg-gray-800">
-                    <img src={settings.faviconLightUrl} alt="Light Favicon" className="w-4 h-4 mx-auto" />
-                  </div>
-                )}
-              </div>
+              <MediaSelector
+                value={settings.faviconUrl ? {
+                  id: 0,
+                  filename: 'Selected Favicon',
+                  fileType: 'image' as const,
+                  mimeType: 'image/*',
+                  fileSize: 0,
+                  publicUrl: settings.faviconUrl
+                } : null}
+                onChange={(media) => handleMediaSelect('faviconUrl', media)}
+                acceptedTypes={['image/*']}
+                label="Select from media library"
+                placeholder="Choose from uploaded images..."
+                className="mb-3"
+              />
 
-              {/* Dark Favicon */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Dark Favicon
-                </label>
-                <Input
-                  type="url"
-                  placeholder="https://example.com/favicon-dark.ico"
-                  value={settings.faviconDarkUrl || ''}
-                  onChange={(e) => handleInputChange('faviconDarkUrl', e.target.value)}
-                  className="h-10 mb-2"
-                  style={{ 
-                    color: 'var(--color-text-primary)',
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
-                  }}
-                />
-                <MediaSelector
-                  value={settings.faviconDarkUrl ? {
-                    id: 0,
-                    filename: 'Selected Favicon',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.faviconDarkUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('faviconDarkUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media"
-                  placeholder="Choose favicon..."
-                  className="mb-2"
-                />
-                {settings.faviconDarkUrl && (
+              {settings.faviconUrl && (
+                <div className="border border-gray-200 rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium text-gray-700">Preview:</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeImage('favicon')}
+                      className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
                   <div className="border border-gray-200 rounded p-2 text-center bg-white">
-                    <img src={settings.faviconDarkUrl} alt="Dark Favicon" className="w-4 h-4 mx-auto" />
+                    <img src={settings.faviconUrl} alt="Favicon" className="w-8 h-8 mx-auto" />
                   </div>
+                </div>
+              )}
+
+              {/* File Upload Area */}
+              <div
+                className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
+                style={{ borderColor: 'var(--color-gray-light)' }}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, 'favicon')}
+                onClick={() => faviconFileRef.current?.click()}
+              >
+                <input
+                  ref={faviconFileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileSelect(e, 'favicon')}
+                  className="hidden"
+                />
+                {uploadingFavicon ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
+                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <span className="font-medium">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG, ICO up to 2MB</p>
+                  </>
                 )}
               </div>
             </div>
@@ -1585,8 +1423,8 @@ export default function SiteSettingsManager() {
             <div className="flex items-center space-x-3 mb-6">
               <Settings className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
               <div>
-                <h3 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>General Configuration</h3>
-                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Configure general application settings</p>
+                <h3 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Company Settings</h3>
+                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Configure company-wide application settings</p>
               </div>
             </div>
 
