@@ -123,6 +123,92 @@ If automatic seeding fails, you can manually seed the database:
 2. Run migrations: `npx prisma migrate deploy`
 3. Run seeds: `npm run db:seed && npm run db:seed:positions`
 
+## Troubleshooting Admin Login Issues
+
+If you cannot login as admin after deployment, check the following:
+
+### Common Causes
+
+1. **DATABASE_URL Not Set**
+   - **Symptom:** Build logs show "WARNING: DATABASE_URL is not set"
+   - **Solution:** Set `DATABASE_URL` in Vercel environment variables and redeploy
+
+2. **Database Migrations Failed**
+   - **Symptom:** Build logs show "Migration failed"
+   - **Solution:** Check `DATABASE_URL` is correct, database is accessible, and has proper permissions
+
+3. **Seeding Script Failed**
+   - **Symptom:** Build succeeds but admin user doesn't exist
+   - **Solution:** Check build logs for seeding errors. Look for "Database seeding (main)" and "Default admin user created" messages
+
+### Default Admin Credentials
+
+- **Username:** `admin`
+- **Password:** `admin123`
+- **Email:** `admin@example.com`
+
+⚠️ **Important:** Change the default password immediately after first login!
+
+### How to Verify Seeding Ran
+
+Check Vercel build logs for:
+- `✅ Database migrations completed`
+- `✅ Database seeding (main) completed`
+- `✅ Default admin user created (username: admin, password: admin123)`
+
+### Manual Fix: Create Admin User
+
+If seeding failed, you can create the admin user manually using Prisma Studio:
+
+```bash
+npx prisma studio
+```
+
+Then manually create the admin user with:
+- Username: `admin`
+- Email: `admin@example.com`
+- Password Hash: Generate using `bcrypt.hash('admin123', 12)`
+- isActive: `true`
+
+Or create a quick script:
+
+```javascript
+// scripts/create-admin.js
+const { PrismaClient } = require('@prisma/client');
+const bcrypt = require('bcryptjs');
+
+const prisma = new PrismaClient();
+
+async function main() {
+  const passwordHash = await bcrypt.hash('admin123', 12);
+  const tenant = await prisma.tenant.upsert({
+    where: { slug: 'default' },
+    update: {},
+    create: { name: 'Default Tenant', slug: 'default' },
+  });
+
+  const admin = await prisma.adminUser.upsert({
+    where: { tenantId_username: { tenantId: tenant.id, username: 'admin' } },
+    update: { passwordHash, email: 'admin@example.com', isActive: true },
+    create: {
+      tenantId: tenant.id,
+      username: 'admin',
+      email: 'admin@example.com',
+      passwordHash,
+      name: 'Administrator',
+      isActive: true,
+      hasAllProjectsAccess: true,
+    },
+  });
+
+  console.log('✅ Admin user created:', admin.username);
+}
+
+main().catch(console.error).finally(() => prisma.$disconnect());
+```
+
+Run with: `node scripts/create-admin.js`
+
 ## Support
 
 For issues with Vercel deployment, check:

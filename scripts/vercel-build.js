@@ -58,8 +58,16 @@ async function main() {
 
   // Run seed scripts (only if migrations succeeded)
   if (migrationSuccess) {
-    runCommand('npm run db:seed', 'Database seeding (main)');
-    runCommand('npm run db:seed:positions', 'Database seeding (positions)');
+    const seedSuccess = runCommand('npm run db:seed', 'Database seeding (main)');
+    if (!seedSuccess) {
+      console.error('\n❌ Main seeding failed. Admin user may not have been created.');
+      console.error('   Please check the build logs above for errors.');
+    }
+    
+    const positionsSeedSuccess = runCommand('npm run db:seed:positions', 'Database seeding (positions)');
+    if (!positionsSeedSuccess) {
+      console.warn('\n⚠️  Positions seeding failed, but continuing...');
+    }
     
     // Optionally run demo data if SEED_DEMO_DATA environment variable is set
     if (process.env.SEED_DEMO_DATA === 'true') {
@@ -68,8 +76,17 @@ async function main() {
     } else {
       console.log('\nℹ️  Skipping demo data seeding (set SEED_DEMO_DATA=true to enable)');
     }
+    
+    // Final reminder about admin credentials
+    if (seedSuccess) {
+      console.log('\n📝 Admin user credentials:');
+      console.log('   Username: admin');
+      console.log('   Password: admin123');
+      console.log('   Email: admin@example.com');
+    }
   } else {
     console.warn('\n⚠️  Skipping seeding due to migration failure');
+    console.warn('   Admin user will NOT be created. Please fix migration errors first.');
   }
 
   // Build Next.js application
