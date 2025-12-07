@@ -60,6 +60,14 @@ async function main() {
   if (migrationSuccess) {
     runCommand('npm run db:seed', 'Database seeding (main)');
     runCommand('npm run db:seed:positions', 'Database seeding (positions)');
+    
+    // Optionally run demo data if SEED_DEMO_DATA environment variable is set
+    if (process.env.SEED_DEMO_DATA === 'true') {
+      console.log('\n📦 Running demo data seeding (SEED_DEMO_DATA=true)...');
+      runCommand('npm run demo:data', 'Database seeding (demo data)');
+    } else {
+      console.log('\nℹ️  Skipping demo data seeding (set SEED_DEMO_DATA=true to enable)');
+    }
   } else {
     console.warn('\n⚠️  Skipping seeding due to migration failure');
   }
