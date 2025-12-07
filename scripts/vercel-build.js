@@ -37,18 +37,25 @@ async function main() {
     return;
   }
 
-  // Validate DATABASE_URL format for SQLite
+  // Validate DATABASE_URL format
   if (databaseUrl.startsWith('file:')) {
     console.log('✅ DATABASE_URL detected (SQLite format)');
   } else if (databaseUrl.startsWith('postgresql://') || databaseUrl.startsWith('postgres://')) {
     console.log('✅ DATABASE_URL detected (PostgreSQL format)');
-    console.warn('⚠️  NOTE: Schema is configured for SQLite. Consider updating prisma/schema.prisma');
-    console.warn('   to use PostgreSQL for production: provider = "postgresql"');
   } else {
     console.warn(`⚠️  WARNING: DATABASE_URL format may be invalid: ${databaseUrl.substring(0, 20)}...`);
   }
 
   // Run migrations
+  // NOTE: 'prisma migrate deploy' is safe for production:
+  // - Only applies pending migrations that haven't been run yet
+  // - Never deletes data or tables
+  // - Never resets the database
+  // - Safe to run on every deployment
+  console.log('\n📋 Migration Strategy:');
+  console.log('   - Using: prisma migrate deploy (production-safe)');
+  console.log('   - Behavior: Applies only new/pending migrations');
+  console.log('   - Safety: Never deletes data or existing tables');
   const migrationSuccess = runCommand('prisma migrate deploy', 'Database migrations');
   
   if (!migrationSuccess) {

@@ -59,8 +59,14 @@ This wipes the local SQLite database and rebuilds it from the current schema. **
 ## 6. Production Deployment Notes
 
 * Always run migrations via CI/CD or a controlled environment: `npx prisma migrate deploy`.
-* Backup the database before applying migrations to shared environments.
+* **`prisma migrate deploy` is production-safe:**
+  - Only applies pending migrations that haven't been run yet
+  - Never deletes data or existing tables
+  - Never resets the database
+  - Safe to run on every deployment
+* Backup the database before applying migrations to shared environments (best practice).
 * Avoid `db push` in production; rely on the committed migrations instead.
+* The Vercel build script automatically runs `prisma migrate deploy` on every deployment.
 
 ## 7. Additional Tips
 

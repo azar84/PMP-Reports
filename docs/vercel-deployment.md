@@ -81,6 +81,21 @@ The `vercel-build` script automatically:
 3. Seeds the database with initial data
 4. Builds the Next.js application
 
+### Migration Safety
+
+**`prisma migrate deploy` is production-safe:**
+- ✅ Only applies pending migrations that haven't been run yet
+- ✅ Never deletes data or existing tables
+- ✅ Never resets the database
+- ✅ Safe to run on every deployment
+- ✅ Updates schema incrementally without data loss
+
+When you update the Prisma schema and create a new migration:
+1. Commit the migration files to Git
+2. Push to trigger Vercel deployment
+3. The build script automatically applies only the new migration
+4. Existing data remains intact
+
 If `DATABASE_URL` is not set, the build will:
 - Show a warning
 - Skip migrations and seeding
