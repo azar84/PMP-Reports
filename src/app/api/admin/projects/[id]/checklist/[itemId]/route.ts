@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 const checklistItemSchema = z.object({
   itemNumber: z.string().optional().or(z.literal('')),
