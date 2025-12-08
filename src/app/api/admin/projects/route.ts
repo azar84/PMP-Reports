@@ -344,6 +344,13 @@ export async function POST(request: NextRequest) {
       });
     });
 
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to create project' },
+        { status: 500 }
+      );
+    }
+
     // Convert DateTime fields to date-only strings (YYYY-MM-DD) to avoid timezone issues
     const formattedProject = {
       ...result,
