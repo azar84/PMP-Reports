@@ -480,6 +480,13 @@ export async function PUT(
       });
     });
 
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
     // Convert DateTime fields to date-only strings (YYYY-MM-DD) to avoid timezone issues
     const formattedProject = {
       ...result,
