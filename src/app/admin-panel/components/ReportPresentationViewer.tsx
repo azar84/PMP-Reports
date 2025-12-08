@@ -213,10 +213,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     });
 
     // Slide 3: Checklist (ONE slide with internal pagination)
-    if (data.checklist && data.checklist.length > 0) {
-      // Separate main items and sub-items
-      const mainItems = data.checklist.filter((item: any) => !item.isSubItem);
-      const subItems = data.checklist.filter((item: any) => item.isSubItem);
+    // Always show checklist slide, even if empty
+    const checklistData = data.checklist || [];
+    const mainItems = checklistData.filter((item: any) => !item.isSubItem);
+    const subItems = checklistData.filter((item: any) => item.isSubItem);
       
       // Group items with their sub-items
       const itemsWithSubs = mainItems.map((item: any) => ({
@@ -235,15 +235,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           totalPages: 1,
           }
         });
-      }
 
     // Slide 4: Staff (after checklist)
-    if (data.staff && data.staff.length > 0) {
+    // Always show staff slide, even if empty
+    const staffData = data.staff || [];
       // Process all positions to get assigned staff list and position summary
       const allAssignedStaff: any[] = [];
       const positionSummary: any[] = [];
       
-      data.staff.forEach((position: any) => {
+    staffData.forEach((position: any) => {
         let assignedCount = 0;
         
         // Get required utilization from position (default to 100 if not available)
@@ -286,248 +286,249 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           assignedStaff: allAssignedStaff, // All assigned staff in one slide
           balanceStaff: balanceStaffList, // All balance staff
           positionSummary: positionSummary, // Keep for summary calculations
-          positions: data.staff, // Include full positions array for requiredUtilization access
+        positions: staffData, // Include full positions array for requiredUtilization access
           pageNumber: 1,
           totalPages: 1,
           isLastPage: true,
         }
       });
-    }
 
     // Slide 5: Labours (similar structure to Staff)
-    if ((data.labours && data.labours.length > 0) || (data.projectTrades && data.projectTrades.length > 0)) {
-      // Process labours data similar to staff
-      const allAssignedLabours: any[] = [];
-      const tradeSummary: Array<{
-        trade: string;
-        required: number;
-        assigned: number;
-        balance: number;
-      }> = [];
-      
-      // Use projectTrades as source of truth for all trades (includes trades with no assignments)
-      // If projectTrades is not available, fall back to inferring from labours
-      const tradesMap = new Map<string, { required: number; assignments: any[] }>();
-      
-      // First, initialize all trades from projectTrades (if available)
-      if (data.projectTrades && Array.isArray(data.projectTrades)) {
-        data.projectTrades.forEach((projectTrade: any) => {
-          const tradeName = projectTrade.trade || 'Unknown';
-          const requiredQuantity = projectTrade.requiredQuantity || 0;
-          
-          if (!tradesMap.has(tradeName)) {
-            tradesMap.set(tradeName, {
-              required: requiredQuantity,
-              assignments: []
-            });
-          }
-        });
-      }
-      
-      // Then, process labour assignments and match them to trades
-      if (data.labours && Array.isArray(data.labours)) {
-        data.labours.forEach((labourAssignment: any) => {
-          const tradeName = labourAssignment.trade?.trade || 'Unknown';
-          
-          // If trade not in map yet (fallback for old data format), add it
-          if (!tradesMap.has(tradeName)) {
-            const requiredQuantity = labourAssignment.trade?.requiredQuantity || 0;
-            tradesMap.set(tradeName, {
-              required: requiredQuantity,
-              assignments: []
-            });
-          }
-          
-          if (labourAssignment.labour && labourAssignment.labour.labourName) {
-            allAssignedLabours.push({
-              ...labourAssignment,
-              tradeName: tradeName,
-            });
-            tradesMap.get(tradeName)!.assignments.push(labourAssignment);
-          }
-        });
-      }
-      
-      // Also process assignments from projectTrades if they're included there
-      if (data.projectTrades && Array.isArray(data.projectTrades)) {
-        data.projectTrades.forEach((projectTrade: any) => {
-          const tradeName = projectTrade.trade || 'Unknown';
-          
-          if (projectTrade.labourAssignments && Array.isArray(projectTrade.labourAssignments)) {
-            projectTrade.labourAssignments.forEach((labourAssignment: any) => {
-              if (labourAssignment.labour && labourAssignment.labour.labourName) {
-                // Check if already added from data.labours
-                const alreadyAdded = allAssignedLabours.some(
-                  al => al.id === labourAssignment.id || 
-                  (al.labourId === labourAssignment.labourId && al.tradeName === tradeName)
+    // Always show labours slide, even if empty
+    const laboursData = data.labours || [];
+    const projectTradesData = data.projectTrades || [];
+    // Process labours data similar to staff
+    const allAssignedLabours: any[] = [];
+    const tradeSummary: Array<{
+      trade: string;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+    
+    // Use projectTrades as source of truth for all trades (includes trades with no assignments)
+    // If projectTrades is not available, fall back to inferring from labours
+    const tradesMap = new Map<string, { required: number; assignments: any[] }>();
+    
+    // First, initialize all trades from projectTrades (if available)
+    if (Array.isArray(projectTradesData)) {
+      projectTradesData.forEach((projectTrade: any) => {
+        const tradeName = projectTrade.trade || 'Unknown';
+        const requiredQuantity = projectTrade.requiredQuantity || 0;
+        
+        if (!tradesMap.has(tradeName)) {
+          tradesMap.set(tradeName, {
+            required: requiredQuantity,
+            assignments: []
+          });
+        }
+      });
+    }
+    
+    // Then, process labour assignments and match them to trades
+    if (Array.isArray(laboursData)) {
+      laboursData.forEach((labourAssignment: any) => {
+        const tradeName = labourAssignment.trade?.trade || 'Unknown';
+        
+        // If trade not in map yet (fallback for old data format), add it
+        if (!tradesMap.has(tradeName)) {
+          const requiredQuantity = labourAssignment.trade?.requiredQuantity || 0;
+          tradesMap.set(tradeName, {
+            required: requiredQuantity,
+            assignments: []
+          });
+        }
+        
+        if (labourAssignment.labour && labourAssignment.labour.labourName) {
+          allAssignedLabours.push({
+            ...labourAssignment,
+            tradeName: tradeName,
+          });
+          tradesMap.get(tradeName)!.assignments.push(labourAssignment);
+        }
+      });
+    }
+    
+    // Also process assignments from projectTrades if they're included there
+    if (Array.isArray(projectTradesData)) {
+      projectTradesData.forEach((projectTrade: any) => {
+        const tradeName = projectTrade.trade || 'Unknown';
+        
+        if (projectTrade.labourAssignments && Array.isArray(projectTrade.labourAssignments)) {
+          projectTrade.labourAssignments.forEach((labourAssignment: any) => {
+            if (labourAssignment.labour && labourAssignment.labour.labourName) {
+              // Check if already added from data.labours
+              const alreadyAdded = allAssignedLabours.some(
+                al => al.id === labourAssignment.id || 
+                (al.labourId === labourAssignment.labourId && al.tradeName === tradeName)
+              );
+              
+              if (!alreadyAdded) {
+                allAssignedLabours.push({
+                  ...labourAssignment,
+                  tradeName: tradeName,
+                });
+              }
+              
+              // Add to assignments for this trade
+              if (tradesMap.has(tradeName)) {
+                const alreadyInAssignments = tradesMap.get(tradeName)!.assignments.some(
+                  a => a.id === labourAssignment.id
                 );
-                
-                if (!alreadyAdded) {
-                  allAssignedLabours.push({
-                    ...labourAssignment,
-                    tradeName: tradeName,
-                  });
-                }
-                
-                // Add to assignments for this trade
-                if (tradesMap.has(tradeName)) {
-                  const alreadyInAssignments = tradesMap.get(tradeName)!.assignments.some(
-                    a => a.id === labourAssignment.id
-                  );
-                  if (!alreadyInAssignments) {
-                    tradesMap.get(tradeName)!.assignments.push(labourAssignment);
-                  }
+                if (!alreadyInAssignments) {
+                  tradesMap.get(tradeName)!.assignments.push(labourAssignment);
                 }
               }
-            });
-          }
-        });
-      }
-      
-      // Calculate trade summary for all trades (including those with no assignments)
-      tradesMap.forEach((tradeData, tradeName) => {
-        const assignedCount = tradeData.assignments.reduce((sum: number, assignment: any) => {
-          // Count utilization percentage (50% = 0.5, 100% = 1.0)
-          const utilizationValue = (assignment.utilization || 100) / 100;
-          return sum + utilizationValue;
-        }, 0);
-        
-        const balance = tradeData.required - assignedCount;
-        tradeSummary.push({
-          trade: tradeName,
-          required: tradeData.required,
-          assigned: assignedCount,
-          balance: balance,
-        });
+            }
+          });
+        }
       });
+    }
+    
+    // Calculate trade summary for all trades (including those with no assignments)
+    tradesMap.forEach((tradeData, tradeName) => {
+      const assignedCount = tradeData.assignments.reduce((sum: number, assignment: any) => {
+        // Count utilization percentage (50% = 0.5, 100% = 1.0)
+        const utilizationValue = (assignment.utilization || 100) / 100;
+        return sum + utilizationValue;
+      }, 0);
       
-      // Get balance labours (trades that need to be filled)
-      const balanceLaboursList = tradeSummary.filter(trade => trade.balance > 0);
-      
-      // Create ONE labours slide with all assigned labours (internal pagination handles 10 per page)
+      const balance = tradeData.required - assignedCount;
+      tradeSummary.push({
+        trade: tradeName,
+        required: tradeData.required,
+        assigned: assignedCount,
+        balance: balance,
+      });
+    });
+    
+    // Get balance labours (trades that need to be filled)
+    const balanceLaboursList = tradeSummary.filter(trade => trade.balance > 0);
+    
+    // Create ONE labours slide with all assigned labours (internal pagination handles 10 per page)
       slides.push({
         type: 'labours',
         title: 'Project Labours',
-        content: {
-          project: data.project, // Include project for header
-          assignedLabours: allAssignedLabours, // All assigned labours in one slide
-          balanceLabours: balanceLaboursList, // All balance labours (including trades with no assignments)
-          tradeSummary: tradeSummary, // Keep for summary calculations
-          labours: data.labours || [], // Include full labours array
-          labourSupply: data.labourSupply || [], // Include labour supply data
-          pageNumber: 1,
-          totalPages: 1,
-          isLastPage: true,
-        }
-      });
-    }
+      content: {
+        project: data.project, // Include project for header
+        assignedLabours: allAssignedLabours, // All assigned labours in one slide
+        balanceLabours: balanceLaboursList, // All balance labours (including trades with no assignments)
+        tradeSummary: tradeSummary, // Keep for summary calculations
+        labours: laboursData, // Include full labours array
+        labourSupply: data.labourSupply || [], // Include labour supply data
+        pageNumber: 1,
+        totalPages: 1,
+        isLastPage: true,
+      }
+    });
 
     // Slide 6: Plants (categorized by Direct, Indirect, and Required)
     // Similar structure to labours - showing assigned vs required/balance
-    if ((data.plants && data.plants.length > 0) || (data.plantRequirements && data.plantRequirements.length > 0)) {
-      // Process plants similar to labours
-      const allAssignedDirectPlants: any[] = [];
-      const allAssignedIndirectPlants: any[] = [];
-      const allAssignedRequiredPlants: any[] = [];
-      
-      // Track requirements by plant type (direct/indirect)
-      const directRequirements: Array<{
-        requirement: any;
-        required: number;
-        assigned: number;
-        balance: number;
-      }> = [];
-      
-      const indirectRequirements: Array<{
-        requirement: any;
-        required: number;
-        assigned: number;
-        balance: number;
-      }> = [];
-      
-      // Process plant assignments
-      if (data.plants && Array.isArray(data.plants)) {
-        data.plants.forEach((plantAssignment: any) => {
-          const hasRequirement = !!(plantAssignment.requirement || 
-                                    (plantAssignment.requirementId !== null && 
-                                     plantAssignment.requirementId !== undefined && 
-                                     plantAssignment.requirementId > 0));
-          
-          if (hasRequirement) {
-            // Plants assigned to fulfill a requirement
-            allAssignedRequiredPlants.push(plantAssignment);
-          } else if (plantAssignment.plant) {
-            // Categorize by plantType
-            const plantType = plantAssignment.plant.plantType;
-            if (plantType === 'indirect' || plantType === 'Indirect') {
-              allAssignedIndirectPlants.push(plantAssignment);
-            } else {
-              allAssignedDirectPlants.push(plantAssignment);
-            }
+    // Always show plants slide, even if empty
+    const plantsData = data.plants || [];
+    const plantRequirementsData = data.plantRequirements || [];
+    // Process plants similar to labours
+    const allAssignedDirectPlants: any[] = [];
+    const allAssignedIndirectPlants: any[] = [];
+    const allAssignedRequiredPlants: any[] = [];
+    
+    // Track requirements by plant type (direct/indirect)
+    const directRequirements: Array<{
+      requirement: any;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+    
+    const indirectRequirements: Array<{
+      requirement: any;
+      required: number;
+      assigned: number;
+      balance: number;
+    }> = [];
+    
+    // Process plant assignments
+    if (Array.isArray(plantsData)) {
+      plantsData.forEach((plantAssignment: any) => {
+        const hasRequirement = !!(plantAssignment.requirement || 
+                                  (plantAssignment.requirementId !== null && 
+                                   plantAssignment.requirementId !== undefined && 
+                                   plantAssignment.requirementId > 0));
+        
+        if (hasRequirement) {
+          // Plants assigned to fulfill a requirement
+          allAssignedRequiredPlants.push(plantAssignment);
+        } else if (plantAssignment.plant) {
+          // Categorize by plantType
+          const plantType = plantAssignment.plant.plantType;
+          if (plantType === 'indirect' || plantType === 'Indirect') {
+            allAssignedIndirectPlants.push(plantAssignment);
           } else {
-            // Default to direct if no plant master data
             allAssignedDirectPlants.push(plantAssignment);
           }
-        });
-      }
-      
-      // Process plant requirements to calculate required vs assigned
-      if (data.plantRequirements && Array.isArray(data.plantRequirements)) {
-        data.plantRequirements.forEach((requirement: any) => {
-          const requiredQuantity = requirement.requiredQuantity || 0;
-          const assignments = requirement.assignments || [];
-          const assignedCount = assignments.length;
-          const balance = requiredQuantity - assignedCount;
-          
-          // Determine if requirement is for direct or indirect plants
-          // Check if any assigned plant has a plantType
-          let isIndirect = false;
-          if (assignments.length > 0 && assignments[0].plant) {
-            const plantType = assignments[0].plant.plantType;
-            isIndirect = (plantType === 'indirect' || plantType === 'Indirect');
-          }
-          
-          // For now, we'll categorize requirements based on assigned plants
-          // If no assignments, we can't determine type, so default to direct
-          if (isIndirect) {
-            indirectRequirements.push({
-              requirement: requirement,
-              required: requiredQuantity,
-              assigned: assignedCount,
-              balance: balance,
-            });
-          } else {
-            directRequirements.push({
-              requirement: requirement,
-              required: requiredQuantity,
-              assigned: assignedCount,
-              balance: balance,
-            });
-          }
-        });
-      }
-      
-      // Calculate balance plants (requirements that need to be filled)
-      const balanceDirectPlants = directRequirements.filter(req => req.balance > 0);
-      const balanceIndirectPlants = indirectRequirements.filter(req => req.balance > 0);
-      
-      slides.push({
-        type: 'plants',
-        title: 'Plant & Equipment',
-        content: {
-          project: data.project,
-          assignedDirectPlants: allAssignedDirectPlants,
-          balanceDirectPlants: balanceDirectPlants,
-          directRequirements: directRequirements,
-          assignedIndirectPlants: allAssignedIndirectPlants,
-          balanceIndirectPlants: balanceIndirectPlants,
-          indirectRequirements: indirectRequirements,
-          assignedRequiredPlants: allAssignedRequiredPlants,
-          allPlants: data.plants || [],
-          plantRequirements: data.plantRequirements || [],
+        } else {
+          // Default to direct if no plant master data
+          allAssignedDirectPlants.push(plantAssignment);
         }
       });
     }
+    
+    // Process plant requirements to calculate required vs assigned
+    if (Array.isArray(plantRequirementsData)) {
+      plantRequirementsData.forEach((requirement: any) => {
+        const requiredQuantity = requirement.requiredQuantity || 0;
+        const assignments = requirement.assignments || [];
+        const assignedCount = assignments.length;
+        const balance = requiredQuantity - assignedCount;
+        
+        // Determine if requirement is for direct or indirect plants
+        // Check if any assigned plant has a plantType
+        let isIndirect = false;
+        if (assignments.length > 0 && assignments[0].plant) {
+          const plantType = assignments[0].plant.plantType;
+          isIndirect = (plantType === 'indirect' || plantType === 'Indirect');
+        }
+        
+        // For now, we'll categorize requirements based on assigned plants
+        // If no assignments, we can't determine type, so default to direct
+        if (isIndirect) {
+          indirectRequirements.push({
+            requirement: requirement,
+            required: requiredQuantity,
+            assigned: assignedCount,
+            balance: balance,
+          });
+        } else {
+          directRequirements.push({
+            requirement: requirement,
+            required: requiredQuantity,
+            assigned: assignedCount,
+            balance: balance,
+          });
+        }
+      });
+    }
+    
+    // Calculate balance plants (requirements that need to be filled)
+    const balanceDirectPlants = directRequirements.filter(req => req.balance > 0);
+    const balanceIndirectPlants = indirectRequirements.filter(req => req.balance > 0);
+    
+      slides.push({
+        type: 'plants',
+        title: 'Plant & Equipment',
+      content: {
+        project: data.project,
+        assignedDirectPlants: allAssignedDirectPlants,
+        balanceDirectPlants: balanceDirectPlants,
+        directRequirements: directRequirements,
+        assignedIndirectPlants: allAssignedIndirectPlants,
+        balanceIndirectPlants: balanceIndirectPlants,
+        indirectRequirements: indirectRequirements,
+        assignedRequiredPlants: allAssignedRequiredPlants,
+        allPlants: plantsData,
+        plantRequirements: plantRequirementsData,
+      }
+    });
 
     // Slide 7: Assets
     // Always show assets slide, even if empty (to match other slides behavior)
@@ -542,94 +543,87 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     });
 
     // Slide 8: Planning
-    if (data.planning) {
-      slides.push({
-        type: 'planning',
-        title: 'Planning & Milestones',
-        content: {
-          project: data.project,
-          planning: data.planning.planning || data.planning,
-          controlMilestones: data.planning.controlMilestones || []
-        }
-      });
-    }
+    // Always show planning slide, even if empty
+    slides.push({
+      type: 'planning',
+      title: 'Planning & Milestones',
+      content: {
+        project: data.project,
+        planning: data.planning?.planning || data.planning || null,
+        controlMilestones: data.planning?.controlMilestones || []
+      }
+    });
 
     // Slide 9: Quality
-    if (data.quality) {
-      slides.push({
-        type: 'quality',
-        title: 'Quality Management',
-        content: {
-          project: data.project,
-          e1Entries: data.quality.e1Entries || [],
-          e2Entries: data.quality.e2Entries || [],
-          checklistEntries: data.quality.checklistEntries || [],
-          elapsedTimePercentage: data.quality.elapsedTimePercentage !== undefined ? data.quality.elapsedTimePercentage : null
-        }
-      });
-    }
+    // Always show quality slide, even if empty
+    slides.push({
+      type: 'quality',
+      title: 'Quality Management',
+      content: {
+        project: data.project,
+        e1Entries: data.quality?.e1Entries || [],
+        e2Entries: data.quality?.e2Entries || [],
+        checklistEntries: data.quality?.checklistEntries || [],
+        elapsedTimePercentage: data.quality?.elapsedTimePercentage !== undefined ? data.quality.elapsedTimePercentage : null
+      }
+    });
 
     // Slide 10: HSE
-    if (data.hse) {
-      slides.push({
-        type: 'hse',
-        title: 'HSE & NOC Tracker',
-        content: {
-          project: data.project,
-          hseItems: data.hse.hseItems || [],
-          nocEntries: data.hse.nocEntries || []
-        }
-      });
-    }
+    // Always show HSE slide, even if empty
+    slides.push({
+      type: 'hse',
+      title: 'HSE & NOC Tracker',
+      content: {
+        project: data.project,
+        hseItems: data.hse?.hseItems || [],
+        nocEntries: data.hse?.nocEntries || []
+      }
+    });
 
     // Slide 11: Risks & Area of Concerns (combined)
-    if (data.risks || data.areaOfConcerns) {
-      slides.push({
-        type: 'risks',
-        title: 'Risks & Areas of Concern',
-        content: {
-          project: data.project,
-          risks: data.risks ? (data.risks.risks || (Array.isArray(data.risks) ? data.risks : [])) : [],
-          areaOfConcerns: data.areaOfConcerns ? (data.areaOfConcerns.areaOfConcerns || (Array.isArray(data.areaOfConcerns) ? data.areaOfConcerns : [])) : []
-        }
-      });
-    }
+    // Always show risks slide, even if empty
+    slides.push({
+      type: 'risks',
+      title: 'Risks & Areas of Concern',
+      content: {
+        project: data.project,
+        risks: data.risks ? (data.risks.risks || (Array.isArray(data.risks) ? data.risks : [])) : [],
+        areaOfConcerns: data.areaOfConcerns ? (data.areaOfConcerns.areaOfConcerns || (Array.isArray(data.areaOfConcerns) ? data.areaOfConcerns : [])) : []
+      }
+    });
 
     // Slide 12: Client Feedback
-    if (data.clientFeedback) {
-      slides.push({
-        type: 'clientFeedback',
-        title: 'Client Feedback',
-        content: {
-          project: data.project,
-          feedback: data.clientFeedback.feedback || data.clientFeedback
-        }
-      });
-    }
+    // Always show client feedback slide, even if empty
+    slides.push({
+      type: 'clientFeedback',
+      title: 'Client Feedback',
+      content: {
+        project: data.project,
+        feedback: data.clientFeedback?.feedback || data.clientFeedback || null
+      }
+    });
 
     // Slide 13: Pictures
-    if (data.pictures && data.pictures.pictures && data.pictures.pictures.length > 0) {
+    // Always show pictures slide, even if empty
       slides.push({
         type: 'pictures',
         title: 'Project Pictures',
-        content: {
-          project: data.project,
-          pictures: data.pictures.pictures
-        }
-      });
+      content: {
+        project: data.project,
+        pictures: data.pictures?.pictures || []
     }
+    });
 
     // Slide 14: Close Out
-    if (data.closeOut && data.closeOut.entries && data.closeOut.entries.length > 0) {
+    // Always show close out slide, even if empty
       slides.push({
         type: 'closeOut',
         title: 'Project Close Out',
-        content: {
-          project: data.project,
-          entries: data.closeOut.entries
-        }
-      });
-    }
+      content: {
+        project: data.project,
+        entries: data.closeOut?.entries || []
+      }
+    });
 
     // Slide 15: Commercial Report Cover
       slides.push({
@@ -641,28 +635,26 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     });
 
     // Slide 16: Commercial Checklist
-    if (data.commercialChecklist && data.commercialChecklist.length > 0) {
+    // Always show commercial checklist slide, even if empty
       slides.push({
-        type: 'commercialChecklist',
-        title: 'Commercial Checklist',
-        content: {
-          project: data.project,
-          commercialChecklist: data.commercialChecklist
-        }
-      });
-    }
+      type: 'commercialChecklist',
+      title: 'Commercial Checklist',
+      content: {
+        project: data.project,
+        commercialChecklist: data.commercialChecklist || []
+      }
+    });
 
     // Slide 17: Commercial Data (Contract Value)
-    if (data.commercial) {
-      slides.push({
-        type: 'commercial',
-        title: 'Commercial Information',
-        content: {
-          project: data.project,
-          commercial: data.commercial
-        }
-      });
-    }
+    // Always show commercial slide, even if empty
+    slides.push({
+      type: 'commercial',
+      title: 'Commercial Information',
+      content: {
+        project: data.project,
+        commercial: data.commercial || null
+      }
+    });
 
     // Slide 18: Payment Certificate
     slides.push({
@@ -1172,8 +1164,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Stakeholders" />
-        <div className="flex-1 overflow-y-auto p-6" style={{ paddingTop: '4.5rem' }}>
-          {/* Contacts Section - Readable Layout */}
+        <div className="flex-1 overflow-y-auto p-6" style={{ paddingTop: '5.5rem' }}>
+        {/* Contacts Section - Readable Layout */}
           <div className="w-full max-w-6xl mx-auto">
           <div className="h-full flex flex-col space-y-6">
             {/* Client */}
@@ -1313,7 +1305,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
             )}
           </div>
-        </div>
+          </div>
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
@@ -1329,7 +1321,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -1357,8 +1363,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     
     if (project.startDate && project.endDate && report.reportMonth && report.reportYear) {
       try {
-        const startDate = new Date(project.startDate);
-        const endDate = new Date(project.endDate);
+        // Parse dates as local dates to avoid timezone issues
+        const parseLocalDate = (dateString: string): Date => {
+          if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
+            const datePart = dateString.split('T')[0];
+            const [year, month, day] = datePart.split('-');
+            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          }
+          return new Date(dateString);
+        };
+        
+        const startDate = parseLocalDate(project.startDate);
+        const endDate = parseLocalDate(project.endDate);
         // reportMonth is 1-12 (1=January, 12=December)
         // JavaScript Date uses 0-11 (0=January, 11=December)
         // To get last day of reportMonth: convert to 0-11, then use (month + 1, 0)
@@ -1367,10 +1383,19 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         const reportEndDate = new Date(report.reportYear, jsMonth + 1, 0); // Last day of report month
         
         if (!isNaN(startDate.getTime()) && !isNaN(endDate.getTime()) && !isNaN(reportEndDate.getTime())) {
-          totalDays = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
-          elapsedDays = Math.ceil((reportEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+          // Calculate total days: difference between end and start dates
+          // Add 1 to include both start and end dates in the count
+          totalDays = Math.floor((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
           
-          if (totalDays > 0) {
+          // Calculate elapsed days: difference between report end date and start date
+          // Add 1 to include the start date in the count
+          elapsedDays = Math.floor((reportEndDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) + 1;
+          
+          // If report end date is at or past project end date, set to 100%
+          if (reportEndDate >= endDate) {
+            elapsedDays = totalDays;
+            elapsedTimePercentage = 100;
+          } else if (totalDays > 0) {
             elapsedTimePercentage = (elapsedDays / totalDays) * 100;
             elapsedTimePercentage = Math.max(0, Math.min(100, elapsedTimePercentage)); // Clamp between 0 and 100
           }
@@ -1386,14 +1411,28 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         return '-';
       }
       try {
-        const baselineEnd = new Date(project.endDate);
+        // Parse date directly from database format (YYYY-MM-DD) without timezone conversion
+        const parseDateFromDB = (dateString: string): Date => {
+          const datePart = dateString.split('T')[0];
+          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [year, month, day] = datePart.split('-');
+            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          }
+          return new Date(dateString);
+        };
+        
+        const baselineEnd = parseDateFromDB(project.endDate);
         const eotDays = parseInt(planning.eotDays.toString(), 10);
         if (isNaN(baselineEnd.getTime()) || isNaN(eotDays)) {
           return '-';
         }
         const revisedDate = new Date(baselineEnd);
         revisedDate.setDate(revisedDate.getDate() + eotDays);
-        return formatDate(revisedDate.toISOString());
+        // Format the date as YYYY-MM-DD for formatDate
+        const year = revisedDate.getFullYear();
+        const month = String(revisedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(revisedDate.getDate()).padStart(2, '0');
+        return formatDate(`${year}-${month}-${day}`);
       } catch {
         return '-';
       }
@@ -1412,7 +1451,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Planning & Milestones" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Date Comparison Table */}
           <div className="mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
             <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
@@ -1840,7 +1879,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -1890,7 +1943,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Quality Management" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* E1 Log Entries Table */}
           {e1Entries.length > 0 && (
             <div className="mt-8 mb-6">
@@ -2350,7 +2403,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -2389,7 +2456,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Risks & Areas of Concern" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Risks Table */}
           {risks.length > 0 && (
             <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
@@ -2647,7 +2714,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Areas of Concern" />
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {content.areaOfConcerns && content.areaOfConcerns.length > 0 ? (
             content.areaOfConcerns.map((concern: any, idx: number) => (
               <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
@@ -2682,7 +2749,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -2710,7 +2791,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="HSE & NOC Tracker" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* HSE Checklist Table */}
           {hseItems.length > 0 && (
             <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
@@ -3014,7 +3095,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined) => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -3057,7 +3152,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Checklist" />
           
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           <div className="flex items-center justify-end mb-1">
             {allChecklistItems.length > 25 && (
               <div className="flex items-center gap-2">
@@ -3333,8 +3428,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const calculateDuration = (startDate: string | null | undefined, endDate: string | null | undefined): string => {
       if (!startDate || !endDate) return '-';
       try {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        // Parse dates directly from database format (YYYY-MM-DD) without timezone conversion
+        const parseDateFromDB = (dateString: string): Date => {
+          const datePart = dateString.split('T')[0];
+          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [year, month, day] = datePart.split('-');
+            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          }
+          return new Date(dateString);
+        };
+        
+        const start = parseDateFromDB(startDate);
+        const end = parseDateFromDB(endDate);
         if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
         const diffTime = Math.abs(end.getTime() - start.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -3348,7 +3453,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -3498,9 +3617,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Staff" />
-
-        {/* Summary Section */}
-        <div className="mb-2 grid grid-cols-4 gap-2 max-w-6xl mx-auto flex-shrink-0">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+          {/* Summary Section */}
+          <div className="mb-2 grid grid-cols-4 gap-2 flex-shrink-0">
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -3924,6 +4043,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           </div>
           )}
         </div>
+        </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
@@ -3969,8 +4089,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const calculateDuration = (startDate: string | null | undefined, endDate: string | null | undefined): string => {
       if (!startDate || !endDate) return '-';
       try {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        // Parse dates directly from database format (YYYY-MM-DD) without timezone conversion
+        const parseDateFromDB = (dateString: string): Date => {
+          const datePart = dateString.split('T')[0];
+          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [year, month, day] = datePart.split('-');
+            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          }
+          return new Date(dateString);
+        };
+        
+        const start = parseDateFromDB(startDate);
+        const end = parseDateFromDB(endDate);
         if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
         const diffTime = Math.abs(end.getTime() - start.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -3984,7 +4114,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -4132,9 +4276,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Labours" />
-
-        {/* Summary Section */}
-        <div className="mb-2 grid grid-cols-4 gap-2 max-w-6xl mx-auto flex-shrink-0">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+          {/* Summary Section */}
+          <div className="mb-2 grid grid-cols-4 gap-2 flex-shrink-0">
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -4692,7 +4836,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           )}
         </div>
-
+        </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
     );
@@ -4703,7 +4847,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Labour Supply" />
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {content.map((supply: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{supply.trade || 'N/A'}</p>
@@ -4781,7 +4925,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const formatDate = (dateString: string | null | undefined): string => {
       if (!dateString) return '-';
       try {
-        return new Date(dateString).toLocaleDateString('en-US', { 
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
+        const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
+        return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'short', 
           day: 'numeric' 
@@ -4795,8 +4953,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const calculateDuration = (startDate: string | null | undefined, endDate: string | null | undefined): string => {
       if (!startDate || !endDate) return '-';
       try {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
+        // Parse dates directly from database format (YYYY-MM-DD) without timezone conversion
+        const parseDateFromDB = (dateString: string): Date => {
+          const datePart = dateString.split('T')[0];
+          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+            const [year, month, day] = datePart.split('-');
+            return new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+          }
+          return new Date(dateString);
+        };
+        
+        const start = parseDateFromDB(startDate);
+        const end = parseDateFromDB(endDate);
         if (isNaN(start.getTime()) || isNaN(end.getTime())) return '-';
         const diffTime = Math.abs(end.getTime() - start.getTime());
         const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
@@ -5071,7 +5239,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Assets" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {totalItems === 0 ? (
             <div className="text-center py-4">
               <Package className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
@@ -5573,36 +5741,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const gross = effectiveContractValue - totalBudget;
     const grossPercentage = effectiveContractValue > 0 ? (gross / effectiveContractValue) * 100 : 0;
 
-    const actualVarianceAmount = (commercial.budgetUpToDate || 0) - (commercial.totalActualCostToDate || 0);
-    const actualVariancePercentage = (commercial.budgetUpToDate || 0) > 0 
-      ? (actualVarianceAmount / (commercial.budgetUpToDate || 1)) * 100 
-      : null;
-
-    const costVarianceAmount = (commercial.forecastedBudgetAtCompletion || 0) - (commercial.forecastedCostAtCompletion || 0);
-    const costVariancePercentage = (commercial.forecastedBudgetAtCompletion || 0) > 0 
-      ? (costVarianceAmount / (commercial.forecastedBudgetAtCompletion || 1)) * 100 
-      : null;
-
-    // Calculate overall status
-    const calculateOverallStatus = (): string => {
-      if (actualVariancePercentage === null || isNaN(actualVariancePercentage) || !isFinite(actualVariancePercentage)) {
-        return commercial.overallStatus || '-';
-      }
-      const variance = Number(actualVariancePercentage);
-      if (variance >= -1.0 && variance <= 1.0) {
-        return 'On Budget';
-      } else if (variance < -1.0) {
-        return 'Over Budget';
-      } else {
-        return 'Under Budget';
-      }
-    };
-    const overallStatus = calculateOverallStatus();
-
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Commercial Information" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Financial Summary Cards */}
           <div className="mb-6 grid grid-cols-2 gap-4 flex-shrink-0">
             {/* Contract Value Card */}
@@ -5827,264 +5969,6 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           </div>
 
-          {/* Actual Up to Date Results */}
-          {(commercial.budgetUpToDate !== null || commercial.totalActualCostToDate !== null) && (
-            <>
-              <div className="mt-8 mb-1">
-                <div className="flex items-center">
-                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                  <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
-                    Actual Up to Date Results
-                  </h3>
-                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                </div>
-              </div>
-
-              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
-                  <thead>
-                    <tr>
-                      <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Item
-                      </th>
-                      <th 
-                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Amount
-                      </th>
-                      <th 
-                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Variance
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
-                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        Budget Up to Date
-                      </td>
-                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        {formatCurrency(commercial.budgetUpToDate || 0)}
-                      </td>
-                      <td className="py-0.5 px-2 text-right font-semibold" style={{ 
-                        color: actualVarianceAmount >= 0 ? colors.success : colors.error, 
-                        fontSize: '0.7rem',
-                        height: 'auto'
-                      }}>
-                        {formatCurrency(actualVarianceAmount)}
-                        {actualVariancePercentage !== null && ` (${actualVariancePercentage >= 0 ? '+' : ''}${actualVariancePercentage.toFixed(1)}%)`}
-                      </td>
-                    </tr>
-                    <tr style={{ backgroundColor: `${colors.backgroundSecondary}40` }}>
-                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        Total Actual Cost to Date
-                      </td>
-                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        {formatCurrency(commercial.totalActualCostToDate || 0)}
-                      </td>
-                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
-                        -
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {/* Cost at Completion */}
-          {(commercial.forecastedBudgetAtCompletion !== null || commercial.forecastedCostAtCompletion !== null) && (
-            <>
-              <div className="mt-8 mb-1">
-                <div className="flex items-center">
-                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                  <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
-                    Cost at Completion
-                  </h3>
-                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                </div>
-              </div>
-
-              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
-                  <thead>
-                    <tr>
-                      <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Item
-                      </th>
-                      <th 
-                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Amount
-                      </th>
-                      <th 
-                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Variance
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
-                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        Forecasted Budget at Completion
-                      </td>
-                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        {formatCurrency(commercial.forecastedBudgetAtCompletion || 0)}
-                      </td>
-                      <td className="py-0.5 px-2 text-right font-semibold" style={{ 
-                        color: costVarianceAmount >= 0 ? colors.success : colors.error, 
-                        fontSize: '0.7rem',
-                        height: 'auto'
-                      }}>
-                        {formatCurrency(costVarianceAmount)}
-                        {costVariancePercentage !== null && ` (${costVariancePercentage >= 0 ? '+' : ''}${costVariancePercentage.toFixed(1)}%)`}
-                      </td>
-                    </tr>
-                    <tr style={{ backgroundColor: `${colors.backgroundSecondary}40` }}>
-                      <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        Forecasted Cost at Completion
-                      </td>
-                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        {formatCurrency(commercial.forecastedCostAtCompletion || 0)}
-                      </td>
-                      <td className="py-0.5 px-2 text-right" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
-                        -
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
-          {/* Project Performance Indicators */}
-          {(commercial.projectProgressPercentage !== null || commercial.projectRevenuePercentage !== null || commercial.projectCostPercentage !== null) && (
-            <>
-              <div className="mt-8 mb-1">
-                <div className="flex items-center">
-                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                  <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
-                    Project Performance Indicators
-                  </h3>
-                  <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                </div>
-              </div>
-
-              <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
-                  <thead>
-                    <tr>
-                      <th 
-                        className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Indicator
-                      </th>
-                      <th 
-                        className="text-right py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: colors.backgroundSecondary,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem',
-                          height: 'auto'
-                        }}
-                      >
-                        Percentage
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {commercial.projectProgressPercentage !== null && (
-                      <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
-                        <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                          Project Progress
-                        </td>
-                        <td className="py-0.5 px-2 text-right font-semibold" style={{ color: colors.primary, fontSize: '0.7rem', height: 'auto' }}>
-                          {(commercial.projectProgressPercentage || 0).toFixed(1)}%
-                        </td>
-                      </tr>
-                    )}
-                    {commercial.projectRevenuePercentage !== null && (
-                      <tr style={{ backgroundColor: `${colors.backgroundSecondary}40` }}>
-                        <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                          Project Revenue
-                        </td>
-                        <td className="py-0.5 px-2 text-right font-semibold" style={{ color: colors.primary, fontSize: '0.7rem', height: 'auto' }}>
-                          {(commercial.projectRevenuePercentage || 0).toFixed(1)}%
-                        </td>
-                      </tr>
-                    )}
-                    {commercial.projectCostPercentage !== null && (
-                      <tr style={{ borderBottom: `1px solid ${colors.primary}15` }}>
-                        <td className="py-0.5 px-2" style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                          Project Cost
-                        </td>
-                        <td className="py-0.5 px-2 text-right font-semibold" style={{ color: colors.primary, fontSize: '0.7rem', height: 'auto' }}>
-                          {(commercial.projectCostPercentage || 0).toFixed(1)}%
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </>
-          )}
-
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
       </div>
@@ -6106,7 +5990,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Suppliers" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Summary Cards */}
           <div className="flex justify-center mb-4">
             <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
@@ -6483,11 +6367,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       const formatDate = (dateString: string | null | undefined) => {
                         if (!dateString) return '-';
                         try {
+                          // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
                           const datePart = dateString.split('T')[0];
-                          const [year, month, day] = datePart.split('-');
-                          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                          if (isNaN(date.getTime())) return '-';
-                          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+                            const [year, month, day] = datePart.split('-');
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            const monthIndex = parseInt(month, 10) - 1;
+                            if (monthIndex >= 0 && monthIndex < 12) {
+                              return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+                            }
+                          }
+                          return '-';
                         } catch {
                           return '-';
                         }
@@ -6533,9 +6423,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                                     <div className="text-xs mt-0.5" style={{ color: colors.textSecondary, fontSize: '0.55rem' }}>
                                       {cp.type || 'Post Dated'} • {formatDate(cp.dueDate)}
                                     </div>
-                                  </div>
-                                ))}
-                              </div>
+            </div>
+          ))}
+        </div>
                             ) : (
                               <span style={{ color: colors.textMuted }}>
                                 {formatCurrencyWithDecimals(metrics.committedPayments || 0)}
@@ -6597,7 +6487,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Subcontractors" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Summary Cards */}
           <div className="flex justify-center mb-4">
             <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
@@ -6941,11 +6831,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       const formatDate = (dateString: string | null | undefined) => {
                         if (!dateString) return '-';
                         try {
+                          // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
                           const datePart = dateString.split('T')[0];
-                          const [year, month, day] = datePart.split('-');
-                          const date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-                          if (isNaN(date.getTime())) return '-';
-                          return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+                          if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+                            const [year, month, day] = datePart.split('-');
+                            const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                            const monthIndex = parseInt(month, 10) - 1;
+                            if (monthIndex >= 0 && monthIndex < 12) {
+                              return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+                            }
+                          }
+                          return '-';
                         } catch {
                           return '-';
                         }
@@ -7049,34 +6945,22 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const endIndex = startIndex + itemsPerPage;
     const paginatedRows = rows.slice(startIndex, endIndex);
 
-    // Helper function to format date (handle timezone correctly)
+    // Helper function to format date (display exactly as stored in database)
     const formatDate = (dateString: string | null | undefined) => {
       if (!dateString) return '-';
       try {
-        // Parse date string to avoid timezone issues
-        let date: Date;
-        if (typeof dateString === 'string') {
-          // If it's in YYYY-MM-DD format, parse it directly without timezone conversion
-          if (/^\d{4}-\d{2}-\d{2}/.test(dateString)) {
-            const datePart = dateString.split('T')[0];
-            const [year, month, day] = datePart.split('-');
-            date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-          } else {
-            // For ISO strings with time, extract date part and parse
-            const datePart = dateString.split('T')[0];
-            if (datePart) {
-              const [year, month, day] = datePart.split('-');
-              date = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
-            } else {
-              date = new Date(dateString);
-            }
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
           }
-        } else {
-          date = new Date(dateString);
         }
-        
-        if (isNaN(date.getTime())) return '-';
-        return date.toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+        return '-';
       } catch {
         return '-';
       }
@@ -7121,7 +7005,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Payment Certificate" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Payment Status Cards */}
           <div className="flex justify-center mb-4">
             <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
@@ -7536,7 +7420,20 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     // Format generation date
     const formatDate = (dateString: string) => {
       try {
+        // Parse date string directly from database format (YYYY-MM-DD) without timezone conversion
+        // Extract just the date part (ignore time if present)
+        const datePart = dateString.split('T')[0];
+        if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+          const [year, month, day] = datePart.split('-');
+          const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+          const monthIndex = parseInt(month, 10) - 1;
+          if (monthIndex >= 0 && monthIndex < 12) {
+            return `${monthNames[monthIndex]} ${parseInt(day, 10)}, ${year}`;
+          }
+        }
+        // Fallback for other formats
         const date = new Date(dateString);
+        if (isNaN(date.getTime())) return '-';
         return date.toLocaleDateString('en-US', { 
           year: 'numeric', 
           month: 'long', 
@@ -7653,7 +7550,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Commercial Checklist" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '4.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           <div className="grid grid-cols-2 gap-4">
             {checklist.map((item: any, idx: number) => (
               <div
@@ -7730,10 +7627,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const entries = content.entries || (Array.isArray(content) ? content : []);
 
     if (entries.length === 0) {
-    return (
-      <div className="h-full flex flex-col overflow-hidden relative">
+      return (
+        <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Close Out" />
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center" style={{ paddingTop: '5.5rem' }}>
             <div className="text-center">
               <ClipboardCheck className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
               <p className="text-sm" style={{ color: colors.textSecondary }}>No close out information recorded</p>
@@ -7747,9 +7644,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Close Out" />
-        
-        {/* Summary Section */}
-        <div className="mb-2 grid grid-cols-5 gap-2 max-w-6xl mx-auto flex-shrink-0">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+          {/* Summary Section */}
+          <div className="mb-2 grid grid-cols-5 gap-2 flex-shrink-0">
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -7806,8 +7703,6 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </p>
           </div>
         </div>
-
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
           {/* Separator */}
           <div className="mt-8 mb-1">
             <div className="flex items-center">
@@ -7959,7 +7854,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Client Feedback" />
-        <div className="flex-1 overflow-y-auto max-w-6xl mx-auto w-full">
+        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
           {/* Rating Section */}
           {rating && (
             <div className="mb-6">
