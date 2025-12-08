@@ -682,8 +682,11 @@ export default function ProjectManager() {
       // Check if dates are valid
       if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
       
+      // Calculate difference in days
+      // Since both start and end dates are included, we add 1 to the difference
+      // Example: Jan 1 to Jan 3 = 3 days (Jan 1, Jan 2, Jan 3)
       const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
       
       return `${diffDays} days`;
     } catch (error) {
