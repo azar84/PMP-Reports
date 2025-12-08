@@ -4,30 +4,32 @@
 
 /**
  * Formats a date to YYYY-MM-DD string for date inputs
- * Uses local date methods to avoid timezone conversion
- * Handles YYYY-MM-DD strings directly without timezone conversion
+ * For PostgreSQL DATE type, extracts the date part from Date objects
+ * Since DATE type stores only the date (no time/timezone), we can safely extract the date part
  */
 export function formatDateForInput(date: string | Date | null | undefined): string {
   if (!date) return '';
   
   try {
-    // If it's already a YYYY-MM-DD string, return it as-is (no conversion needed)
+    // If it's already a YYYY-MM-DD string, return it as-is
     if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
       // Extract just the date part (YYYY-MM-DD) if there's time component
       const datePart = date.split('T')[0].split(' ')[0];
       return datePart;
     }
     
-    // For Date objects, use local date methods to avoid timezone conversion
+    // For Date objects, extract the date part
+    // PostgreSQL DATE type returns Date objects at midnight UTC when retrieved
+    // We use UTC methods to get the exact date that was stored
     if (date instanceof Date) {
       if (isNaN(date.getTime())) return '';
-      const year = date.getFullYear();
-      const month = String(date.getMonth() + 1).padStart(2, '0');
-      const day = String(date.getDate()).padStart(2, '0');
+      const year = date.getUTCFullYear();
+      const month = String(date.getUTCMonth() + 1).padStart(2, '0');
+      const day = String(date.getUTCDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
     }
     
-    // For string dates (like ISO format), extract date part first to avoid timezone issues
+    // For string dates (like ISO format), extract date part
     if (typeof date === 'string') {
       // Try to extract YYYY-MM-DD from ISO format or other formats
       const dateMatch = date.match(/^(\d{4}-\d{2}-\d{2})/);
@@ -35,15 +37,14 @@ export function formatDateForInput(date: string | Date | null | undefined): stri
         return dateMatch[1];
       }
       
-      // Fallback: parse as Date but use UTC methods to avoid timezone shift
+      // Fallback: parse as Date and extract UTC date
       const d = new Date(date);
-    if (isNaN(d.getTime())) return '';
-    
-      // Use UTC methods to get the date as stored, then format
+      if (isNaN(d.getTime())) return '';
+      
       const year = d.getUTCFullYear();
       const month = String(d.getUTCMonth() + 1).padStart(2, '0');
       const day = String(d.getUTCDate()).padStart(2, '0');
-    return `${year}-${month}-${day}`;
+      return `${year}-${month}-${day}`;
     }
     
     return '';
@@ -54,8 +55,10 @@ export function formatDateForInput(date: string | Date | null | undefined): stri
 }
 
 /**
- * Parses a YYYY-MM-DD string to a Date object in local timezone
- * Creates the date at local midnight to avoid timezone shifts
+ * Parses a YYYY-MM-DD string to a Date object at UTC midnight
+ * This ensures the date is stored consistently regardless of server timezone
+ * PostgreSQL DATE type stores only the date part, but Prisma requires a Date object
+ * By using UTC, we ensure "2024-01-15" is always stored as "2024-01-15" regardless of server timezone
  */
 export function parseDateFromInput(dateString: string | null | undefined): Date | null {
   if (!dateString || dateString === '') return null;
@@ -67,9 +70,11 @@ export function parseDateFromInput(dateString: string | null | undefined): Date 
     // Validate
     if (isNaN(year) || isNaN(month) || isNaN(day)) return null;
     
-    // Create date in local timezone at midnight (not UTC)
-    // month is 0-indexed in Date constructor
-    return new Date(year, month - 1, day);
+    // Create date at UTC midnight to ensure consistent storage
+    // This way, "2024-01-15" is always stored as "2024-01-15" in the database
+    // regardless of what timezone the server is in
+    // month is 0-indexed in Date.UTC
+    return new Date(Date.UTC(year, month - 1, day));
   } catch (error) {
     console.error('Error parsing date:', error);
     return null;
@@ -78,7 +83,8 @@ export function parseDateFromInput(dateString: string | null | undefined): Date 
 
 /**
  * Formats a date for display in DD-MM-YYYY format (e.g., "15-01-2024")
- * Uses local date methods, but extracts date part from ISO strings to avoid timezone shifts
+ * Extracts ONLY the date part (YYYY-MM-DD) from any input, ignoring time and timezone
+ * This ensures dates are displayed exactly as entered, without timezone conversion
  */
 export function formatDateForDisplay(date: string | Date | null | undefined): string {
   if (!date) return '-';
@@ -87,22 +93,30 @@ export function formatDateForDisplay(date: string | Date | null | undefined): st
     let day: number, month: number, year: number;
     
     // If it's a string with YYYY-MM-DD format, extract and parse it properly
-    if (typeof date === 'string' && /^\d{4}-\d{2}-\d{2}/.test(date)) {
+    // This handles ISO strings like "2024-01-15T00:00:00Z" or "2024-01-15"
+    if (typeof date === 'string') {
+      // Extract just the date part (YYYY-MM-DD) - ignore everything after T or space
       const datePart = date.split('T')[0].split(' ')[0];
-      [year, month, day] = datePart.split('-').map(Number);
+      if (/^\d{4}-\d{2}-\d{2}$/.test(datePart)) {
+        [year, month, day] = datePart.split('-').map(Number);
+      } else {
+        // Fallback: try to parse as Date but extract UTC date to avoid timezone shift
+        const d = new Date(date);
+        if (isNaN(d.getTime())) return '-';
+        // Use UTC methods to get the date as it was stored, avoiding timezone conversion
+        year = d.getUTCFullYear();
+        month = d.getUTCMonth() + 1;
+        day = d.getUTCDate();
+      }
     } else if (date instanceof Date) {
-      // For Date objects, use local date methods
+      // For Date objects, extract the date part using UTC to avoid timezone conversion
       if (isNaN(date.getTime())) return '-';
-      year = date.getFullYear();
-      month = date.getMonth() + 1; // getMonth() is 0-indexed
-      day = date.getDate();
+      // Use UTC methods to ensure we get the date as stored, not converted to local timezone
+      year = date.getUTCFullYear();
+      month = date.getUTCMonth() + 1; // getMonth() is 0-indexed
+      day = date.getUTCDate();
     } else {
-      // For other string formats, try to parse
-      const d = new Date(date);
-      if (isNaN(d.getTime())) return '-';
-      year = d.getFullYear();
-      month = d.getMonth() + 1;
-      day = d.getDate();
+      return '-';
     }
     
     // Validate

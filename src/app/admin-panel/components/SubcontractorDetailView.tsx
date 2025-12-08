@@ -10,7 +10,7 @@ import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/us
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet, File, Upload, Loader2, CheckCircle, Star } from 'lucide-react';
-import { formatDateForInput } from '@/lib/dateUtils';
+import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { formatCurrency, formatCurrencyWithDecimals } from '@/lib/currency';
 
 interface SubcontractorOption {
@@ -2758,7 +2758,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           {po.lpoNumber}
                         </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {new Date(po.lpoDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDateForDisplay(po.lpoDate)}
                         </td>
                         <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {formatCurrencyWithDecimals(Number(po.lpoValue))}
@@ -3100,7 +3100,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                             {changeOrder.chRefNo}
                                           </td>
                           <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                            {new Date(changeOrder.chDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {formatDateForDisplay(changeOrder.chDate)}
                                           </td>
                           <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -4101,13 +4101,10 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           {invoice.invoiceNumber}
                                           </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDateForDisplay(invoice.invoiceDate)}
                                           </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {invoice.dueDate 
-                            ? new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : <span style={{ color: colors.textSecondary }}>-</span>
-                          }
+                          {formatDateForDisplay(invoice.dueDate)}
                                           </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight }}>
                           {(() => {
@@ -4670,7 +4667,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                     {invoice.invoiceNumber}
                                   </td>
                                   <td className="px-3 py-2 text-sm border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                    {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    {formatDateForDisplay(invoice.invoiceDate)}
                                   </td>
                                   <td className="px-3 py-2 text-sm text-right font-semibold border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                                     {formatCurrencyWithDecimals(invoiceTotal)}
@@ -4933,13 +4930,10 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           {payment.paymentType || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {new Date(payment.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDateForDisplay(payment.paymentDate)}
                         </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {payment.dueDate 
-                            ? new Date(payment.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : '-'
-                          }
+                          {formatDateForDisplay(payment.dueDate)}
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           {payment.paymentMethod === 'Post Dated' ? (

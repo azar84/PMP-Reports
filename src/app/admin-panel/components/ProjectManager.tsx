@@ -6,7 +6,7 @@ import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/us
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { formatCurrency } from '@/lib/currency';
-import { formatDateForInput } from '@/lib/dateUtils';
+import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -116,7 +116,6 @@ interface Project {
   startDate?: string;
   endDate?: string;
   duration?: string;
-  eot?: string;
   projectValue?: number;
   status?: 'ongoing' | 'completed';
   lastUpdate: string;
@@ -397,7 +396,6 @@ export default function ProjectManager() {
     startDate: '',
     endDate: '',
     duration: '',
-    eot: '',
     projectValue: undefined,
     status: 'ongoing',
   });
@@ -603,7 +601,6 @@ export default function ProjectManager() {
         startDate: '',
         endDate: '',
         duration: '',
-        eot: '',
         projectValue: undefined,
         status: 'ongoing',
       });
@@ -660,7 +657,6 @@ export default function ProjectManager() {
           startDate: '',
           endDate: '',
           duration: '',
-          eot: '',
         });
       } else {
         alert('Failed to confirm staff movement. Please try again.');
@@ -833,7 +829,6 @@ export default function ProjectManager() {
         startDate: fullProjectData.startDate,
         endDate: fullProjectData.endDate,
         duration: fullProjectData.duration,
-        eot: fullProjectData.eot,
         projectValue: fullProjectData.projectValue ? fullProjectData.projectValue.toString() : null,
       },
       // Store full contact data with all contact details
@@ -1986,7 +1981,6 @@ export default function ProjectManager() {
       startDate: formatDateForInput(project.startDate),
       endDate: formatDateForInput(project.endDate),
       duration: project.duration || '',
-      eot: project.eot || '',
       projectValue: project.projectValue ?? undefined,
       status: (project.status as 'ongoing' | 'completed') || 'ongoing',
     };
@@ -3324,11 +3318,7 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Start Date</span>
                     <p style={{ color: colors.textPrimary }}>
-                      {new Date(selectedProject.startDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {formatDateForDisplay(selectedProject.startDate)}
                     </p>
                   </div>
                 )}
@@ -3336,11 +3326,7 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>End Date</span>
                     <p style={{ color: colors.textPrimary }}>
-                      {new Date(selectedProject.endDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {formatDateForDisplay(selectedProject.endDate)}
                     </p>
                   </div>
                 )}
@@ -3348,12 +3334,6 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Duration</span>
                     <p style={{ color: colors.textPrimary }}>{selectedProject.duration}</p>
-                  </div>
-                )}
-                {selectedProject.eot && (
-                  <div>
-                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Extension of Time</span>
-                    <p style={{ color: colors.textPrimary }}>{selectedProject.eot}</p>
                   </div>
                 )}
               </div>
@@ -3962,7 +3942,6 @@ export default function ProjectManager() {
                   startDate: '',
                   endDate: '',
                   duration: '',
-                  eot: '',
                 });
               }}
               variant="ghost"
@@ -7038,22 +7017,6 @@ export default function ProjectManager() {
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  EOT (Extension of Time)
-                </label>
-                <Input
-                  type="text"
-                  value={formData.eot}
-                  onChange={(e) => setFormData({ ...formData, eot: e.target.value })}
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary,
-                    borderColor: colors.borderLight
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                   Project Value
                 </label>
                 <Input
@@ -7185,7 +7148,7 @@ export default function ProjectManager() {
                       <Calendar className="w-4 h-4" style={{ color: colors.textMuted }} />
                       <span style={{ color: colors.textSecondary }}>Start:</span>
                       <span style={{ color: colors.textPrimary }}>
-                        {new Date(project.startDate).toLocaleDateString()}
+                        {formatDateForDisplay(project.startDate)}
                       </span>
                     </div>
                   )}
@@ -7195,7 +7158,7 @@ export default function ProjectManager() {
                       <Calendar className="w-4 h-4" style={{ color: colors.textMuted }} />
                       <span style={{ color: colors.textSecondary }}>End:</span>
                       <span style={{ color: colors.textPrimary }}>
-                        {new Date(project.endDate).toLocaleDateString()}
+                        {formatDateForDisplay(project.endDate)}
                       </span>
                     </div>
                   )}
