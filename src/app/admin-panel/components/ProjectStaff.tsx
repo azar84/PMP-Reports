@@ -166,6 +166,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
   const [assignmentEndDate, setAssignmentEndDate] = useState('');
   const [useProjectStartDate, setUseProjectStartDate] = useState(true);
   const [useProjectEndDate, setUseProjectEndDate] = useState(true);
+  const [assignmentUtilization, setAssignmentUtilization] = useState<number>(100);
   
   // Add new staff modal state
   const [showAddStaffModal, setShowAddStaffModal] = useState(false);
@@ -178,7 +179,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     isActive: true,
     monthlyBaseRate: undefined,
   });
-  const [showCostBreakdown, setShowCostBreakdown] = useState(false);
+  const [showCostBreakdown, setShowCostBreakdown] = useState<'required' | 'assigned' | null>(null);
 
   useEffect(() => {
     fetchStaff();
@@ -267,6 +268,10 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     setAssignmentStartDate(formattedStart);
     setAssignmentEndDate(formattedEnd);
     setDateValidationError('');
+    // Initialize utilization with remaining capacity or default to 100
+    const staffMember = staff.find(s => s.id === staffId);
+    const initialUtilization = staffMember?.remainingCapacity || 100;
+    setAssignmentUtilization(initialUtilization);
   };
 
   // Helper function to check if staff member is currently on leave
@@ -306,8 +311,8 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
         throw new Error('Staff member not found');
       }
 
-      // Use remaining capacity or default to 100% if not calculated
-      const utilizationToAssign = staffMember.remainingCapacity || 100;
+      // Use the assignment utilization from the form
+      const utilizationToAssign = assignmentUtilization;
 
       // Determine the start date to use (format to YYYY-MM-DD)
       let startDate = '';
@@ -361,6 +366,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
         setAssignmentEndDate('');
         setUseProjectStartDate(true);
         setUseProjectEndDate(true);
+        setAssignmentUtilization(100);
         // Then refresh data
         await fetchStaff(); // Refresh staff list to update utilization
         await fetchProjectPositions(); // Refresh project positions to show updated dates
@@ -677,33 +683,25 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
     return Math.max(1, Math.round(months));
   }, [projectStartDate, projectEndDate]);
 
-  const costBreakdown = useMemo(() => {
-    const details = projectPositions.map((position) => {
+  const filteredProjectPositions = useMemo(() => {
+    if (!positionFilter) return projectPositions;
+    return projectPositions.filter(position => position.designation === positionFilter);
+  }, [projectPositions, positionFilter]);
+
+  // Required cost breakdown (position rate × required utilization)
+  const requiredCostBreakdown = useMemo(() => {
+    const details = filteredProjectPositions.map((position) => {
       const { monthlyRate } = getPositionCostInfo(position);
-      const totalAssignedUtilization = position.staffAssignments.reduce(
-        (sum, assignment) => sum + (assignment.utilization || 0),
-        0
-      );
-
-      const assignedCost = position.staffAssignments.reduce((sum, assignment) => {
-        const staffRate =
-          assignment.staff?.monthlyBaseRate !== undefined && assignment.staff?.monthlyBaseRate !== null
-            ? Number(assignment.staff.monthlyBaseRate)
-            : monthlyRate;
-
-        return sum + staffRate * ((assignment.utilization || 0) / 100);
-      }, 0);
-
-      const remainingUtilizationFraction = Math.max(0, (position.requiredUtilization - totalAssignedUtilization) / 100);
-      const remainingCost = monthlyRate * remainingUtilizationFraction;
-      const monthlyCost = assignedCost + remainingCost;
+      const requiredUtilization = position.requiredUtilization;
+      
+      // Calculate monthly cost: position rate × (required utilization / 100)
+      const monthlyCost = monthlyRate * (requiredUtilization / 100);
       const totalCost = projectDurationMonths ? monthlyCost * projectDurationMonths : null;
 
       return {
         designation: position.designation,
         monthlyRate,
-        utilization: position.requiredUtilization,
-        assignedUtilization: Math.min(totalAssignedUtilization, position.requiredUtilization),
+        requiredUtilization,
         monthlyCost,
         totalCost,
       };
@@ -718,12 +716,55 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
       totalCost: projectDurationMonths ? totalCost : null,
       durationMonths: projectDurationMonths,
     };
-  }, [projectPositions, projectDurationMonths]);
+  }, [filteredProjectPositions, projectDurationMonths]);
+
+  // Assigned cost breakdown (staff rate × utilization)
+  const assignedCostBreakdown = useMemo(() => {
+    const allAssignments = filteredProjectPositions.flatMap(position => 
+      position.staffAssignments.map(assignment => ({
+        ...assignment,
+        positionName: position.designation,
+        positionRate: getPositionCostInfo(position).monthlyRate,
+      }))
+    );
+
+    const details = allAssignments.map((assignment) => {
+      if (!assignment.staff) return null;
+
+      // Use staff's monthlyBaseRate if available, otherwise fall back to position rate
+      const staffRate = assignment.staff.monthlyBaseRate !== undefined && assignment.staff.monthlyBaseRate !== null
+        ? Number(assignment.staff.monthlyBaseRate)
+        : assignment.positionRate;
+      
+      // Calculate cost: staff rate × (utilization / 100)
+      const monthlyCost = staffRate * ((assignment.utilization || 0) / 100);
+      const totalCost = projectDurationMonths ? monthlyCost * projectDurationMonths : null;
+
+      return {
+        staffName: assignment.staff.staffName,
+        position: assignment.positionName,
+        staffRate,
+        utilization: assignment.utilization || 0,
+        monthlyCost,
+        totalCost,
+      };
+    }).filter((detail): detail is NonNullable<typeof detail> => detail !== null);
+
+    const monthlyTotal = details.reduce((sum, detail) => sum + detail.monthlyCost, 0);
+    const totalCost = details.reduce((sum, detail) => sum + (detail.totalCost ?? 0), 0);
+
+    return {
+      details,
+      monthlyTotal,
+      totalCost: projectDurationMonths ? totalCost : null,
+      durationMonths: projectDurationMonths,
+    };
+  }, [filteredProjectPositions, projectDurationMonths]);
 
   const stats = useMemo(() => {
-    const allAssignments = projectPositions.flatMap((position) => position.staffAssignments || []);
+    const allAssignments = filteredProjectPositions.flatMap((position) => position.staffAssignments || []);
 
-    const requiredStaff = projectPositions.reduce((sum, position) => {
+    const requiredStaff = filteredProjectPositions.reduce((sum, position) => {
       return sum + position.requiredUtilization / 100;
     }, 0);
 
@@ -736,14 +777,37 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
     const balanceStaff = requiredStaff - assignedStaff;
 
+    // Calculate required monthly cost: position rate × required utilization
+    const requiredMonthlyCost = filteredProjectPositions.reduce((sum, position) => {
+      const { monthlyRate } = getPositionCostInfo(position);
+      return sum + (monthlyRate * (position.requiredUtilization / 100));
+    }, 0);
+
+    // Calculate assigned monthly cost: staff rate × utilization
+    const assignedMonthlyCost = allAssignments.reduce((sum, assignment) => {
+      if (!assignment.staff) return sum;
+      
+      const position = filteredProjectPositions.find(p => 
+        p.staffAssignments.some(a => a.id === assignment.id)
+      );
+      const { monthlyRate } = getPositionCostInfo(position!);
+      
+      const staffRate = assignment.staff.monthlyBaseRate !== undefined && assignment.staff.monthlyBaseRate !== null
+        ? Number(assignment.staff.monthlyBaseRate)
+        : monthlyRate;
+      
+      return sum + (staffRate * ((assignment.utilization || 0) / 100));
+    }, 0);
+
     return {
       requiredStaff: Math.round(requiredStaff * 100) / 100,
       assignedStaff: Math.round(assignedStaff * 100) / 100,
       balanceStaff: Math.round(balanceStaff * 100) / 100,
       involvedStaff,
-      expectedMonthlyCost: Math.round(costBreakdown.monthlyTotal),
+      requiredMonthlyCost: Math.round(requiredMonthlyCost),
+      assignedMonthlyCost: Math.round(assignedMonthlyCost),
     };
-  }, [projectPositions, costBreakdown]);
+  }, [filteredProjectPositions]);
 
   const currencySymbol = siteSettings?.currencySymbol || '$';
 
@@ -776,8 +840,45 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
         </Button>
       </div>
 
+      {/* Filter */}
+      <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
+          <label className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+            Filter by Position:
+          </label>
+          <select
+            value={positionFilter}
+            onChange={(e) => setPositionFilter(e.target.value)}
+            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              borderColor: colors.borderLight
+            }}
+          >
+            <option value="">All Positions</option>
+            {projectPositions.map((position) => (
+              <option key={position.id} value={position.designation}>
+                {position.designation}
+              </option>
+            ))}
+          </select>
+        </div>
+        {positionFilter && (
+          <Button
+            onClick={() => setPositionFilter('')}
+            variant="ghost"
+            size="sm"
+            className="flex items-center space-x-1"
+          >
+            <X className="w-3 h-3" />
+            <span>Clear</span>
+          </Button>
+        )}
+      </div>
+
       {/* Project Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
           <div className="flex items-center space-x-3">
             <Users2 className="w-6 h-6" style={{ color: colors.primary }} />
@@ -843,7 +944,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
         <Card
           className="p-4 cursor-pointer transition-colors"
           style={{ backgroundColor: colors.backgroundSecondary }}
-          onClick={() => costBreakdown.details.length > 0 && setShowCostBreakdown(true)}
+          onClick={() => requiredCostBreakdown.details.length > 0 && setShowCostBreakdown('required')}
           role="button"
           tabIndex={0}
         >
@@ -853,15 +954,36 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
             </div>
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
-                Monthly Cost
+                Required Staff Cost
               </p>
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                {Number.isFinite(stats.expectedMonthlyCost)
-                  ? Number(stats.expectedMonthlyCost).toLocaleString()
+                {Number.isFinite(stats.requiredMonthlyCost)
+                  ? Number(stats.requiredMonthlyCost).toLocaleString()
                   : '0'}
               </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                Expected cost
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          className="p-4 cursor-pointer transition-colors"
+          style={{ backgroundColor: colors.backgroundSecondary }}
+          onClick={() => assignedCostBreakdown.details.length > 0 && setShowCostBreakdown('assigned')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.info }}>
+              {currencySymbol}
+            </div>
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                Assigned Staff Cost
+              </p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                {Number.isFinite(stats.assignedMonthlyCost)
+                  ? Number(stats.assignedMonthlyCost).toLocaleString()
+                  : '0'}
               </p>
             </div>
           </div>
@@ -878,7 +1000,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
           </h3>
         </div>
         
-        {projectPositions.length > 0 ? (
+        {filteredProjectPositions.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -895,7 +1017,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                 </tr>
               </thead>
               <tbody>
-                {projectPositions.map((position) => {
+                {filteredProjectPositions.map((position) => {
                   const totalUtilization = position.staffAssignments.reduce((sum, assignment) => sum + assignment.utilization, 0);
                   const remainingNeeded = Math.max(0, position.requiredUtilization - totalUtilization);
                   const isComplete = totalUtilization >= position.requiredUtilization;
@@ -1176,8 +1298,9 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
         )}
       </Card>
 
-      {showCostBreakdown && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      {/* Required Cost Breakdown Modal */}
+      {showCostBreakdown === 'required' && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div
             className="w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden"
             style={{
@@ -1193,13 +1316,13 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
               style={{ borderColor: colors.borderLight }}
             >
               <div>
-                <h3 className="text-xl font-semibold">Monthly Cost Breakdown</h3>
+                <h3 className="text-xl font-semibold">Required Staff Cost Breakdown</h3>
                 <p className="text-sm" style={{ color: colors.textSecondary }}>
-                  Review position rates and projected cost across the project duration.
+                  Review position rates and required utilization across the project duration.
                 </p>
               </div>
               <button
-                onClick={() => setShowCostBreakdown(false)}
+                onClick={() => setShowCostBreakdown(null)}
                 className="p-2 rounded-lg transition-colors"
                 style={{ color: colors.textSecondary }}
                 aria-label="Close cost breakdown"
@@ -1219,24 +1342,24 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                 <span>
                   Monthly total:{' '}
                   <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
-                    {formatCurrency(costBreakdown.monthlyTotal, currencySymbol)}
+                    {formatCurrency(requiredCostBreakdown.monthlyTotal, currencySymbol)}
                   </span>
                 </span>
                 <span>
                   Project duration:{' '}
                   <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
-                    {costBreakdown.durationMonths !== null
-                      ? costBreakdown.durationMonths === 1
+                    {requiredCostBreakdown.durationMonths !== null
+                      ? requiredCostBreakdown.durationMonths === 1
                         ? '1 month'
-                        : `${costBreakdown.durationMonths} months`
+                        : `${requiredCostBreakdown.durationMonths} months`
                       : 'Not specified'}
                   </span>
                 </span>
                 <span>
                   Full-duration cost:{' '}
                   <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
-                    {costBreakdown.totalCost !== null
-                      ? formatCurrency(costBreakdown.totalCost, currencySymbol)
+                    {requiredCostBreakdown.totalCost !== null
+                      ? formatCurrency(requiredCostBreakdown.totalCost, currencySymbol)
                       : 'N/A'}
                   </span>
                 </span>
@@ -1246,7 +1369,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                 <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
                   <thead>
                     <tr style={{ backgroundColor: colors.backgroundSecondary }}>
-                      {['Position', 'Position Rate', 'Utilization (Assigned / Target)', 'Staff Rate', 'Total Cost'].map((heading) => (
+                      {['Position', 'Position Rate', 'Required Utilization', 'Monthly Cost', 'Total Cost'].map((heading) => (
                         <th
                           key={heading}
                           className="px-4 py-2 text-left font-semibold"
@@ -1258,7 +1381,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     </tr>
                   </thead>
                   <tbody>
-                    {costBreakdown.details.length === 0 ? (
+                    {requiredCostBreakdown.details.length === 0 ? (
                       <tr>
                         <td
                           colSpan={5}
@@ -1269,7 +1392,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                         </td>
                       </tr>
                     ) : (
-                      costBreakdown.details.map((detail, index) => (
+                      requiredCostBreakdown.details.map((detail, index) => (
                         <tr
                           key={`${detail.designation}-${index}`}
                           style={{
@@ -1284,17 +1407,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                             {formatCurrency(detail.monthlyRate, currencySymbol)}
                           </td>
                           <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
-                            <div className="flex flex-col">
-                              <span style={{ color: colors.textPrimary }}>
-                                {Number(detail.assignedUtilization ?? 0).toLocaleString(undefined, {
-                                  maximumFractionDigits: 1,
-                                })}
-                                %
-                              </span>
-                              <span className="text-xs" style={{ color: colors.textSecondary }}>
-                                Target {Number(detail.utilization ?? 0).toLocaleString(undefined, { maximumFractionDigits: 1 })}%
-                              </span>
-                            </div>
+                            {detail.requiredUtilization}%
                           </td>
                           <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                             {formatCurrency(detail.monthlyCost, currencySymbol)}
@@ -1318,7 +1431,152 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   paddingTop: '0.5rem',
                 }}
               >
-                <Button onClick={() => setShowCostBreakdown(false)} style={{ backgroundColor: colors.primary }}>
+                <Button onClick={() => setShowCostBreakdown(null)} style={{ backgroundColor: colors.primary }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assigned Cost Breakdown Modal */}
+      {showCostBreakdown === 'assigned' && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div
+            className="w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: colors.borderLight }}
+            >
+              <div>
+                <h3 className="text-xl font-semibold">Assigned Staff Cost Breakdown</h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Review assigned staff rates and utilization across the project duration.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCostBreakdown(null)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close cost breakdown"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="px-6 py-4 space-y-4"
+              style={{
+                overflowY: 'auto',
+                flex: '1 1 auto',
+              }}
+            >
+              <div className="flex flex-wrap gap-4 text-sm" style={{ color: colors.textSecondary }}>
+                <span>
+                  Monthly total:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {formatCurrency(assignedCostBreakdown.monthlyTotal, currencySymbol)}
+                  </span>
+                </span>
+                <span>
+                  Project duration:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {assignedCostBreakdown.durationMonths !== null
+                      ? assignedCostBreakdown.durationMonths === 1
+                        ? '1 month'
+                        : `${assignedCostBreakdown.durationMonths} months`
+                      : 'Not specified'}
+                  </span>
+                </span>
+                <span>
+                  Full-duration cost:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {assignedCostBreakdown.totalCost !== null
+                      ? formatCurrency(assignedCostBreakdown.totalCost, currencySymbol)
+                      : 'N/A'}
+                  </span>
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: colors.backgroundSecondary }}>
+                      {['Staff Name', 'Position', 'Staff Rate', 'Utilization', 'Monthly Cost', 'Total Cost'].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-2 text-left font-semibold"
+                          style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignedCostBreakdown.details.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-4 text-center"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          No assigned staff found for this project yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      assignedCostBreakdown.details.map((detail, index) => (
+                        <tr
+                          key={`${detail.staffName}-${detail.position}-${index}`}
+                          style={{
+                            backgroundColor:
+                              index % 2 === 0 ? colors.backgroundPrimary : colors.backgroundSecondary,
+                          }}
+                        >
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.staffName}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.position}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.staffRate, currencySymbol)}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.utilization}%
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.monthlyCost, currencySymbol)}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.totalCost !== null
+                              ? formatCurrency(detail.totalCost, currencySymbol)
+                              : 'N/A'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div
+                className="flex justify-end"
+                style={{
+                  flex: '0 0 auto',
+                  paddingTop: '0.5rem',
+                }}
+              >
+                <Button onClick={() => setShowCostBreakdown(null)} style={{ backgroundColor: colors.primary }}>
                   Close
                 </Button>
               </div>
@@ -1329,7 +1587,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
       {/* Add Staff Modal */}
       {showAddModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div 
             className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -1364,6 +1622,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                   setAssignmentEndDate('');
                   setUseProjectStartDate(true);
                   setUseProjectEndDate(true);
+                  setAssignmentUtilization(100);
                 }}
                 variant="ghost"
                 className="p-2"
@@ -1448,13 +1707,31 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                       }
                     }}
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center space-x-3">
-                        <User className="w-5 h-5" style={{ color: colors.textMuted }} />
-                        <div>
-                          <h3 className="font-medium" style={{ color: colors.textPrimary }}>
-                            {member.staffName}
-                          </h3>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-start space-x-3 flex-1">
+                        <User className="w-5 h-5 mt-1" style={{ color: colors.textMuted }} />
+                        <div className="flex-1">
+                          <div className="flex items-center justify-between mb-1">
+                            <h3 className="font-medium" style={{ color: colors.textPrimary }}>
+                              {member.staffName}
+                            </h3>
+                            <div className="flex items-center ml-4">
+                              <Button
+                                variant="primary"
+                                size="sm"
+                                className="flex items-center space-x-1"
+                                disabled={!member.remainingCapacity || member.remainingCapacity <= 0}
+                              >
+                                <UserCheck className="w-4 h-4" />
+                                <span>
+                                  {member.remainingCapacity && member.remainingCapacity > 0 
+                                    ? 'Assign' 
+                                    : 'Fully Utilized'
+                                  }
+                                </span>
+                              </Button>
+                            </div>
+                          </div>
                           <div className="flex items-center space-x-4 text-sm" style={{ color: colors.textSecondary }}>
                             {getPositionName(member) && (
                               <span>{getPositionName(member)}</span>
@@ -1510,22 +1787,6 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                           )}
                         </div>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <Button
-                          variant="primary"
-                          size="sm"
-                          className="flex items-center space-x-1"
-                          disabled={!member.remainingCapacity || member.remainingCapacity <= 0}
-                        >
-                          <UserCheck className="w-4 h-4" />
-                          <span>
-                            {member.remainingCapacity && member.remainingCapacity > 0 
-                              ? `Assign (${member.remainingCapacity}%)` 
-                              : 'Fully Utilized'
-                            }
-                          </span>
-                        </Button>
-                      </div>
                     </div>
                   </div>
                 ))}
@@ -1557,6 +1818,38 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                           <p className="text-sm" style={{ color: colors.textSecondary }}>
                             Position: {projectPositions.find(p => p.id === selectedStaffForAssignment?.positionId)?.designation}
                           </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Utilization */}
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Utilization (%)
+                      </label>
+                      <div className="flex items-center">
+                        <input
+                          type="range"
+                          min={0}
+                          max={100}
+                          value={assignmentUtilization}
+                          onChange={(e) => setAssignmentUtilization(parseInt(e.target.value) || 0)}
+                          className="flex-1 mr-3"
+                        />
+                        <div className="flex items-center">
+                          <Input
+                            type="number"
+                            value={assignmentUtilization}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val)) return setAssignmentUtilization(0);
+                              setAssignmentUtilization(Math.max(0, Math.min(100, val)));
+                            }}
+                            min={0}
+                            max={100}
+                            className="w-24"
+                          />
+                          <span className="text-sm ml-1" style={{ color: colors.textSecondary }}>%</span>
                         </div>
                       </div>
                     </div>
@@ -1760,29 +2053,37 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
                     </div>
 
                     <div className="flex justify-end space-x-3 pt-4">
-                      <Button
-                        onClick={() => {
-                          setSelectedStaffForAssignment(null);
-                          setAssignmentStartDate('');
-                          setAssignmentEndDate('');
-                          setUseProjectStartDate(true);
-                          setUseProjectEndDate(true);
-                          setDateValidationError('');
-                        }}
-                        variant="ghost"
-                        disabled={isSubmitting}
-                      >
-                        Back
-                      </Button>
-                      <Button
-                        onClick={handleAssignStaffToPosition}
-                        variant="primary"
-                        disabled={isSubmitting || (!useProjectStartDate && !assignmentStartDate) || (!useProjectEndDate && !assignmentEndDate) || !!dateValidationError}
-                      >
-                        {isSubmitting ? 'Assigning...' : 'Confirm Assignment'}
-                      </Button>
+                        <Button
+                          onClick={() => {
+                            setSelectedStaffForAssignment(null);
+                            setAssignmentStartDate('');
+                            setAssignmentEndDate('');
+                            setUseProjectStartDate(true);
+                            setUseProjectEndDate(true);
+                            setDateValidationError('');
+                            setAssignmentUtilization(100);
+                          }}
+                          variant="ghost"
+                          disabled={isSubmitting}
+                        >
+                          Back
+                        </Button>
+                        <Button
+                          onClick={handleAssignStaffToPosition}
+                          variant="primary"
+                          disabled={
+                            isSubmitting || 
+                            (!useProjectStartDate && !assignmentStartDate) || 
+                            (!useProjectEndDate && !assignmentEndDate) || 
+                            !!dateValidationError ||
+                            assignmentUtilization < 0 || 
+                            assignmentUtilization > 100
+                          }
+                        >
+                          {isSubmitting ? 'Assigning...' : 'Confirm Assignment'}
+                        </Button>
+                      </div>
                     </div>
-                  </div>
                 </>
               )}
             </div>
@@ -1999,14 +2300,14 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
       {/* Position Edit Modal */}
       {editingPosition && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div 
-            className="rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden"
+            className="rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
             {/* Modal Header */}
             <div 
-              className="flex items-center justify-between p-6 border-b"
+              className="flex items-center justify-between p-6 border-b flex-shrink-0"
               style={{ borderColor: colors.border }}
             >
               <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
@@ -2022,7 +2323,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
               {errorMessage && (
                 <div className="p-4 rounded-lg bg-red-50 border border-red-200">
                   <p className="text-red-800 text-sm">{errorMessage}</p>
@@ -2109,14 +2410,14 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
       {/* Staff Assignment Edit Modal */}
       {editingStaffAssignment && editingStaffAssignment.position && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <div 
-            className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
             {/* Modal Header */}
             <div 
-              className="flex items-center justify-between p-6 border-b"
+              className="flex items-center justify-between p-6 border-b flex-shrink-0"
               style={{ borderColor: colors.border }}
             >
               <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
@@ -2138,7 +2439,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
             </div>
 
             {/* Modal Content */}
-            <div className="p-6 space-y-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
               {errorMessage && (
                 <div className="p-4 rounded-lg bg-red-50 border border-red-200">
                   <p className="text-red-800 text-sm">{errorMessage}</p>
@@ -2499,7 +2800,7 @@ export default function ProjectStaff({ projectId, projectName, projectStartDate,
 
             {/* Modal Footer */}
             <div 
-              className="flex items-center justify-end space-x-3 p-6 border-t"
+              className="flex items-center justify-end space-x-3 p-6 border-t flex-shrink-0"
               style={{ borderColor: colors.border }}
             >
               <Button

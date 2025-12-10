@@ -61,6 +61,7 @@ import {
   ClipboardCheck,
   MessageSquare,
   Download,
+  CheckCircle,
   Truck,
   FileBarChart,
   Hammer,
@@ -264,6 +265,7 @@ export default function ProjectManager() {
   const [reportMonth, setReportMonth] = useState<number>(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportSuccessMessage, setReportSuccessMessage] = useState<string | null>(null);
   const [availablePictures, setAvailablePictures] = useState<any[]>([]);
   const [selectedPictureIds, setSelectedPictureIds] = useState<Set<number>>(new Set());
   const [isLoadingPictures, setIsLoadingPictures] = useState(false);
@@ -1931,8 +1933,13 @@ export default function ProjectManager() {
       });
 
       if (response.success) {
-        alert(`Report generated successfully for ${new Date(reportYear, reportMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`);
+        const successMessage = `Report generated successfully for ${new Date(reportYear, reportMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`;
+        setReportSuccessMessage(successMessage);
         setShowGenerateReportModal(false);
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+          setReportSuccessMessage(null);
+        }, 3000);
       } else {
         alert(response.error || 'Failed to generate report');
       }
@@ -7896,21 +7903,55 @@ export default function ProjectManager() {
                   onClick={handleGenerateReport}
                   className="px-4 py-2 flex items-center space-x-2"
                   variant="outline"
+                  isLoading={isGeneratingReport}
+                  loadingText="Generating..."
                   disabled={isGeneratingReport}
                 >
-                  {isGeneratingReport ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: colors.primary }}></div>
-                      <span>Generating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileBarChart className="w-4 h-4" />
-                      <span>Generate Report</span>
-                    </>
-                  )}
+                  <FileBarChart className="w-4 h-4" />
+                  <span>Generate Report</span>
                 </Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Success Message Modal */}
+      {reportSuccessMessage && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setReportSuccessMessage(null)}
+        >
+          <Card 
+            className="w-full max-w-md p-6 animate-in fade-in slide-in-from-bottom-4 duration-300"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <CheckCircle className="w-8 h-8" style={{ color: colors.success || '#10B981' }} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                  Success!
+                </h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  {reportSuccessMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => setReportSuccessMessage(null)}
+                className="p-2 rounded-lg transition-colors flex-shrink-0"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           </Card>
         </div>

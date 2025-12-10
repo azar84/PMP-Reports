@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
@@ -39,6 +39,7 @@ interface Labour {
   updatedAt: string;
   vacationStartDate?: string | null;
   vacationEndDate?: string | null;
+  monthlyBaseRate?: number | null;
 }
 
 interface ProjectLabourAssignment {
@@ -95,13 +96,14 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
   const [trades, setTrades] = useState<Trade[]>([]);
   const [loading, setLoading] = useState(true);
   const [showAddModal, setShowAddModal] = useState(false);
-  const [modalTab, setModalTab] = useState<'existing' | 'new'>('existing');
+  const [showAddLabourModal, setShowAddLabourModal] = useState(false);
   const [editingLabour, setEditingLabour] = useState<Labour | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [tradeFilter, setTradeFilter] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [dateValidationError, setDateValidationError] = useState<string>('');
+  const [showCostBreakdown, setShowCostBreakdown] = useState<'required' | 'assigned' | null>(null);
   
   // Trade modal state
   const [showTradeModal, setShowTradeModal] = useState(false);
@@ -133,6 +135,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     trade: '',
     tradeId: undefined,
     isActive: true,
+    monthlyBaseRate: undefined,
   });
 
   useEffect(() => {
@@ -449,6 +452,10 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
         employeeNumber: newLabour.employeeNumber || undefined,
         phone: newLabour.phone || undefined,
         trade: selectedTrade?.name || newLabour.trade || undefined,
+        monthlyBaseRate:
+          newLabour.monthlyBaseRate === undefined || newLabour.monthlyBaseRate === null
+            ? null
+            : Number(newLabour.monthlyBaseRate),
       };
 
       // Remove tradeId from the payload
@@ -465,6 +472,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
           trade: '',
           tradeId: undefined,
           isActive: true,
+          monthlyBaseRate: undefined,
         });
         setShowTradeDropdown(false);
         setTradeSearchTerm('');
@@ -493,10 +501,15 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
       return true;
     });
 
+  const filteredProjectTrades = useMemo(() => {
+    if (!tradeFilter) return projectTrades;
+    return projectTrades.filter(trade => trade.trade === tradeFilter);
+  }, [projectTrades, tradeFilter]);
+
   const calculateProjectStatistics = () => {
-    const allAssignments = projectTrades.flatMap(trade => trade.labourAssignments || []);
+    const allAssignments = filteredProjectTrades.flatMap(trade => trade.labourAssignments || []);
     
-    const requiredLabour = projectTrades.reduce((sum, trade) => {
+    const requiredLabour = filteredProjectTrades.reduce((sum, trade) => {
       return sum + trade.requiredQuantity;
     }, 0);
     
@@ -505,10 +518,30 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     const involvedLabourIds = new Set(allAssignments.map(assignment => assignment.labourId));
     const involvedLabour = involvedLabourIds.size;
     
-    const expectedMonthlyCost = projectTrades.reduce((sum, trade) => {
+    // Calculate required labours cost: trade rate × required quantity
+    const expectedMonthlyCost = filteredProjectTrades.reduce((sum, trade) => {
       const tradeData = trades.find(t => t.name === trade.trade);
       const tradeRate = tradeData?.monthlyRate || 5000;
       return sum + (tradeRate * trade.requiredQuantity);
+    }, 0);
+    
+    // Calculate assigned labours cost: labour base rate × utilization percentage
+    const assignedMonthlyCost = allAssignments.reduce((sum, assignment) => {
+      if (!assignment.labour) return sum;
+      
+      // Use labour's monthlyBaseRate if available, otherwise fall back to trade rate
+      const labourRate = assignment.labour.monthlyBaseRate 
+        ? Number(assignment.labour.monthlyBaseRate)
+        : (() => {
+            const trade = filteredProjectTrades.find(t => 
+              t.labourAssignments.some(a => a.id === assignment.id)
+            );
+            const tradeData = trades.find(t => t.name === trade?.trade);
+            return tradeData?.monthlyRate || 5000;
+          })();
+      
+      // Calculate cost: labour rate × (utilization / 100)
+      return sum + (labourRate * (assignment.utilization / 100));
     }, 0);
     
     const balanceLabour = requiredLabour - assignedLabour;
@@ -518,11 +551,112 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
       assignedLabour,
       balanceLabour,
       involvedLabour,
-      expectedMonthlyCost: Math.round(expectedMonthlyCost)
+      expectedMonthlyCost: Math.round(expectedMonthlyCost),
+      assignedMonthlyCost: Math.round(assignedMonthlyCost)
     };
   };
 
-  const stats = calculateProjectStatistics();
+  const stats = useMemo(() => calculateProjectStatistics(), [filteredProjectTrades, trades, labours]);
+
+  const projectDurationMonths = useMemo(() => {
+    if (!projectStartDate || !projectEndDate) {
+      return null;
+    }
+
+    const start = new Date(projectStartDate);
+    const end = new Date(projectEndDate);
+
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+      return null;
+    }
+
+    const diffMs = end.getTime() - start.getTime();
+    if (diffMs <= 0) {
+      return 0;
+    }
+
+    const months = diffMs / (1000 * 60 * 60 * 24 * 30);
+    return Math.max(1, Math.round(months));
+  }, [projectStartDate, projectEndDate]);
+
+  // Required cost breakdown (trade rates × required quantity)
+  const requiredCostBreakdown = useMemo(() => {
+    const details = filteredProjectTrades.map((trade) => {
+      const tradeData = trades.find(t => t.name === trade.trade);
+      const tradeRate = tradeData?.monthlyRate || 5000;
+      const requiredQuantity = trade.requiredQuantity;
+      
+      // Calculate monthly cost based on required quantity
+      const monthlyCost = tradeRate * requiredQuantity;
+      const totalCost = projectDurationMonths ? monthlyCost * projectDurationMonths : null;
+
+      return {
+        trade: trade.trade,
+        tradeRate,
+        requiredQuantity,
+        monthlyCost,
+        totalCost,
+      };
+    });
+
+    const monthlyTotal = details.reduce((sum, detail) => sum + detail.monthlyCost, 0);
+    const totalCost = details.reduce((sum, detail) => sum + (detail.totalCost ?? 0), 0);
+
+    return {
+      details,
+      monthlyTotal,
+      totalCost: projectDurationMonths ? totalCost : null,
+      durationMonths: projectDurationMonths,
+    };
+  }, [filteredProjectTrades, trades, projectDurationMonths]);
+
+  // Assigned cost breakdown (labour rates × utilization)
+  const assignedCostBreakdown = useMemo(() => {
+    const allAssignments = filteredProjectTrades.flatMap(trade => 
+      trade.labourAssignments.map(assignment => ({
+        ...assignment,
+        tradeName: trade.trade,
+      }))
+    );
+
+    const details = allAssignments.map((assignment) => {
+      if (!assignment.labour) return null;
+
+      // Use labour's monthlyBaseRate if available, otherwise fall back to trade rate
+      const trade = filteredProjectTrades.find(t => 
+        t.labourAssignments.some(a => a.id === assignment.id)
+      );
+      const tradeData = trades.find(t => t.name === trade?.trade);
+      const tradeRate = tradeData?.monthlyRate || 5000;
+      
+      const labourRate = assignment.labour.monthlyBaseRate 
+        ? Number(assignment.labour.monthlyBaseRate)
+        : tradeRate;
+      
+      // Calculate cost: labour rate × (utilization / 100)
+      const monthlyCost = labourRate * (assignment.utilization / 100);
+      const totalCost = projectDurationMonths ? monthlyCost * projectDurationMonths : null;
+
+      return {
+        labourName: assignment.labour.labourName,
+        trade: assignment.tradeName || trade?.trade || '',
+        labourRate,
+        utilization: assignment.utilization,
+        monthlyCost,
+        totalCost,
+      };
+    }).filter((detail): detail is NonNullable<typeof detail> => detail !== null);
+
+    const monthlyTotal = details.reduce((sum, detail) => sum + detail.monthlyCost, 0);
+    const totalCost = details.reduce((sum, detail) => sum + (detail.totalCost ?? 0), 0);
+
+    return {
+      details,
+      monthlyTotal,
+      totalCost: projectDurationMonths ? totalCost : null,
+      durationMonths: projectDurationMonths,
+    };
+  }, [filteredProjectTrades, trades, projectDurationMonths]);
 
   if (loading) {
     return (
@@ -553,8 +687,45 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
         </Button>
       </div>
 
+      {/* Filter */}
+      <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
+          <label className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+            Filter by Trade:
+          </label>
+          <select
+            value={tradeFilter}
+            onChange={(e) => setTradeFilter(e.target.value)}
+            className="px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              borderColor: colors.borderLight
+            }}
+          >
+            <option value="">All Trades</option>
+            {filteredProjectTrades.map((trade) => (
+              <option key={trade.id} value={trade.trade}>
+                {trade.trade}
+              </option>
+            ))}
+          </select>
+        </div>
+        {tradeFilter && (
+          <Button
+            onClick={() => setTradeFilter('')}
+            variant="ghost"
+            size="sm"
+            className="flex items-center space-x-1"
+          >
+            <X className="w-3 h-3" />
+            <span>Clear</span>
+          </Button>
+        )}
+      </div>
+
       {/* Project Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-4">
         <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
           <div className="flex items-center space-x-3">
             <Users2 className="w-6 h-6" style={{ color: colors.primary }} />
@@ -617,20 +788,49 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
           </div>
         </Card>
 
-        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
+        <Card
+          className="p-4 cursor-pointer transition-colors"
+          style={{ backgroundColor: colors.backgroundSecondary }}
+          onClick={() => requiredCostBreakdown.details.length > 0 && setShowCostBreakdown('required')}
+          role="button"
+          tabIndex={0}
+        >
           <div className="flex items-center space-x-3">
             <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.warning }}>
               {siteSettings?.currencySymbol || '$'}
             </div>
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
-                Monthly Cost
+                Required Labours Cost
               </p>
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                {stats.expectedMonthlyCost.toLocaleString()}
+                {Number.isFinite(stats.expectedMonthlyCost)
+                  ? Number(stats.expectedMonthlyCost).toLocaleString()
+                  : '0'}
               </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                Expected cost
+            </div>
+          </div>
+        </Card>
+
+        <Card
+          className="p-4 cursor-pointer transition-colors"
+          style={{ backgroundColor: colors.backgroundSecondary }}
+          onClick={() => assignedCostBreakdown.details.length > 0 && setShowCostBreakdown('assigned')}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.info }}>
+              {siteSettings?.currencySymbol || '$'}
+            </div>
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
+                Assigned Labours Cost
+              </p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                {Number.isFinite(stats.assignedMonthlyCost)
+                  ? Number(stats.assignedMonthlyCost).toLocaleString()
+                  : '0'}
               </p>
             </div>
           </div>
@@ -646,7 +846,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
           </h3>
         </div>
         
-        {projectTrades.length > 0 ? (
+        {filteredProjectTrades.length > 0 ? (
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
@@ -663,7 +863,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                 </tr>
               </thead>
               <tbody>
-                {projectTrades.map((trade) => {
+                {filteredProjectTrades.map((trade) => {
                   const assignedQuantity = trade.labourAssignments.length;
                   const isQuantityMet = assignedQuantity >= trade.requiredQuantity;
                   const remainingNeeded = Math.max(0, trade.requiredQuantity - assignedQuantity);
@@ -929,13 +1129,13 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
 
       {/* Trade Modal */}
       {showTradeModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <Card 
-            className="w-full max-w-2xl max-h-[90vh] overflow-y-auto"
+            className="w-full max-w-2xl max-h-[90vh] overflow-hidden shadow-xl"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+            <div className="p-6 border-b" style={{ borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
                   Select Trade
                 </h2>
@@ -951,20 +1151,31 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+            </div>
 
+            <div className="p-6">
               {errorMessage && (
                 <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.error + '20', color: colors.error }}>
                   {errorMessage}
                 </div>
               )}
 
-              <div className="space-y-2 max-h-96 overflow-y-auto">
+              <div className="space-y-3 max-h-96 overflow-y-auto">
                 {trades.filter(t => t.isActive).map((trade) => (
                   <button
                     key={trade.id}
                     onClick={() => handleTradeSelect(trade)}
-                    className="w-full p-4 text-left rounded-lg border transition-colors hover:border-current"
-                    style={{ borderColor: colors.border }}
+                    className="w-full p-4 text-left rounded-lg border transition-colors"
+                    style={{ 
+                      borderColor: colors.borderLight,
+                      backgroundColor: colors.backgroundPrimary
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                    }}
                   >
                     <div className="flex items-center justify-between">
                       <div>
@@ -993,22 +1204,89 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
 
       {/* Add Labour Modal */}
       {showAddModal && assigningToTrade && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card 
-            className="w-full max-w-4xl max-h-[90vh] overflow-y-auto"
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-6 border-b"
+              style={{ borderColor: colors.border }}
+            >
+              <div>
                 <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
-                  {modalTab === 'new' ? 'Add New Labour' : 'Assign Labour'}
+                  Assign Labour to Trade
                 </h2>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  Select a labour to assign to: <span className="font-medium" style={{ color: colors.textPrimary }}>
+                    {projectTrades.find(t => t.id === assigningToTrade)?.trade}
+                  </span>
+                  <br />
+                  <span className="text-xs" style={{ color: colors.textMuted }}>
+                    Only labours not already assigned to this project are shown
+                  </span>
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowAddModal(false);
+                  setAssigningToTrade(null);
+                  setSearchTerm('');
+                  setTradeFilter('');
+                  setSelectedLabourForAssignment(null);
+                  setAssignmentStartDate('');
+                  setAssignmentEndDate('');
+                  setUseProjectStartDate(true);
+                  setUseProjectEndDate(true);
+                }}
+                variant="ghost"
+                className="p-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {/* Search and Filter */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+                <div className="relative">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
+                  <Input
+                    type="text"
+                    placeholder="Search by name, employee number, phone..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-10"
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+                <div>
+                  <select
+                    value={tradeFilter}
+                    onChange={(e) => setTradeFilter(e.target.value)}
+                    className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                    style={{
+                      backgroundColor: colors.backgroundPrimary,
+                      color: colors.textPrimary,
+                      borderColor: colors.borderLight
+                    }}
+                  >
+                    <option value="">All Trades</option>
+                    {trades.filter(t => t.isActive).map((trade) => (
+                      <option key={trade.id} value={trade.name}>
+                        {trade.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Add New Labour Button */}
+              <div className="mb-6">
                 <Button
                   onClick={() => {
-                    setShowAddModal(false);
-                    setModalTab('existing');
-                    setAssigningToTrade(null);
-                    setEditingLabour(null);
+                    setShowAddLabourModal(true);
                     setNewLabour({
                       labourName: '',
                       employeeNumber: '',
@@ -1017,231 +1295,94 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       tradeId: undefined,
                       isActive: true,
                     });
-                    setShowTradeDropdown(false);
-                    setTradeSearchTerm('');
                     setErrorMessage('');
-                    setSelectedLabourForAssignment(null);
-                    setAssignmentStartDate('');
-                    setAssignmentEndDate('');
-                    setUseProjectStartDate(true);
-                    setUseProjectEndDate(true);
-                    setDateValidationError('');
                   }}
-                  variant="ghost"
-                  className="p-2"
+                  variant="primary"
+                  className="flex items-center space-x-2"
                 >
-                  <X className="w-4 h-4" />
+                  <Plus className="w-4 h-4" />
+                  <span>Add New Labour</span>
                 </Button>
               </div>
 
-              {/* Tabs */}
-              <div className="flex space-x-1 mb-6 border-b" style={{ borderColor: colors.border }}>
-                <button
-                  onClick={() => setModalTab('existing')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    modalTab === 'existing' ? 'border-current' : 'border-transparent'
-                  }`}
-                  style={{ 
-                    color: modalTab === 'existing' ? colors.primary : colors.textSecondary,
-                    borderBottomColor: modalTab === 'existing' ? colors.primary : 'transparent'
-                  }}
-                >
-                  Existing Labour
-                </button>
-                <button
-                  onClick={() => setModalTab('new')}
-                  className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
-                    modalTab === 'new' ? 'border-current' : 'border-transparent'
-                  }`}
-                  style={{ 
-                    color: modalTab === 'new' ? colors.primary : colors.textSecondary,
-                    borderBottomColor: modalTab === 'new' ? colors.primary : 'transparent'
-                  }}
-                >
-                  New Labour
-                </button>
-              </div>
-
-              {errorMessage && (
-                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.error + '20', color: colors.error }}>
-                  {errorMessage}
-                </div>
-              )}
-
               {!selectedLabourForAssignment ? (
                 <>
-                  {modalTab === 'existing' ? (
-                    <div className="space-y-2 max-h-96 overflow-y-auto">
-                      {filteredLabours.length === 0 ? (
-                        <div className="text-center py-8">
-                          <HardHat className="w-12 h-12 mx-auto mb-2" style={{ color: colors.textMuted }} />
-                          <p style={{ color: colors.textSecondary }}>No labours found</p>
-                        </div>
-                      ) : (
-                        filteredLabours.map((labour) => {
-                          const isAlreadyAssigned = projectTrades.some(trade =>
-                            trade.labourAssignments.some(assignment => assignment.labourId === labour.id)
-                          );
+                  {/* Labour List */}
+                  <div className="space-y-2">
+                    {filteredLabours.map((member) => {
+                      const isAlreadyAssigned = projectTrades.some(trade =>
+                        trade.labourAssignments.some(assignment => assignment.labourId === member.id)
+                      );
 
-                          return (
-                            <button
-                              key={labour.id}
-                              onClick={() => handleLabourSelectForAssignment(assigningToTrade!, labour.id)}
-                              disabled={isAlreadyAssigned || isSubmitting}
-                              className={`w-full p-4 text-left rounded-lg border transition-colors ${
-                                isAlreadyAssigned 
-                                  ? 'opacity-50 cursor-not-allowed'
-                                  : 'hover:border-current'
-                              }`}
-                              style={{ borderColor: colors.border }}
-                            >
-                              <div className="flex items-center justify-between">
-                                <div>
-                                  <p className="font-medium" style={{ color: colors.textPrimary }}>
-                                    {labour.labourName}
-                                  </p>
-                                  {labour.employeeNumber && (
-                                    <p className="text-sm" style={{ color: colors.textSecondary }}>
-                                      #{labour.employeeNumber}
-                                    </p>
-                                  )}
-                                  {labour.phone && (
-                                    <p className="text-sm flex items-center space-x-1" style={{ color: colors.textMuted }}>
-                                      <Phone className="w-3 h-3" />
-                                      <span>{labour.phone}</span>
-                                    </p>
-                                  )}
-                                  {labour.trade && (
-                                    <p className="text-sm" style={{ color: colors.textMuted }}>
-                                      Trade: {labour.trade}
-                                    </p>
-                                  )}
-                                </div>
-                                {isAlreadyAssigned && (
-                                  <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
-                                    Already Assigned
-                                  </span>
-                                )}
-                              </div>
-                            </button>
-                          );
-                        })
-                      )}
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                  <Input
-                    type="text"
-                    label="Labour Name *"
-                    value={newLabour.labourName || ''}
-                    onChange={(e) => setNewLabour({ ...newLabour, labourName: e.target.value })}
-                    placeholder="e.g., John Smith"
-                  />
-
-                  <Input
-                    type="text"
-                    label="Employee Number"
-                    value={newLabour.employeeNumber || ''}
-                    onChange={(e) => setNewLabour({ ...newLabour, employeeNumber: e.target.value })}
-                    placeholder="e.g., EMP001"
-                  />
-
-                  <Input
-                    type="tel"
-                    label="Phone"
-                    value={newLabour.phone || ''}
-                    onChange={(e) => setNewLabour({ ...newLabour, phone: e.target.value })}
-                    placeholder="e.g., +1 234 567 8900"
-                  />
-
-                  <div className="relative">
-                    <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                      Trade
-                    </label>
-                    <div className="relative">
-                      <div
-                        onClick={() => setShowTradeDropdown(!showTradeDropdown)}
-                        className="w-full px-3 py-2 border rounded-lg cursor-pointer flex items-center justify-between"
-                        style={{
-                          backgroundColor: colors.backgroundPrimary,
-                          borderColor: colors.border,
-                          color: colors.textPrimary
-                        }}
-                      >
-                        <span>
-                          {newLabour.tradeId 
-                            ? trades.find(t => t.id === newLabour.tradeId)?.name 
-                            : 'Select a trade...'}
-                        </span>
-                        <span>{showTradeDropdown ? '▲' : '▼'}</span>
-                      </div>
-                      
-                      {showTradeDropdown && (
-                        <div 
-                          className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
-                          style={{
-                            backgroundColor: colors.backgroundSecondary,
-                            borderColor: colors.border
+                      return (
+                        <div
+                          key={member.id}
+                          className="p-4 border rounded-lg cursor-pointer hover:shadow-md transition-shadow"
+                          style={{ 
+                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.borderLight
+                          }}
+                          onClick={() => {
+                            if (!isAlreadyAssigned && assigningToTrade) {
+                              handleLabourSelectForAssignment(assigningToTrade, member.id);
+                            }
                           }}
                         >
-                          <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
-                            <input
-                              type="text"
-                              placeholder="Search trades..."
-                              value={tradeSearchTerm}
-                              onChange={(e) => setTradeSearchTerm(e.target.value)}
-                              className="w-full px-3 py-2 border rounded-lg"
-                              style={{
-                                backgroundColor: colors.backgroundPrimary,
-                                borderColor: colors.border,
-                                color: colors.textPrimary
-                              }}
-                              autoFocus
-                            />
-                          </div>
-                          <div className="max-h-48 overflow-auto">
-                            {trades
-                              .filter(t => t.isActive)
-                              .filter(t => t.name.toLowerCase().includes(tradeSearchTerm.toLowerCase()))
-                              .map((trade) => (
-                                <div
-                                  key={trade.id}
-                                  onClick={() => {
-                                    setNewLabour({ ...newLabour, tradeId: trade.id });
-                                    setShowTradeDropdown(false);
-                                    setTradeSearchTerm('');
-                                  }}
-                                  className="px-3 py-2 hover:opacity-75 cursor-pointer"
-                                  style={{
-                                    backgroundColor: newLabour.tradeId === trade.id ? colors.primary : 'transparent',
-                                    color: newLabour.tradeId === trade.id ? '#FFFFFF' : colors.textPrimary
-                                  }}
-                                >
-                                  {trade.name}
+                          <div className="flex items-start justify-between">
+                            <div className="flex items-start space-x-3 flex-1">
+                              <HardHat className="w-5 h-5 mt-1" style={{ color: colors.textMuted }} />
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-1">
+                                  <h3 className="font-medium" style={{ color: colors.textPrimary }}>
+                                    {member.labourName}
+                                  </h3>
+                                  {!isAlreadyAssigned && (
+                                    <div className="flex items-center ml-4">
+                                      <Button
+                                        variant="primary"
+                                        size="sm"
+                                        className="flex items-center space-x-1"
+                                        disabled={isAlreadyAssigned}
+                                      >
+                                        <UserCheck className="w-4 h-4" />
+                                        <span>Assign</span>
+                                      </Button>
+                                    </div>
+                                  )}
+                                  {isAlreadyAssigned && (
+                                    <span className="text-xs px-2 py-1 rounded-full bg-green-100 text-green-800">
+                                      Already Assigned
+                                    </span>
+                                  )}
                                 </div>
-                              ))}
+                                <div className="flex items-center space-x-4 text-sm" style={{ color: colors.textSecondary }}>
+                                  {member.employeeNumber && (
+                                    <span>#{member.employeeNumber}</span>
+                                  )}
+                                  {member.phone && (
+                                    <span>{member.phone}</span>
+                                  )}
+                                  {member.trade && (
+                                    <span>{member.trade}</span>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
                           </div>
                         </div>
-                      )}
-                    </div>
+                      );
+                    })}
                   </div>
 
-                  <div className="flex justify-end space-x-3">
-                    <Button
-                      type="button"
-                      onClick={() => setShowAddModal(false)}
-                      variant="ghost"
-                    >
-                      Cancel
-                    </Button>
-                    <Button
-                      onClick={handleAddNewLabour}
-                      variant="primary"
-                      disabled={isSubmitting}
-                    >
-                      {isSubmitting ? 'Adding...' : 'Add Labour'}
-                    </Button>
-                  </div>
+                  {filteredLabours.length === 0 && (
+                    <div className="text-center py-8">
+                      <HardHat className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+                      <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                        {searchTerm ? 'No labours found' : 'No labours available'}
+                      </h3>
+                      <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                        {searchTerm ? 'Try adjusting your search terms' : 'All available labours are already assigned to this project'}
+                      </p>
                     </div>
                   )}
                 </>
@@ -1268,28 +1409,30 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                         Utilization (%)
                       </label>
-                      <div className="flex items-center space-x-3">
+                      <div className="flex items-center">
                         <input
                           type="range"
                           min={0}
                           max={100}
                           value={assignmentUtilization}
                           onChange={(e) => setAssignmentUtilization(parseInt(e.target.value) || 0)}
-                          className="flex-1"
+                          className="flex-1 mr-3"
                         />
-                        <Input
-                          type="number"
-                          value={assignmentUtilization}
-                          onChange={(e) => {
-                            const val = parseInt(e.target.value);
-                            if (isNaN(val)) return setAssignmentUtilization(0);
-                            setAssignmentUtilization(Math.max(0, Math.min(100, val)));
-                          }}
-                          min={0}
-                          max={100}
-                          className="w-24"
-                        />
-                        <span className="text-sm" style={{ color: colors.textSecondary }}>%</span>
+                        <div className="flex items-center">
+                          <Input
+                            type="number"
+                            value={assignmentUtilization}
+                            onChange={(e) => {
+                              const val = parseInt(e.target.value);
+                              if (isNaN(val)) return setAssignmentUtilization(0);
+                              setAssignmentUtilization(Math.max(0, Math.min(100, val)));
+                            }}
+                            min={0}
+                            max={100}
+                            className="w-24"
+                          />
+                          <span className="text-sm ml-1" style={{ color: colors.textSecondary }}>%</span>
+                        </div>
                       </div>
                     </div>
 
@@ -1534,19 +1677,276 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                 </>
               )}
             </div>
-          </Card>
+          </div>
+        </div>
+      )}
+
+      {/* Add New Labour Modal */}
+      {showAddLabourModal && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-6 border-b"
+              style={{ borderColor: colors.border }}
+            >
+              <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                Add New Labour
+              </h2>
+              <Button
+                onClick={() => {
+                  setShowAddLabourModal(false);
+                  setShowTradeDropdown(false);
+                  setTradeSearchTerm('');
+                  setNewLabour({
+                    labourName: '',
+                    employeeNumber: '',
+                    phone: '',
+                    trade: '',
+                    tradeId: undefined,
+                    isActive: true,
+                    monthlyBaseRate: undefined,
+                  });
+                  setErrorMessage('');
+                }}
+                variant="ghost"
+                className="p-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {/* Error Message */}
+              {errorMessage && (
+                <div className="mb-4 p-3 rounded-lg" style={{ backgroundColor: colors.error + '20', border: `1px solid ${colors.error}` }}>
+                  <p className="text-sm" style={{ color: colors.error }}>
+                    {errorMessage}
+                  </p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Labour Name *
+                  </label>
+                  <Input
+                    type="text"
+                    value={newLabour.labourName || ''}
+                    onChange={(e) => setNewLabour({ ...newLabour, labourName: e.target.value })}
+                    placeholder="Enter labour's full name"
+                    required
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Employee Number
+                  </label>
+                  <Input
+                    type="text"
+                    value={newLabour.employeeNumber || ''}
+                    onChange={(e) => setNewLabour({ ...newLabour, employeeNumber: e.target.value })}
+                    placeholder="e.g., EMP001, 12345"
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Phone
+                  </label>
+                  <Input
+                    type="tel"
+                    value={newLabour.phone || ''}
+                    onChange={(e) => setNewLabour({ ...newLabour, phone: e.target.value })}
+                    placeholder="+234 123 456 7890"
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Monthly Rate
+                  </label>
+                  <Input
+                    type="number"
+                    value={newLabour.monthlyBaseRate || ''}
+                    onChange={(e) => setNewLabour({ ...newLabour, monthlyBaseRate: e.target.value ? Number(e.target.value) : undefined })}
+                    placeholder="e.g., 5000"
+                    min="0"
+                    step="0.01"
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                    Monthly salary/rate for this labour
+                  </p>
+                </div>
+
+                <div className="md:col-span-2">
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Trade
+                  </label>
+                  <div className="relative">
+                    <div
+                      onClick={() => setShowTradeDropdown(!showTradeDropdown)}
+                      className="w-full px-3 py-2 border rounded-lg cursor-pointer flex items-center justify-between"
+                      style={{
+                        backgroundColor: colors.backgroundPrimary,
+                        borderColor: colors.borderLight,
+                        color: colors.textPrimary
+                      }}
+                    >
+                      <span>
+                        {newLabour.tradeId 
+                          ? trades.find(t => t.id === newLabour.tradeId)?.name 
+                          : 'Select a trade...'}
+                      </span>
+                      <span>{showTradeDropdown ? '▲' : '▼'}</span>
+                    </div>
+                    
+                    {showTradeDropdown && (
+                      <div 
+                        className="absolute z-10 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-auto"
+                        style={{
+                          backgroundColor: colors.backgroundSecondary,
+                          borderColor: colors.borderLight
+                        }}
+                      >
+                        <div className="p-2 sticky top-0" style={{ backgroundColor: colors.backgroundSecondary }}>
+                          <input
+                            type="text"
+                            placeholder="Search trades..."
+                            value={tradeSearchTerm}
+                            onChange={(e) => setTradeSearchTerm(e.target.value)}
+                            className="w-full px-3 py-2 border rounded-lg"
+                            style={{
+                              backgroundColor: colors.backgroundPrimary,
+                              borderColor: colors.borderLight,
+                              color: colors.textPrimary
+                            }}
+                            autoFocus
+                          />
+                        </div>
+                        <div className="max-h-48 overflow-auto">
+                          {trades
+                            .filter(t => t.isActive)
+                            .filter(t => t.name.toLowerCase().includes(tradeSearchTerm.toLowerCase()))
+                            .map((trade) => (
+                              <div
+                                key={trade.id}
+                                onClick={() => {
+                                  setNewLabour({ ...newLabour, tradeId: trade.id });
+                                  setShowTradeDropdown(false);
+                                  setTradeSearchTerm('');
+                                }}
+                                className="px-3 py-2 hover:opacity-75 cursor-pointer"
+                                style={{
+                                  backgroundColor: newLabour.tradeId === trade.id ? colors.primary : 'transparent',
+                                  color: newLabour.tradeId === trade.id ? '#FFFFFF' : colors.textPrimary
+                                }}
+                              >
+                                {trade.name}
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end space-x-3 mt-6">
+                <Button
+                  onClick={() => {
+                    setShowAddLabourModal(false);
+                    setShowTradeDropdown(false);
+                    setTradeSearchTerm('');
+                    setNewLabour({
+                      labourName: '',
+                      employeeNumber: '',
+                      phone: '',
+                      trade: '',
+                      tradeId: undefined,
+                      isActive: true,
+                    });
+                    setErrorMessage('');
+                  }}
+                  variant="ghost"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={async () => {
+                    try {
+                      setIsSubmitting(true);
+                      setErrorMessage('');
+                      
+                      const response = await post<{ success: boolean; data: any; error?: string }>('/api/admin/labours', {
+                        labourName: newLabour.labourName,
+                        employeeNumber: newLabour.employeeNumber || undefined,
+                        phone: newLabour.phone || undefined,
+                        trade: newLabour.tradeId ? trades.find(t => t.id === newLabour.tradeId)?.name : undefined,
+                        isActive: true,
+                        monthlyBaseRate:
+                          newLabour.monthlyBaseRate === undefined || newLabour.monthlyBaseRate === null
+                            ? null
+                            : Number(newLabour.monthlyBaseRate),
+                      });
+
+                      if (response.success && response.data) {
+                        // Refresh labours list
+                        const laboursResponse = await get<{ success: boolean; data: Labour[] }>('/api/admin/labours');
+                        if (laboursResponse.success) {
+                          setLabours(laboursResponse.data);
+                        }
+                        
+                        setShowAddLabourModal(false);
+                        setShowTradeDropdown(false);
+                        setTradeSearchTerm('');
+                        setNewLabour({
+                          labourName: '',
+                          employeeNumber: '',
+                          phone: '',
+                          trade: '',
+                          tradeId: undefined,
+                          isActive: true,
+                        });
+                      } else {
+                        setErrorMessage(response.error || 'Failed to add labour');
+                      }
+                    } catch (error: any) {
+                      console.error('Error adding labour:', error);
+                      setErrorMessage(error.message || 'Failed to add labour');
+                    } finally {
+                      setIsSubmitting(false);
+                    }
+                  }}
+                  variant="primary"
+                  disabled={isSubmitting || !newLabour.labourName}
+                >
+                  {isSubmitting ? 'Adding...' : 'Add Labour'}
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
       {/* Edit Utilization Modal */}
       {editingLabourAssignment && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
           <Card 
-            className="w-full max-w-md"
+            className="w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
+            <div className="p-6 border-b flex-shrink-0" style={{ borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between">
                 <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
                   Edit Labour Assignment
                 </h2>
@@ -1564,7 +1964,9 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   <X className="w-4 h-4" />
                 </Button>
               </div>
+            </div>
 
+            <div className="p-6 overflow-y-auto flex-1 min-h-0">
               {errorMessage && (
                 <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200">
                   <p className="text-red-800 text-sm">{errorMessage}</p>
@@ -1576,28 +1978,30 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                     Utilization (%)
                   </label>
-                  <div className="flex items-center space-x-3">
+                  <div className="flex items-center">
                     <input
                       type="range"
                       min={0}
                       max={100}
                       value={editingLabourAssignment.utilization}
                       onChange={(e) => setEditingLabourAssignment({ ...editingLabourAssignment, utilization: parseInt(e.target.value) || 0 })}
-                      className="flex-1"
+                      className="flex-1 mr-3"
                     />
-                    <Input
-                      type="number"
-                      value={editingLabourAssignment.utilization}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value);
-                        if (isNaN(val)) return setEditingLabourAssignment({ ...editingLabourAssignment, utilization: 0 });
-                        setEditingLabourAssignment({ ...editingLabourAssignment, utilization: Math.max(0, Math.min(100, val)) });
-                      }}
-                      min={0}
-                      max={100}
-                      className="w-24"
-                    />
-                    <span className="text-sm" style={{ color: colors.textSecondary }}>%</span>
+                    <div className="flex items-center">
+                      <Input
+                        type="number"
+                        value={editingLabourAssignment.utilization}
+                        onChange={(e) => {
+                          const val = parseInt(e.target.value);
+                          if (isNaN(val)) return setEditingLabourAssignment({ ...editingLabourAssignment, utilization: 0 });
+                          setEditingLabourAssignment({ ...editingLabourAssignment, utilization: Math.max(0, Math.min(100, val)) });
+                        }}
+                        min={0}
+                        max={100}
+                        className="w-24"
+                      />
+                      <span className="text-sm ml-1" style={{ color: colors.textSecondary }}>%</span>
+                    </div>
                   </div>
                 </div>
                 <div>
@@ -1862,28 +2266,30 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                     </div>
                   </div>
                 </div>
+              </div>
+            </div>
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    onClick={() => {
-                      setEditingLabourAssignment(null);
-                      setEditUseFullDuration(false);
-                      setEditUseProjectStartDate(false);
-                      setEditUseProjectEndDate(false);
-                      setEditDateValidationError('');
-                    }}
-                    variant="ghost"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleUpdateLabourAssignment}
-                    variant="primary"
+            <div className="p-6 border-t flex-shrink-0" style={{ borderColor: colors.borderLight }}>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  onClick={() => {
+                    setEditingLabourAssignment(null);
+                    setEditUseFullDuration(false);
+                    setEditUseProjectStartDate(false);
+                    setEditUseProjectEndDate(false);
+                    setEditDateValidationError('');
+                  }}
+                  variant="ghost"
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleUpdateLabourAssignment}
+                  variant="primary"
                   disabled={isSubmitting || !!editDateValidationError || editingLabourAssignment.utilization < 0 || editingLabourAssignment.utilization > 100}
-                  >
-                    {isSubmitting ? 'Updating...' : 'Update'}
-                  </Button>
-                </div>
+                >
+                  {isSubmitting ? 'Updating...' : 'Update'}
+                </Button>
               </div>
             </div>
           </Card>
@@ -1892,60 +2298,393 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
 
       {/* Edit Trade Modal */}
       {editingTrade && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <Card 
-            className="w-full max-w-md"
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-lg shadow-xl w-full max-w-md max-h-[90vh] overflow-hidden flex flex-col"
             style={{ backgroundColor: colors.backgroundSecondary }}
           >
-            <div className="p-6">
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
-                  Edit Trade Utilization
-                </h2>
-                <Button
-                  onClick={() => setEditingTrade(null)}
-                  variant="ghost"
-                  className="p-2"
-                >
-                  <X className="w-4 h-4" />
-                </Button>
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-6 border-b flex-shrink-0"
+              style={{ borderColor: colors.borderLight }}
+            >
+              <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                Edit Trade Requirements
+              </h3>
+              <button
+                onClick={() => setEditingTrade(null)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+                style={{ color: colors.textMuted }}
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Modal Content */}
+            <div className="p-6 space-y-6 overflow-y-auto flex-1 min-h-0">
+              {errorMessage && (
+                <div className="p-4 rounded-lg bg-red-50 border border-red-200">
+                  <p className="text-red-800 text-sm">{errorMessage}</p>
+                </div>
+              )}
+
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Trade
+                </label>
+                <div className="p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                  <div className="flex items-center space-x-2">
+                    <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
+                    <span style={{ color: colors.textPrimary }}>
+                      {editingTrade.trade}
+                    </span>
+                  </div>
+                  <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                    Trade names are managed company-wide and cannot be changed here
+                  </p>
+                </div>
               </div>
 
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                    Required Quantity
-                  </label>
-                  <Input
-                    type="number"
-                    value={editingTrade.requiredQuantity}
-                    onChange={(e) => {
-                      const val = parseInt(e.target.value) || 1;
-                      const clampedVal = Math.max(1, val);
-                      setEditingTrade({ ...editingTrade, requiredQuantity: clampedVal });
-                    }}
-                    min="1"
-                  />
-                </div>
+              <div>
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Required Quantity
+                </label>
+                <Input
+                  type="number"
+                  value={editingTrade.requiredQuantity}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value) || 1;
+                    const clampedVal = Math.max(1, val);
+                    setEditingTrade({ ...editingTrade, requiredQuantity: clampedVal });
+                  }}
+                  min="1"
+                  style={{ backgroundColor: colors.backgroundPrimary }}
+                />
+                <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                  Number of labourers required for this trade
+                </p>
+              </div>
 
-                <div className="flex justify-end space-x-3">
-                  <Button
-                    onClick={() => setEditingTrade(null)}
-                    variant="ghost"
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    onClick={handleUpdateTrade}
-                    variant="primary"
-                    disabled={isSubmitting}
-                  >
-                    {isSubmitting ? 'Updating...' : 'Update'}
-                  </Button>
+              <div className="p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <h4 className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Current Status
+                </h4>
+                <div className="text-sm space-y-1" style={{ color: colors.textSecondary }}>
+                  <p>Total assigned: {editingTrade?.labourAssignments?.length || 0} labourer{editingTrade?.labourAssignments?.length !== 1 ? 's' : ''}</p>
+                  <p>Required: {editingTrade.requiredQuantity} labourer{editingTrade.requiredQuantity !== 1 ? 's' : ''}</p>
+                  <p>Remaining: {Math.max(0, editingTrade.requiredQuantity - (editingTrade?.labourAssignments?.length || 0))} labourer{Math.max(0, editingTrade.requiredQuantity - (editingTrade?.labourAssignments?.length || 0)) !== 1 ? 's' : ''}</p>
                 </div>
               </div>
             </div>
-          </Card>
+
+            {/* Modal Footer */}
+            <div 
+              className="flex items-center justify-end space-x-3 p-6 border-t flex-shrink-0"
+              style={{ borderColor: colors.borderLight }}
+            >
+              <Button
+                onClick={() => setEditingTrade(null)}
+                variant="ghost"
+                disabled={isSubmitting}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleUpdateTrade}
+                variant="primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Updating...' : 'Update Trade'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Required Cost Breakdown Modal */}
+      {showCostBreakdown === 'required' && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div
+            className="w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: colors.borderLight }}
+            >
+              <div>
+                <h3 className="text-xl font-semibold">Required Labours Cost Breakdown</h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Review trade rates and required quantities across the project duration.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCostBreakdown(null)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close cost breakdown"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="px-6 py-4 space-y-4"
+              style={{
+                overflowY: 'auto',
+                flex: '1 1 auto',
+              }}
+            >
+              <div className="flex flex-wrap gap-4 text-sm" style={{ color: colors.textSecondary }}>
+                <span>
+                  Monthly total:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {formatCurrency(requiredCostBreakdown.monthlyTotal, siteSettings?.currencySymbol || '$')}
+                  </span>
+                </span>
+                <span>
+                  Project duration:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {requiredCostBreakdown.durationMonths !== null
+                      ? requiredCostBreakdown.durationMonths === 1
+                        ? '1 month'
+                        : `${requiredCostBreakdown.durationMonths} months`
+                      : 'Not specified'}
+                  </span>
+                </span>
+                <span>
+                  Full-duration cost:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {requiredCostBreakdown.totalCost !== null
+                      ? formatCurrency(requiredCostBreakdown.totalCost, siteSettings?.currencySymbol || '$')
+                      : 'N/A'}
+                  </span>
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: colors.backgroundSecondary }}>
+                      {['Trade', 'Trade Rate', 'Required Quantity', 'Monthly Cost', 'Total Cost'].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-2 text-left font-semibold"
+                          style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {requiredCostBreakdown.details.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={5}
+                          className="px-4 py-4 text-center"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          No trades found for this project yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      requiredCostBreakdown.details.map((detail, index) => (
+                        <tr
+                          key={`${detail.trade}-${index}`}
+                          style={{
+                            backgroundColor:
+                              index % 2 === 0 ? colors.backgroundPrimary : colors.backgroundSecondary,
+                          }}
+                        >
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.trade}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.tradeRate, siteSettings?.currencySymbol || '$')}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.requiredQuantity}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.monthlyCost, siteSettings?.currencySymbol || '$')}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.totalCost !== null
+                              ? formatCurrency(detail.totalCost, siteSettings?.currencySymbol || '$')
+                              : 'N/A'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div
+                className="flex justify-end"
+                style={{
+                  flex: '0 0 auto',
+                  paddingTop: '0.5rem',
+                }}
+              >
+                <Button onClick={() => setShowCostBreakdown(null)} style={{ backgroundColor: colors.primary }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Assigned Cost Breakdown Modal */}
+      {showCostBreakdown === 'assigned' && (
+        <div className="fixed inset-0 backdrop-blur-sm bg-black/30 flex items-center justify-center z-50 p-4">
+          <div
+            className="w-full max-w-4xl rounded-2xl shadow-xl overflow-hidden"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              maxHeight: '80vh',
+              display: 'flex',
+              flexDirection: 'column',
+            }}
+          >
+            <div
+              className="flex items-center justify-between px-6 py-4 border-b"
+              style={{ borderColor: colors.borderLight }}
+            >
+              <div>
+                <h3 className="text-xl font-semibold">Assigned Labours Cost Breakdown</h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Review assigned labours' rates and utilization across the project duration.
+                </p>
+              </div>
+              <button
+                onClick={() => setShowCostBreakdown(null)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close cost breakdown"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div
+              className="px-6 py-4 space-y-4"
+              style={{
+                overflowY: 'auto',
+                flex: '1 1 auto',
+              }}
+            >
+              <div className="flex flex-wrap gap-4 text-sm" style={{ color: colors.textSecondary }}>
+                <span>
+                  Monthly total:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {formatCurrency(assignedCostBreakdown.monthlyTotal, siteSettings?.currencySymbol || '$')}
+                  </span>
+                </span>
+                <span>
+                  Project duration:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {assignedCostBreakdown.durationMonths !== null
+                      ? assignedCostBreakdown.durationMonths === 1
+                        ? '1 month'
+                        : `${assignedCostBreakdown.durationMonths} months`
+                      : 'Not specified'}
+                  </span>
+                </span>
+                <span>
+                  Full-duration cost:{' '}
+                  <span style={{ color: colors.textPrimary, fontWeight: 600 }}>
+                    {assignedCostBreakdown.totalCost !== null
+                      ? formatCurrency(assignedCostBreakdown.totalCost, siteSettings?.currencySymbol || '$')
+                      : 'N/A'}
+                  </span>
+                </span>
+              </div>
+
+              <div className="overflow-x-auto">
+                <table className="min-w-full text-sm" style={{ borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ backgroundColor: colors.backgroundSecondary }}>
+                      {['Labour Name', 'Trade', 'Labour Rate', 'Utilization', 'Monthly Cost', 'Total Cost'].map((heading) => (
+                        <th
+                          key={heading}
+                          className="px-4 py-2 text-left font-semibold"
+                          style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}
+                        >
+                          {heading}
+                        </th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {assignedCostBreakdown.details.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={6}
+                          className="px-4 py-4 text-center"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          No assigned labours found for this project yet.
+                        </td>
+                      </tr>
+                    ) : (
+                      assignedCostBreakdown.details.map((detail, index) => (
+                        <tr
+                          key={`${detail.labourName}-${detail.trade}-${index}`}
+                          style={{
+                            backgroundColor:
+                              index % 2 === 0 ? colors.backgroundPrimary : colors.backgroundSecondary,
+                          }}
+                        >
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.labourName}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.trade}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.labourRate, siteSettings?.currencySymbol || '$')}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.utilization}%
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(detail.monthlyCost, siteSettings?.currencySymbol || '$')}
+                          </td>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {detail.totalCost !== null
+                              ? formatCurrency(detail.totalCost, siteSettings?.currencySymbol || '$')
+                              : 'N/A'}
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+
+              <div
+                className="flex justify-end"
+                style={{
+                  flex: '0 0 auto',
+                  paddingTop: '0.5rem',
+                }}
+              >
+                <Button onClick={() => setShowCostBreakdown(null)} style={{ backgroundColor: colors.primary }}>
+                  Close
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
     </div>

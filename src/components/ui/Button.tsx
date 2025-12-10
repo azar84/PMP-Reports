@@ -174,6 +174,7 @@ export interface ButtonProps
     VariantProps<typeof buttonVariants> {
   variant?: 'primary' | 'secondary' | 'accent' | 'ghost' | 'destructive' | 'success' | 'info' | 'outline' | 'muted';
   isLoading?: boolean;
+  loadingText?: string;
   leftIcon?: React.ReactNode;
   rightIcon?: React.ReactNode;
   children: React.ReactNode;
@@ -185,7 +186,8 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     variant = 'primary',
     size = 'md',
     fullWidth,
-    isLoading = false, 
+    isLoading = false,
+    loadingText = 'Loading...',
     disabled,
     leftIcon, 
     rightIcon, 
@@ -242,7 +244,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         {isLoading ? (
           <>
             <Loader2 className="h-4 w-4 animate-spin" />
-            <span className="ml-2">Loading...</span>
+            <span className="ml-2">{loadingText}</span>
           </>
         ) : (
           <>

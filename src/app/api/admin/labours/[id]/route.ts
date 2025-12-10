@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
+import { Prisma } from '@prisma/client';
 
 const labourSchema = z.object({
   labourName: z.string().min(1, 'Labour name is required'),
@@ -8,6 +9,7 @@ const labourSchema = z.object({
   phone: z.string().optional(),
   trade: z.string().optional(),
   isActive: z.boolean().optional(),
+  monthlyBaseRate: z.number().optional().nullable(),
 });
 
 // GET - Fetch single labour
@@ -63,10 +65,15 @@ export async function PUT(
 
     const body = await request.json();
     const validatedData = labourSchema.parse(body);
+    const { monthlyBaseRate, ...rest } = validatedData;
 
     const labour = await prisma.labour.update({
       where: { id },
-      data: validatedData,
+      data: {
+        ...rest,
+        monthlyBaseRate:
+          monthlyBaseRate !== undefined && monthlyBaseRate !== null ? new Prisma.Decimal(monthlyBaseRate) : null,
+      },
     });
 
     return NextResponse.json({ success: true, data: labour });

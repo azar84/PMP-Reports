@@ -3138,10 +3138,12 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     };
 
     // Flatten checklist items (main items + sub-items) for pagination
+    // Also mark header items (main items that have sub-items)
     const allChecklistItems: any[] = [];
     checklist.forEach((item: any) => {
-      allChecklistItems.push(item);
-      if (item.subItems && Array.isArray(item.subItems)) {
+      const hasSubItems = item.subItems && Array.isArray(item.subItems) && item.subItems.length > 0;
+      allChecklistItems.push({ ...item, isHeaderItem: hasSubItems });
+      if (hasSubItems) {
         item.subItems.forEach((subItem: any) => {
           allChecklistItems.push({ ...subItem, isSubItem: true, parentItem: item });
         });
@@ -3322,49 +3324,76 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   </tr>
                 </thead>
                 <tbody>
-                  {itemsWithNumbers.map((item: any, idx: number) => (
-                        <tr 
-                      key={item.id || idx}
-                          className="hover:opacity-90 transition-opacity"
-                          style={{ 
-                            borderBottom: `1px solid ${colors.primary}15`,
-                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
-                          }}
-                        >
-                      <td className={`py-0.5 px-2 font-semibold ${item.isSubItem ? 'pl-8' : ''}`} style={{ color: colors.textPrimary, fontSize: '0.7rem', height: 'auto' }}>
-                        {item.displayNumber || '-'}
-                          </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
-                            {item.phase}
-                          </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
-                            {formatDate(item.plannedDate)}
-                          </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
-                            {formatDate(item.actualDate)}
-                          </td>
-                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
-                            {item.status ? (
-                              <span 
-                            className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
-                                style={{ 
-                                  backgroundColor: `${getStatusColor(item.status)}15`,
-                                  color: getStatusColor(item.status),
-                              border: `1px solid ${getStatusColor(item.status)}30`,
-                              fontSize: '0.65rem'
-                                }}
-                              >
-                                {item.status}
-                              </span>
-                            ) : (
-                          <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
-                            )}
-                          </td>
-                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
-                              {item.notes || '-'}
-                          </td>
-                        </tr>
-                  ))}
+                  {itemsWithNumbers.map((item: any, idx: number) => {
+                    const isHeaderItem = item.isHeaderItem && !item.isSubItem;
+                    return (
+                      <tr 
+                        key={item.id || idx}
+                        className="hover:opacity-90 transition-opacity"
+                        style={{ 
+                          borderBottom: `1px solid ${colors.primary}15`,
+                          backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                        }}
+                      >
+                        <td className={`py-0.5 px-2 ${item.isSubItem ? 'pl-8' : ''}`} style={{ 
+                          color: colors.textPrimary, 
+                          fontSize: '0.7rem', 
+                          height: 'auto',
+                          fontWeight: isHeaderItem ? 'bold' : 'normal'
+                        }}>
+                          {item.displayNumber || '-'}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ 
+                          color: colors.textSecondary, 
+                          fontSize: '0.7rem', 
+                          height: 'auto',
+                          fontWeight: isHeaderItem ? 'bold' : 'normal'
+                        }}>
+                          {item.phase}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ 
+                          color: colors.textSecondary, 
+                          fontSize: '0.65rem', 
+                          height: 'auto'
+                        }}>
+                          {formatDate(item.plannedDate)}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ 
+                          color: colors.textSecondary, 
+                          fontSize: '0.65rem', 
+                          height: 'auto'
+                        }}>
+                          {formatDate(item.actualDate)}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                          {isHeaderItem ? (
+                            <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                          ) : item.status ? (
+                            <span 
+                              className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                              style={{ 
+                                backgroundColor: `${getStatusColor(item.status)}15`,
+                                color: getStatusColor(item.status),
+                                border: `1px solid ${getStatusColor(item.status)}30`,
+                                fontSize: '0.65rem'
+                              }}
+                            >
+                              {item.status}
+                            </span>
+                          ) : (
+                            <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
+                          )}
+                        </td>
+                        <td className="py-0.5 px-2" style={{ 
+                          color: colors.textSecondary, 
+                          fontSize: '0.7rem', 
+                          height: 'auto'
+                        }}>
+                          {item.notes || '-'}
+                        </td>
+                      </tr>
+                    );
+                  })}
                 </tbody>
                         </table>
                       </div>
