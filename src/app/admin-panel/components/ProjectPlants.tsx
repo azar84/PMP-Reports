@@ -9,6 +9,7 @@ import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
 import {
   Plus,
   Edit,
@@ -136,6 +137,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
   const [isSubmittingAssignment, setIsSubmittingAssignment] = useState(false);
   const [editingAssignment, setEditingAssignment] = useState<ProjectPlant | null>(null);
   const [showCostBreakdownModal, setShowCostBreakdownModal] = useState(false);
+  const [showRequirementsCostBreakdownModal, setShowRequirementsCostBreakdownModal] = useState(false);
   const [selectedSlotIndex, setSelectedSlotIndex] = useState<number | null>(null);
 
   const [newPlantData, setNewPlantData] = useState({
@@ -448,13 +450,38 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
 
   const availablePlants = useMemo(() => {
     const term = plantSearchTerm.trim().toLowerCase();
-    if (!term) return plants;
-    return plants.filter((plant) =>
+    let filtered = plants;
+    
+    // Filter by search term
+    if (term) {
+      filtered = filtered.filter((plant) =>
       plant.plantDescription.toLowerCase().includes(term) ||
       plant.plantCode.toLowerCase().includes(term) ||
       (plant.plateNumber && plant.plateNumber.toLowerCase().includes(term))
     );
-  }, [plants, plantSearchTerm]);
+    }
+    
+    // Filter out plants already assigned to ANY requirement in the project
+    if (showAssignmentModal) {
+      // Get all assigned plant IDs from projectPlants (source of truth for all assignments)
+      const assignedPlantIds = new Set<number>();
+      
+      projectPlants.forEach((assignment) => {
+        // Exclude the current editing assignment
+        if (editingAssignment && assignment.id === editingAssignment.id) {
+          return;
+        }
+        // Only consider assignments with a plantId (not new plants being created)
+        if (assignment.plantId && assignment.plantId !== null) {
+          assignedPlantIds.add(assignment.plantId);
+        }
+      });
+      
+      filtered = filtered.filter((plant) => !assignedPlantIds.has(plant.id));
+    }
+    
+    return filtered;
+  }, [plants, plantSearchTerm, projectPlants, showAssignmentModal, editingAssignment]);
 
   const stats = useMemo(() => {
     const totalRequirements = requirements.length;
@@ -579,6 +606,23 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
           setErrorMessage('Please select a plant to assign.');
           return;
         }
+        
+        // Check if this plant is already assigned to ANY requirement in the project
+        // Note: editingAssignment is null here because we already handled the edit case above
+        const existingAssignment = projectPlants.find(
+          (assignment: ProjectPlant) => assignment.plantId === selectedPlantId
+        );
+        
+        if (existingAssignment) {
+          const requirementName = existingAssignment.requirement?.title || 'another requirement';
+          const slotInfo = existingAssignment.slotIndex !== null && existingAssignment.slotIndex !== undefined 
+            ? ` (Slot ${existingAssignment.slotIndex + 1})` 
+            : '';
+          setErrorMessage(`This plant is already assigned to "${requirementName}"${slotInfo}. A plant can only be assigned once across all requirements.`);
+          setIsSubmittingAssignment(false);
+          return;
+        }
+        
         payload.plantId = selectedPlantId;
       } else {
         if (!newPlantData.plantDescription.trim() || !newPlantData.plantCode.trim()) {
@@ -591,7 +635,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
           plateNumber: newPlantData.plateNumber?.trim() || undefined,
           plantType: newPlantData.plantType,
           isOwned: newPlantData.isOwned,
-          monthlyCost: newPlantData.monthlyCost,
+          monthlyCost: assignmentMonthlyCost ?? 0,
           isActive: newPlantData.isActive,
         };
       }
@@ -721,37 +765,55 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
   );
 
   const totalBreakdownCost = costBreakdownRows.reduce((sum, row) => sum + row.totalCost, 0);
-  const totalDurationCost = totalBreakdownCost;
+  
+  // Requirements Cost: Sum of (Budgeted Monthly Cost × Required Units) for all requirements
+  const requirementsCost = useMemo(() => {
+    return requirements.reduce((total, req) => {
+      const monthlyBudget = req.monthlyBudget ?? 0;
+      // If using slot dates, use number of slots; otherwise use requiredQuantity
+      const units = req.useSlotDates && req.slots && req.slots.length > 0 
+        ? req.slots.length 
+        : req.requiredQuantity;
+      return total + (monthlyBudget * units);
+    }, 0);
+  }, [requirements]);
+  
+  const totalDurationCost = requirementsCost;
+  
+  // Requirements Cost Breakdown Rows
+  const requirementsCostBreakdownRows = useMemo(() => {
+    return requirements.map((req) => {
+      const monthlyBudget = req.monthlyBudget ?? 0;
+      // If using slot dates, use number of slots; otherwise use requiredQuantity
+      const units = req.useSlotDates && req.slots && req.slots.length > 0 
+        ? req.slots.length 
+        : req.requiredQuantity;
+      const totalCost = monthlyBudget * units;
+      
+      return {
+        id: req.id,
+        requirementTitle: req.title,
+        description: req.description || null,
+        monthlyBudget,
+        requiredUnits: units,
+        totalCost,
+        useSlotDates: req.useSlotDates || false,
+        slotsCount: req.slots?.length || 0,
+      };
+    });
+  }, [requirements]);
 
   const selectedRequirementSlots = getSlotsForRequirement(selectedRequirement);
 
   return (
-    <div className="space-y-8">
-      <div className="flex items-center justify-between">
+    <div className="space-y-6">
         <div>
-          <h2 className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>
+        <h2 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
             Project Plants
           </h2>
           <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Manage plant requirements and assignments for {projectName}.
-          </p>
-        </div>
-        <Button
-          variant="primary"
-          onClick={() => {
-            setEditingRequirement(null);
-            resetRequirementForm();
-            setShowRequirementForm(true);
-            if (typeof window !== 'undefined') {
-              const formEl = document.getElementById('plant-requirement-form');
-              formEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-            }
-          }}
-          className="flex items-center space-x-2"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Add Requirement</span>
-        </Button>
+          Manage plant requirements and assignments for {projectName}
+        </p>
       </div>
 
       {errorMessage && (
@@ -767,13 +829,13 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         </div>
       )}
 
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
           <div className="flex items-center space-x-3">
             <ClipboardList className="h-6 w-6" style={{ color: colors.primary }} />
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Required Units</p>
-              <p className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{stats.totalRequiredQuantity}</p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{stats.totalRequiredQuantity}</p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>
                 {stats.totalRequirements} requirement{stats.totalRequirements === 1 ? '' : 's'} defined
               </p>
@@ -785,69 +847,89 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
             <Factory className="h-6 w-6" style={{ color: colors.success }} />
             <div>
               <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Assigned Plants</p>
-              <p className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>{stats.assignedCount}</p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>{stats.assignedCount}</p>
               <p className="text-xs" style={{ color: colors.textSecondary }}>Open slots: {stats.openSlots}</p>
             </div>
           </div>
         </Card>
-        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
-          <div className="flex items-center space-x-3">
-            <div>
-              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Estimated Duration Cost</p>
-              <p className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>
-                {formatCurrency(totalDurationCost, siteSettings?.currencySymbol || '$')}
-              </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>Duration-adjusted cost</p>
-            </div>
-          </div>
-        </Card>
         <Card
-          className="p-4 cursor-pointer hover:opacity-90 transition-opacity"
+          className="p-4 cursor-pointer transition-colors"
           style={{ backgroundColor: colors.backgroundSecondary }}
-          onClick={() => setShowCostBreakdownModal(true)}
-          title="Click to view detailed cost breakdown"
+          onClick={() => setShowRequirementsCostBreakdownModal(true)}
+          role="button"
+          tabIndex={0}
         >
           <div className="flex items-center space-x-3">
             <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.warning }}>
               {siteSettings?.currencySymbol || '$'}
             </div>
             <div>
-              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Monthly Cost</p>
-              <p className="text-2xl font-semibold" style={{ color: colors.textPrimary }}>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Requirements Cost</p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
+                {(totalDurationCost ?? 0).toLocaleString()}
+              </p>
+              <p className="text-xs" style={{ color: colors.textSecondary }}>Duration-adjusted cost</p>
+            </div>
+          </div>
+        </Card>
+        <Card
+          className="p-4 cursor-pointer transition-colors"
+          style={{ backgroundColor: colors.backgroundSecondary }}
+          onClick={() => setShowCostBreakdownModal(true)}
+          role="button"
+          tabIndex={0}
+        >
+          <div className="flex items-center space-x-3">
+            <div className="w-6 h-6 flex items-center justify-center text-lg font-bold" style={{ color: colors.warning }}>
+              {siteSettings?.currencySymbol || '$'}
+            </div>
+            <div>
+              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>Assigned Plant Cost</p>
+              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
                 {(stats.monthlyCost ?? 0).toLocaleString()}
               </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>Based on assigned plant rates</p>
             </div>
           </div>
         </Card>
       </div>
 
+      {showRequirementForm && (
       <Card className="p-6 space-y-6" style={{ backgroundColor: colors.backgroundSecondary }}>
         <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div className="flex items-center space-x-3">
             <Factory className="h-5 w-5" style={{ color: colors.textMuted }} />
             <div>
-              <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Plant Requirements</h3>
+                  <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                    {editingRequirement ? 'Edit Plant Requirement' : 'Add Plant Requirement'}
+                  </h3>
               <p className="text-sm" style={{ color: colors.textSecondary }}>
-                Define what the project needs and manage the plants assigned from the company pool.
+                    {editingRequirement ? 'Update the plant requirement details' : 'Define a new plant requirement for this project'}
               </p>
             </div>
           </div>
-          {requirements.length > 0 && (
-            <span
-              className="text-xs font-medium px-3 py-1 rounded-full"
-              style={{
-                backgroundColor: colors.backgroundPrimary,
-                color: colors.textSecondary,
-                border: `1px solid ${colors.borderLight}`
-              }}
-            >
-              {requirements.length} requirement{requirements.length === 1 ? '' : 's'}
-            </span>
-          )}
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => {
+                  resetRequirementForm();
+                  setShowRequirementForm(false);
+                }}
+              >
+                <X className="w-4 h-4" />
+              </Button>
         </div>
 
-        {showRequirementForm && (
+          <style dangerouslySetInnerHTML={{
+              __html: `
+                #plant-requirement-form input:focus {
+                  border-color: ${colors.borderLight} !important;
+                  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05) !important;
+                }
+                #plant-requirement-form input {
+                  border-color: ${colors.borderLight} !important;
+                }
+              `
+            }} />
           <form
             id="plant-requirement-form"
             className="grid grid-cols-1 gap-6 md:grid-cols-2"
@@ -894,7 +976,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
               style={{ backgroundColor: colors.backgroundPrimary }}
             />
             <div className="md:col-span-2 space-y-3">
-              <div className="flex items-center justify-between p-3 rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+              <div className="flex items-center justify-between p-3 rounded-lg border" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
                 <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
                   Set individual start/end dates per unit
                 </span>
@@ -965,7 +1047,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                     <div
                       key={slot.slotIndex}
                       className="rounded-lg border p-3 space-y-2"
-                      style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
+                      style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}
                     >
                       <div className="flex items-center justify-between text-sm font-medium" style={{ color: colors.textPrimary }}>
                         <span>Unit {index + 1}</span>
@@ -982,7 +1064,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             return { ...prev, slots: updatedSlots };
                           })
                         }
-                        style={{ backgroundColor: colors.backgroundSecondary }}
+                        style={{ backgroundColor: colors.backgroundPrimary }}
                       />
                       <Input
                         label="End Date"
@@ -996,7 +1078,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             return { ...prev, slots: updatedSlots };
                           })
                         }
-                        style={{ backgroundColor: colors.backgroundSecondary }}
+                        style={{ backgroundColor: colors.backgroundPrimary }}
                       />
                       <Button
                         type="button"
@@ -1041,7 +1123,51 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
               </Button>
             </div>
           </form>
-        )}
+        </Card>
+      )}
+
+      <Card className="p-6 space-y-6" style={{ backgroundColor: colors.backgroundSecondary }}>
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+          <div className="flex items-center space-x-3">
+            <Factory className="h-5 w-5" style={{ color: colors.textMuted }} />
+            <div>
+              <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>Plant Requirements</h3>
+              <p className="text-sm" style={{ color: colors.textSecondary }}>
+                Define what the project needs and manage the plants assigned from the company pool.
+              </p>
+            </div>
+          </div>
+          {requirements.length > 0 && (
+            <span
+              className="text-xs font-medium px-3 py-1 rounded-full"
+              style={{
+                backgroundColor: colors.backgroundPrimary,
+                color: colors.textSecondary,
+                border: `1px solid ${colors.borderLight}`
+              }}
+            >
+              {requirements.length} requirement{requirements.length === 1 ? '' : 's'}
+            </span>
+          )}
+          {!showRequirementForm && (
+            <Button
+              variant="primary"
+              onClick={() => {
+                setEditingRequirement(null);
+                resetRequirementForm();
+                setShowRequirementForm(true);
+                if (typeof window !== 'undefined') {
+                  const formEl = document.getElementById('plant-requirement-form');
+                  formEl?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                }
+              }}
+              className="flex items-center space-x-2"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Add Requirement</span>
+            </Button>
+          )}
+        </div>
 
         {!showRequirementForm && requirements.length === 0 && (
           <div
@@ -1071,21 +1197,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
         )}
 
         {requirements.length > 0 && (
-          <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
-            <div className="flex items-center space-x-3 mb-4">
-              <Factory className="w-5 h-5" style={{ color: colors.textMuted }} />
-              <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
-                Current Project Plants
-              </h3>
-            </div>
-            
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead>
-                  <tr className="border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
+                <tr className="border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}>
                     <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Requirement</th>
                     <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Assigned Plant</th>
-                    <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
                     <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Duration</th>
                     <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Start Date</th>
                     <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>End Date</th>
@@ -1127,8 +1244,8 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
               return (
                       <React.Fragment key={requirement.id}>
                         {/* Requirement Header Row */}
-                        <tr className="border-b" style={{ borderColor: colors.border, backgroundColor: colors.backgroundSecondary }}>
-                          <td className="py-3 px-4" colSpan={8}>
+                        <tr className="border-b" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
+                          <td className="py-3 px-4" colSpan={7}>
                             <div className="flex items-center justify-between">
                               <div className="flex items-center space-x-2">
                                 <Briefcase className="w-4 h-4" style={{ color: colors.textMuted }} />
@@ -1197,7 +1314,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             const slotLabel = item.isSlot ? `Unit ${index + 1}` : 'Plant Assignment';
                             
                             return (
-                              <tr key={item.isSlot ? (item as any).slot?.id : assignment?.id || `empty-${index}`} className="border-b" style={{ borderColor: colors.border }}>
+                              <tr key={item.isSlot ? (item as any).slot?.id : assignment?.id || `empty-${index}`} className="border-b" style={{ borderColor: colors.borderLight }}>
                                 <td className="py-3 px-4 pl-8">
                                   <span style={{ color: colors.textSecondary }}>{slotLabel}</span>
                                 </td>
@@ -1221,9 +1338,6 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                       <span style={{ color: colors.textSecondary }}>Unassigned</span>
                                     </div>
                                   )}
-                                </td>
-                                <td className="py-3 px-4">
-                                  <span style={{ color: colors.textSecondary }}>-</span>
                                 </td>
                                 <td className="py-3 px-4">
                                   <span style={{ color: colors.textPrimary }}>
@@ -1314,8 +1428,8 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             );
                           })
                         ) : (
-                          <tr className="border-b" style={{ borderColor: colors.border }}>
-                            <td className="py-3 px-4 pl-8" colSpan={8}>
+                          <tr className="border-b" style={{ borderColor: colors.borderLight }}>
+                            <td className="py-3 px-4 pl-8" colSpan={7}>
                               <div className="flex items-center space-x-2">
                                 <UserX className="w-4 h-4" style={{ color: colors.textMuted }} />
                                 <span style={{ color: colors.textSecondary }}>No plants assigned</span>
@@ -1337,45 +1451,66 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                 </tbody>
               </table>
           </div>
-          </Card>
         )}
       </Card>
 
       {showCostBreakdownModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 p-4">
           <div
-            className="w-full max-w-4xl rounded-lg shadow-xl flex flex-col max-h-[90vh] overflow-hidden"
-            style={{ backgroundColor: colors.backgroundSecondary }}
+            className="w-full max-w-4xl rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden"
+            style={{ 
+              backgroundColor: colors.backgroundSecondary,
+              color: colors.textPrimary,
+            }}
           >
-            <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: colors.border }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: colors.borderLight }}>
               <div className="flex items-center space-x-3">
                 <Calculator className="h-5 w-5" style={{ color: colors.primary }} />
-                <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                <div>
+                  <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
                   Plant Cost Breakdown
                 </h3>
+                  <p className="text-sm" style={{ color: colors.textSecondary }}>
+                    Review assigned plants and their costs across the project duration.
+                  </p>
               </div>
-              <Button variant="ghost" className="p-2" onClick={() => setShowCostBreakdownModal(false)}>
+              </div>
+              <button
+                onClick={() => setShowCostBreakdownModal(false)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close cost breakdown"
+              >
                 <X className="h-5 w-5" />
-              </Button>
+              </button>
             </div>
-            <div className="flex-1 overflow-auto p-6">
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
               {costBreakdownRows.length > 0 ? (
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
-                      <tr className="border-b text-sm" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border, color: colors.textSecondary }}>
-                        <th className="px-4 py-3 text-left">Plant</th>
-                        <th className="px-4 py-3 text-left">Requirement</th>
-                        <th className="px-4 py-3 text-left">Status</th>
-                        <th className="px-4 py-3 text-left">Duration</th>
-                        <th className="px-4 py-3 text-right">Monthly Rate</th>
-                        <th className="px-4 py-3 text-right">Total Cost</th>
+                      <tr style={{ backgroundColor: colors.backgroundPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
+                        {['Plant', 'Requirement', 'Status', 'Duration', 'Monthly Rate', 'Total Cost'].map((heading) => (
+                          <th
+                            key={heading}
+                            className="px-4 py-2 text-left font-semibold"
+                            style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}
+                          >
+                            {heading}
+                          </th>
+                        ))}
                       </tr>
                     </thead>
                     <tbody>
-                      {costBreakdownRows.map((row) => (
-                        <tr key={row.id} className="border-b text-sm" style={{ borderColor: colors.border }}>
-                          <td className="px-4 py-3">
+                      {costBreakdownRows.map((row, index) => (
+                        <tr 
+                          key={row.id} 
+                          style={{ 
+                            borderBottom: `1px solid ${colors.borderLight}`,
+                            backgroundColor: index % 2 === 0 ? colors.backgroundSecondary : colors.backgroundPrimary
+                          }}
+                        >
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                             <div className="flex flex-col">
                               <span className="font-medium" style={{ color: colors.textPrimary }}>{row.plantName}</span>
                               {(row.plantCode || row.plateNumber) && (
@@ -1386,22 +1521,25 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                               )}
                             </div>
                           </td>
-                          <td className="px-4 py-3" style={{ color: colors.textPrimary }}>
+                          <td className="px-4 py-2" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                             {row.requirementTitle || '—'}
                           </td>
-                          <td className="px-4 py-3">
-                            <span className="inline-flex items-center space-x-1 rounded px-2 py-1 text-xs" style={{ backgroundColor: colors.backgroundPrimary, color: colors.textSecondary }}>
-                              <CheckCircle className="h-3 w-3" />
-                              <span>{row.status}</span>
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            <span 
+                              className={`px-2 py-1 text-xs rounded-full ${
+                                row.status === 'Active' 
+                                  ? 'bg-green-100 text-green-800' 
+                                  : row.status === 'On Hold'
+                                  ? 'bg-yellow-100 text-yellow-800'
+                                  : 'bg-gray-100 text-gray-800'
+                              }`}
+                            >
+                              {row.status}
                             </span>
                           </td>
-                          <td className="px-4 py-3">
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                             {row.startDate ? (
                               <div className="flex flex-col" style={{ color: colors.textPrimary }}>
-                                <span>
-                                  {formatDateForDisplay(row.startDate)}
-                                  {row.endDate ? ` → ${formatDateForDisplay(row.endDate)}` : ''}
-                                </span>
                                 <span className="text-xs" style={{ color: colors.textSecondary }}>
                                   {row.durationDays} day{row.durationDays === 1 ? '' : 's'}
                                   {row.isOngoing ? ' (Ongoing)' : ''}
@@ -1411,19 +1549,19 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                               <span className="text-xs" style={{ color: colors.textSecondary }}>No dates</span>
                             )}
                           </td>
-                          <td className="px-4 py-3 text-right" style={{ color: colors.textPrimary }}>
+                          <td className="px-4 py-2 text-right" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                             {formatCurrency(row.monthlyRate, siteSettings?.currencySymbol || '$')}
                           </td>
-                          <td className="px-4 py-3 text-right font-medium" style={{ color: colors.textPrimary }}>
+                          <td className="px-4 py-2 text-right font-medium" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                             {formatCurrency(row.totalCost, siteSettings?.currencySymbol || '$')}
                           </td>
                         </tr>
                       ))}
-                      <tr className="border-t-2" style={{ borderColor: colors.border }}>
-                        <td className="px-4 py-3 font-semibold" colSpan={5} style={{ color: colors.textPrimary }}>
+                      <tr style={{ borderTop: `2px solid ${colors.borderLight}` }}>
+                        <td className="px-4 py-2 font-semibold" colSpan={5} style={{ color: colors.textPrimary }}>
                           Total Cost
                         </td>
-                        <td className="px-4 py-3 text-right font-bold text-lg" style={{ color: colors.primary }}>
+                        <td className="px-4 py-2 text-right font-bold text-lg" style={{ color: colors.primary }}>
                           {formatCurrency(totalBreakdownCost, siteSettings?.currencySymbol || '$')}
                         </td>
                       </tr>
@@ -1436,39 +1574,169 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                 </p>
               )}
             </div>
+            <div className="flex justify-end px-6 py-4 border-t flex-shrink-0" style={{ borderColor: colors.borderLight }}>
+              <Button onClick={() => setShowCostBreakdownModal(false)} style={{ backgroundColor: colors.primary }}>
+                Close
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showRequirementsCostBreakdownModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 p-4">
+          <div
+            className="w-full max-w-4xl rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden"
+            style={{ 
+              backgroundColor: colors.backgroundSecondary,
+              color: colors.textPrimary,
+            }}
+          >
+            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: colors.borderLight }}>
+              <div className="flex items-center space-x-3">
+                <Calculator className="h-5 w-5" style={{ color: colors.primary }} />
+                <div>
+                  <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                    Requirements Cost Breakdown
+                  </h3>
+                  <p className="text-sm" style={{ color: colors.textSecondary }}>
+                    Review plant requirements and their budgeted costs.
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => setShowRequirementsCostBreakdownModal(false)}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close requirements cost breakdown"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+            <div className="flex-1 min-h-0 overflow-y-auto px-6 py-4">
+              {requirementsCostBreakdownRows.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead>
+                      <tr style={{ backgroundColor: colors.backgroundPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
+                        {['Requirement', 'Monthly Budget', 'Required Units', 'Total Cost'].map((heading) => (
+                          <th
+                            key={heading}
+                            className="px-4 py-2 text-left font-semibold"
+                            style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}
+                          >
+                            {heading}
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {requirementsCostBreakdownRows.map((row, index) => (
+                        <tr 
+                          key={row.id} 
+                          style={{ 
+                            borderBottom: `1px solid ${colors.borderLight}`,
+                            backgroundColor: index % 2 === 0 ? colors.backgroundSecondary : colors.backgroundPrimary
+                          }}
+                        >
+                          <td className="px-4 py-2" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
+                            <div className="flex flex-col">
+                              <span className="font-medium" style={{ color: colors.textPrimary }}>{row.requirementTitle}</span>
+                              {row.description && (
+                                <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                  {row.description}
+                                </span>
+                              )}
+                              {row.useSlotDates && (
+                                <span className="text-xs" style={{ color: colors.textSecondary }}>
+                                  Using slot dates ({row.slotsCount} slot{row.slotsCount === 1 ? '' : 's'})
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-2 text-right" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(row.monthlyBudget, siteSettings?.currencySymbol || '$')}
+                          </td>
+                          <td className="px-4 py-2 text-right" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {row.requiredUnits}
+                          </td>
+                          <td className="px-4 py-2 text-right font-medium" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
+                            {formatCurrency(row.totalCost, siteSettings?.currencySymbol || '$')}
+                          </td>
+                        </tr>
+                      ))}
+                      <tr style={{ borderTop: `2px solid ${colors.borderLight}` }}>
+                        <td className="px-4 py-2 font-semibold" colSpan={3} style={{ color: colors.textPrimary }}>
+                          Total Requirements Cost
+                        </td>
+                        <td className="px-4 py-2 text-right font-bold text-lg" style={{ color: colors.primary }}>
+                          {formatCurrency(requirementsCost, siteSettings?.currencySymbol || '$')}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  No plant requirements yet. Add requirements to see the breakdown.
+                </p>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {showAssignmentModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50 p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm bg-black/30 p-4">
           <div
-            className="w-full max-w-3xl rounded-lg shadow-xl flex flex-col max-h-[90vh] overflow-hidden"
-            style={{ backgroundColor: colors.backgroundSecondary }}
+            className="w-full max-w-3xl rounded-2xl shadow-xl flex flex-col max-h-[90vh] overflow-hidden"
+            style={{ 
+              backgroundColor: colors.backgroundSecondary,
+              color: colors.textPrimary,
+            }}
           >
-            <div className="flex items-center justify-between p-6 border-b" style={{ borderColor: colors.border }}>
+            <div className="flex items-center justify-between px-6 py-4 border-b flex-shrink-0" style={{ borderColor: colors.borderLight }}>
               <div>
-                <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                <h3 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
                   {editingAssignment ? 'Update Plant Assignment' : 'Assign Plant to Project'}
                 </h3>
-                <p className="text-xs mt-1" style={{ color: colors.textSecondary }}>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
                   {selectedRequirement ? `Requirement: ${selectedRequirement.title}` : 'Select an existing plant or create a new one for this project.'}
                 </p>
               </div>
-              <Button
-                variant="ghost"
-                className="p-2"
+              <button
                 onClick={() => {
                   setShowAssignmentModal(false);
                   resetAssignmentModal();
                   setSelectedRequirement(null);
                 }}
+                className="p-2 rounded-lg transition-colors"
+                style={{ color: colors.textSecondary }}
+                aria-label="Close modal"
               >
                 <X className="h-5 w-5" />
-              </Button>
+              </button>
             </div>
 
-            <form onSubmit={handleAssignmentSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
+            <style dangerouslySetInnerHTML={{
+              __html: `
+                #plant-assignment-form input:focus {
+                  border-color: ${colors.borderLight} !important;
+                  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05) !important;
+                }
+                #plant-assignment-form input {
+                  border-color: ${colors.borderLight} !important;
+                }
+                #plant-assignment-form select {
+                  border-color: ${colors.borderLight} !important;
+                }
+                #plant-assignment-form select:focus {
+                  border-color: ${colors.borderLight} !important;
+                  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05) !important;
+                }
+              `
+            }} />
+            <form id="plant-assignment-form" onSubmit={handleAssignmentSubmit} className="flex-1 min-h-0 overflow-y-auto p-6 space-y-6">
               {!editingAssignment && (
                 <div className="flex flex-wrap items-center gap-3">
                   {(['existing', 'new'] as const).map((tab) => (
@@ -1507,23 +1775,32 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                   >
                     {availablePlants.length === 0 ? (
                       <p className="p-4 text-sm" style={{ color: colors.textSecondary }}>
-                        No plants match your search.
+                        {plantSearchTerm.trim() 
+                          ? 'No plants match your search.' 
+                          : projectPlants.some(a => a.plantId)
+                            ? 'All available plants are already assigned to other requirements. A plant can only be assigned once across all requirements.'
+                            : 'No plants available.'}
                       </p>
                     ) : (
                       availablePlants.map((plant) => (
                         <label
                           key={plant.id}
-                          className={`flex cursor-pointer items-center justify-between px-4 py-3 text-sm transition-colors ${
-                            selectedPlantId === plant.id ? 'bg-blue-50' : ''
-                          }`}
-                          style={{ borderBottom: `1px solid ${colors.borderLight}`, color: colors.textPrimary }}
+                          className="flex cursor-pointer items-center justify-between px-4 py-3 text-sm transition-colors hover:opacity-75"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.borderLight}`, 
+                            color: colors.textPrimary,
+                            backgroundColor: selectedPlantId === plant.id ? colors.primary + '20' : 'transparent'
+                          }}
                         >
+                          <div className="flex items-center space-x-2">
+                            <Factory className="w-4 h-4" style={{ color: colors.textMuted }} />
                           <div>
                             <p className="font-medium">{plant.plantDescription}</p>
                             <p className="text-xs" style={{ color: colors.textSecondary }}>
                               {plant.plantCode}
                               {plant.plateNumber ? ` · Plate ${plant.plateNumber}` : ''}
                             </p>
+                            </div>
                           </div>
                           <input
                             type="radio"
@@ -1531,8 +1808,11 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                             value={plant.id}
                             checked={selectedPlantId === plant.id}
                             onChange={() => setSelectedPlantId(plant.id)}
-                            className="h-4 w-4 border border-gray-300 rounded-full"
-                            style={{ accentColor: colors.primary }}
+                            className="h-4 w-4 rounded-full"
+                            style={{ 
+                              accentColor: colors.primary,
+                              borderColor: colors.borderLight
+                            }}
                           />
                         </label>
                       ))
@@ -1565,79 +1845,64 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                     <label className="mb-2 block text-sm font-medium" style={{ color: colors.textPrimary }}>Plant Type</label>
                     <div className="flex space-x-4">
                       {(['direct', 'indirect'] as const).map((type) => (
-                        <label key={type} className="flex items-center space-x-2 text-sm" style={{ color: colors.textSecondary }}>
-                          <input
-                            type="radio"
+                        <div key={type} className="flex items-center space-x-2">
+                          <Checkbox
                             checked={newPlantData.plantType === type}
-                            onChange={() => setNewPlantData((prev) => ({ ...prev, plantType: type }))}
-                            className="h-4 w-4 border-2 rounded-full cursor-pointer"
-                            style={{ 
-                              accentColor: colors.primary,
-                              borderColor: colors.borderLight,
-                              backgroundColor: newPlantData.plantType === type ? colors.primary : 'transparent',
+                            onChange={(e) => {
+                              if (e.target.checked) {
+                                // When checking one, ensure the other is unchecked
+                                setNewPlantData((prev) => ({ ...prev, plantType: type }));
+                              }
+                              // Don't allow unchecking - at least one must be selected
                             }}
+                            variant="primary"
+                            size="sm"
                           />
-                          <span className="capitalize">{type}</span>
-                        </label>
+                          <span className="text-sm capitalize" style={{ color: colors.textSecondary }}>{type}</span>
+                        </div>
                       ))}
                     </div>
                   </div>
                   <div>
                     <label className="mb-2 block text-sm font-medium" style={{ color: colors.textPrimary }}>Ownership</label>
                     <div className="flex space-x-4">
-                      <label className="flex items-center space-x-2 text-sm" style={{ color: colors.textSecondary }}>
-                        <input
-                          type="radio"
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
                           checked={newPlantData.isOwned}
-                          onChange={() => setNewPlantData((prev) => ({ ...prev, isOwned: true }))}
-                          className="h-4 w-4 border-2 rounded-full cursor-pointer"
-                          style={{ 
-                            accentColor: colors.primary,
-                            borderColor: colors.borderLight,
-                            backgroundColor: newPlantData.isOwned ? colors.primary : 'transparent',
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewPlantData((prev) => ({ ...prev, isOwned: true }));
+                            }
                           }}
+                          variant="primary"
+                          size="sm"
                         />
-                        <span>Owned</span>
-                      </label>
-                      <label className="flex items-center space-x-2 text-sm" style={{ color: colors.textSecondary }}>
-                        <input
-                          type="radio"
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>Owned</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <Checkbox
                           checked={!newPlantData.isOwned}
-                          onChange={() => setNewPlantData((prev) => ({ ...prev, isOwned: false }))}
-                          className="h-4 w-4 border-2 rounded-full cursor-pointer"
-                          style={{ 
-                            accentColor: colors.primary,
-                            borderColor: colors.borderLight,
-                            backgroundColor: !newPlantData.isOwned ? colors.primary : 'transparent',
+                          onChange={(e) => {
+                            if (e.target.checked) {
+                              setNewPlantData((prev) => ({ ...prev, isOwned: false }));
+                            }
                           }}
+                          variant="primary"
+                          size="sm"
                         />
-                        <span>Hired</span>
-                      </label>
+                        <span className="text-sm" style={{ color: colors.textSecondary }}>Hired</span>
                     </div>
                   </div>
-                  <Input
-                    label="Monthly Cost"
-                    type="number"
-                    min={0}
-                    value={newPlantData.monthlyCost}
-                    onChange={(event) => setNewPlantData((prev) => ({ ...prev, monthlyCost: Number(event.target.value) }))}
-                    required
-                    style={{ backgroundColor: colors.backgroundPrimary }}
-                  />
-                  <label className="flex items-center space-x-2 text-sm" style={{ color: colors.textSecondary }}>
-                    <input
-                      type="checkbox"
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
                       checked={newPlantData.isActive}
-                      onChange={(event) => setNewPlantData((prev) => ({ ...prev, isActive: event.target.checked }))}
-                      className="h-4 w-4 border-2 rounded cursor-pointer"
-                      style={{ 
-                        accentColor: colors.primary,
-                        borderColor: colors.borderLight,
-                        backgroundColor: newPlantData.isActive ? colors.primary : 'transparent',
-                      }}
+                      onChange={(e) => setNewPlantData((prev) => ({ ...prev, isActive: e.target.checked }))}
+                      variant="primary"
+                      size="sm"
                     />
-                    <span>Active Plant</span>
-                  </label>
+                    <span className="text-sm" style={{ color: colors.textSecondary }}>Active Plant</span>
+                  </div>
                 </div>
               )}
 
@@ -1661,23 +1926,19 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                       return (
                         <label
                           key={slot.id}
-                          className={`flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-lg border px-3 py-2 text-sm ${
-                            selectedSlotIndex === slot.slotIndex ? 'ring-2 ring-offset-1' : ''
-                          }`}
+                          className="flex flex-col md:flex-row md:items-center md:justify-between gap-2 rounded-lg border px-3 py-2 text-sm"
                           style={{
-                            borderColor:
-                              selectedSlotIndex === slot.slotIndex ? colors.primary : colors.borderLight,
-                            backgroundColor: colors.backgroundPrimary,
+                            borderColor: colors.borderLight,
+                            backgroundColor: selectedSlotIndex === slot.slotIndex ? colors.backgroundSecondary : colors.backgroundPrimary,
                           }}
                         >
                           <div className="flex items-start gap-3">
-                            <input
-                              type="radio"
-                              name="plantSlot"
-                              value={slot.slotIndex}
+                            <div className="mt-1">
+                              <Checkbox
                               checked={selectedSlotIndex === slot.slotIndex}
                               disabled={isOccupied}
-                              onChange={() => {
+                                onChange={(e) => {
+                                  if (e.target.checked) {
                                 setSelectedSlotIndex(slot.slotIndex);
                                 const defaultStart =
                                   slot.plannedStartDate || selectedRequirement.plannedStartDate || '';
@@ -1685,10 +1946,12 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                                   slot.plannedEndDate || selectedRequirement.plannedEndDate || '';
                                 setAssignmentStartDate(defaultStart ? formatDateForInput(defaultStart) : '');
                                 setAssignmentEndDate(defaultEnd ? formatDateForInput(defaultEnd) : '');
+                                  }
                               }}
-                              className="h-4 w-4 border border-gray-300 rounded-full mt-1"
-                              style={{ accentColor: colors.primary }}
+                                variant="primary"
+                                size="sm"
                             />
+                            </div>
                             <div className="space-y-1" style={{ color: colors.textSecondary }}>
                               <div className="flex items-center gap-2">
                                 <span style={{ color: colors.textPrimary }}>
@@ -1742,9 +2005,9 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                   style={{ backgroundColor: colors.backgroundPrimary }}
                 />
                 <div>
-                  <label className="mb-2 block text-sm font-medium">Assignment Status</label>
+                  <label className="mb-2 block text-sm font-medium" style={{ color: colors.textPrimary }}>Assignment Status</label>
                   <select
-                    className="w-full rounded border px-3 py-2 text-sm"
+                    className="w-full rounded-lg border px-3 py-2 text-sm"
                     value={assignmentStatus}
                     onChange={(event) => setAssignmentStatus(event.target.value)}
                     style={{
@@ -1761,7 +2024,7 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                   </select>
                 </div>
                 <Input
-                  label="Override Monthly Cost"
+                  label="Monthly Cost"
                   type="number"
                   min={0}
                   value={assignmentMonthlyCost ?? ''}
@@ -1778,7 +2041,9 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                 style={{ backgroundColor: colors.backgroundPrimary }}
               />
 
-              <div className="flex items-center justify-end space-x-2">
+            </form>
+
+            <div className="flex items-center justify-end space-x-3 px-6 py-4 border-t flex-shrink-0" style={{ borderColor: colors.borderLight }}>
                 <Button
                   type="button"
                   variant="ghost"
@@ -1791,7 +2056,13 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                   Cancel
                 </Button>
                 <Button
-                  type="submit"
+                onClick={(e) => {
+                  e.preventDefault();
+                  const form = document.getElementById('plant-assignment-form') as HTMLFormElement;
+                  if (form) {
+                    form.requestSubmit();
+                  }
+                }}
                   variant="primary"
                   disabled={
                     isSubmittingAssignment ||
@@ -1802,7 +2073,6 @@ export default function ProjectPlants({ projectId, projectName, projectStartDate
                   {editingAssignment ? 'Save Changes' : 'Assign Plant'}
                 </Button>
               </div>
-            </form>
           </div>
         </div>
       )}

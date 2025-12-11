@@ -12,13 +12,11 @@ import {
   Edit, 
   Trash2, 
   Wrench,
-  DollarSign,
   Users,
   X,
   Save,
   AlertCircle,
-  Briefcase,
-  TrendingUp
+  Briefcase
 } from 'lucide-react';
 import { formatCurrency } from '@/lib/currency';
 
@@ -303,16 +301,20 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
       </div>
 
       {errorMessage && (
-        <Card className="p-4" style={{ backgroundColor: colors.error + '20', borderColor: colors.error }}>
-          <div className="flex items-center space-x-2" style={{ color: colors.error }}>
-            <AlertCircle className="w-5 h-5" />
-            <span>{errorMessage}</span>
-          </div>
-        </Card>
+        <div
+          className="flex items-center space-x-2 rounded-md border p-3"
+          style={{
+            borderColor: colors.error,
+            backgroundColor: 'rgba(239, 68, 68, 0.08)'
+          }}
+        >
+          <AlertCircle className="h-5 w-5" style={{ color: colors.error }} />
+          <span className="text-sm" style={{ color: colors.error }}>{errorMessage}</span>
+        </div>
       )}
 
       {/* Summary Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
           <div className="flex items-center space-x-3">
             <Briefcase className="w-6 h-6" style={{ color: colors.primary }} />
@@ -337,26 +339,6 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
                 {stats.totalLabour}
               </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                Workers
-              </p>
-            </div>
-          </div>
-        </Card>
-
-        <Card className="p-4" style={{ backgroundColor: colors.backgroundSecondary }}>
-          <div className="flex items-center space-x-3">
-            <DollarSign className="w-6 h-6" style={{ color: colors.info }} />
-            <div>
-              <p className="text-sm font-medium" style={{ color: colors.textMuted }}>
-                Total Hourly Cost
-              </p>
-              <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                {formatCurrency(stats.totalHourlyCost, siteSettings?.currencySymbol || '$')}
-              </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                Per hour
-              </p>
             </div>
           </div>
         </Card>
@@ -371,10 +353,9 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                 Total Monthly Cost
               </p>
               <p className="text-2xl font-bold" style={{ color: colors.textPrimary }}>
-                {formatCurrency(stats.totalMonthlyCost, siteSettings?.currencySymbol || '$')}
-              </p>
-              <p className="text-xs" style={{ color: colors.textSecondary }}>
-                @ {MONTHLY_HOURS} hrs/month
+                {Number.isFinite(stats.totalMonthlyCost)
+                  ? Number(stats.totalMonthlyCost).toLocaleString()
+                  : '0'}
               </p>
             </div>
           </div>
@@ -388,11 +369,22 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
             {editingSupply ? 'Edit Labour Supply' : 'Add New Labour Supply'}
           </h3>
           
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <style dangerouslySetInnerHTML={{
+            __html: `
+              #labour-supply-form input:focus {
+                border-color: ${colors.borderLight} !important;
+                box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05) !important;
+              }
+              #labour-supply-form input {
+                border-color: ${colors.borderLight} !important;
+              }
+            `
+          }} />
+          <form id="labour-supply-form" onSubmit={handleSubmit} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Trade <span style={{ color: colors.error }}>*</span>
+                  Trade
                 </label>
                 <Input
                   type="text"
@@ -402,16 +394,14 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                   required
                   disabled={isSubmitting}
                   style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary,
-                    borderColor: colors.borderLight
+                    backgroundColor: colors.backgroundPrimary
                   }}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Number of Labour <span style={{ color: colors.error }}>*</span>
+                  Number of Labour
                 </label>
                 <Input
                   type="number"
@@ -423,16 +413,14 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                   required
                   disabled={isSubmitting}
                   style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary,
-                    borderColor: colors.borderLight
+                    backgroundColor: colors.backgroundPrimary
                   }}
                 />
               </div>
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  Price Per Hour <span style={{ color: colors.error }}>*</span>
+                  Price Per Hour
                 </label>
                 <div className="relative">
                   <span 
@@ -452,32 +440,28 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                     disabled={isSubmitting}
                     className="pl-8"
                     style={{
-                      backgroundColor: colors.backgroundPrimary,
-                      color: colors.textPrimary,
-                      borderColor: colors.borderLight
+                      backgroundColor: colors.backgroundPrimary
                     }}
                   />
                 </div>
               </div>
             </div>
 
-            <div className="flex items-center space-x-3 pt-4">
-              <Button
-                type="submit"
-                variant="primary"
-                disabled={isSubmitting}
-              >
-                <Save className="w-4 h-4 mr-2" />
-                {isSubmitting ? 'Saving...' : editingSupply ? 'Update' : 'Add'} Labour Supply
-              </Button>
+            <div className="flex items-center justify-end space-x-3 mt-6">
               <Button
                 type="button"
                 onClick={handleCancel}
                 variant="ghost"
                 disabled={isSubmitting}
               >
-                <X className="w-4 h-4 mr-2" />
                 Cancel
+              </Button>
+              <Button
+                type="submit"
+                variant="primary"
+                disabled={isSubmitting}
+              >
+                {isSubmitting ? 'Saving...' : editingSupply ? 'Update' : 'Add'} Labour Supply
               </Button>
             </div>
           </form>
@@ -497,7 +481,10 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
+                <tr style={{ 
+                  backgroundColor: colors.backgroundPrimary,
+                  borderBottom: `1px solid ${colors.borderLight}`
+                }}>
                   <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Trade</th>
                   <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Number of Labour</th>
                   <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Price Per Hour</th>
@@ -516,11 +503,17 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                     : parseFloat(String(supply.pricePerHour || 0));
 
                   return (
-                    <tr key={supply.id} className="border-b" style={{ borderColor: colors.border }}>
+                    <tr 
+                      key={supply.id}
+                      style={{
+                        borderBottom: `1px solid ${colors.borderLight}`,
+                        backgroundColor: 'transparent'
+                      }}
+                    >
                       <td className="py-3 px-4">
                         <div className="flex items-center space-x-2">
                           <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
-                          <span className="font-medium" style={{ color: colors.textPrimary }}>
+                          <span style={{ color: colors.textPrimary }}>
                             {supply.trade}
                           </span>
                         </div>
@@ -544,15 +537,12 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                         </span>
                       </td>
                       <td className="py-3 px-4">
-                        <div className="flex items-center space-x-2">
-                          <TrendingUp className="w-4 h-4" style={{ color: colors.primary }} />
-                          <span className="font-semibold" style={{ color: colors.primary }}>
-                            {formatCurrency(monthlyCost, siteSettings?.currencySymbol || '$')}
-                          </span>
-                        </div>
+                        <span style={{ color: colors.textPrimary }}>
+                          {formatCurrency(monthlyCost, siteSettings?.currencySymbol || '$')}
+                        </span>
                       </td>
                       <td className="py-3 px-4">
-                        <span className="text-sm" style={{ color: colors.textSecondary }}>
+                        <span style={{ color: colors.textSecondary }}>
                           {new Date(supply.createdAt).toLocaleDateString()}
                         </span>
                       </td>
@@ -560,8 +550,9 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                         <div className="flex items-center space-x-2">
                           <Button
                             onClick={() => handleEdit(supply)}
-                            variant="secondary"
+                            variant="ghost"
                             size="sm"
+                            className="p-1"
                             disabled={isSubmitting}
                             title="Edit"
                           >
@@ -571,8 +562,8 @@ export default function ProjectLabourSupply({ projectId, projectName }: ProjectL
                             onClick={() => handleDelete(supply.id)}
                             variant="ghost"
                             size="sm"
+                            className="p-1"
                             disabled={isSubmitting}
-                            style={{ color: colors.error }}
                             title="Delete"
                           >
                             <Trash2 className="w-4 h-4" />
