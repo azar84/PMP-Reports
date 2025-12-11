@@ -1,13 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
-import { Plus, Trash2, Save, RefreshCcw } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 
 interface PlanningRecord {
   id: number;
@@ -101,6 +101,9 @@ export default function ProjectPlanning({
   const [planningState, setPlanningState] = useState<typeof emptyPlanningState>(emptyPlanningState);
   const [milestones, setMilestones] = useState<MilestoneFormValue[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [isSavingMilestones, setIsSavingMilestones] = useState<boolean>(false);
+  const [lastSavedMilestones, setLastSavedMilestones] = useState<string | null>(null);
+  const milestonesRef = useRef<MilestoneFormValue[]>([]);
 
   const normalizedExistingMilestones = useMemo(
     () => existingMilestones ?? [],
@@ -148,20 +151,20 @@ export default function ProjectPlanning({
       }
 
       const sortedControlMilestones = [...controlMilestones].sort((a, b) => a.sortOrder - b.sortOrder);
-      setMilestones(
-        sortedControlMilestones.map((milestone) => ({
-          id: milestone.id,
-          name: milestone.name,
-          startDate: formatDateForInput(milestone.startDate),
-          endDate: formatDateForInput(milestone.endDate),
-          actualStartDate: formatDateForInput(milestone.actualStartDate),
-          actualEndDate: formatDateForInput(milestone.actualEndDate),
-          status:
-            milestone.status && milestone.status.trim().length > 0
-              ? milestone.status
-              : 'Pending',
-        }))
-      );
+      const mapped = sortedControlMilestones.map((milestone) => ({
+        id: milestone.id,
+        name: milestone.name,
+        startDate: formatDateForInput(milestone.startDate),
+        endDate: formatDateForInput(milestone.endDate),
+        actualStartDate: formatDateForInput(milestone.actualStartDate),
+        actualEndDate: formatDateForInput(milestone.actualEndDate),
+        status:
+          milestone.status && milestone.status.trim().length > 0
+            ? milestone.status
+            : 'Pending',
+      }));
+      setMilestones(mapped);
+      milestonesRef.current = mapped;
     },
     [normalizeDecimalToString, projectStartDate, projectEndDate]
   );
@@ -259,48 +262,17 @@ export default function ProjectPlanning({
     }));
   };
 
-  const handleAddMilestone = () => {
-    setMilestones((prev) => [
-      ...prev,
-      {
-        name: '',
-        startDate: '',
-        endDate: '',
-        actualStartDate: '',
-        actualEndDate: '',
-        status: 'Pending',
-      },
-    ]);
+  const handlePlanningBlur = () => {
+    // Save planning data when user finishes editing
+    savePlanningData();
   };
 
-  const handleUpdateMilestone = (index: number, field: keyof MilestoneFormValue, value: string) => {
-    setMilestones((prev) =>
-      prev.map((milestone, i) =>
-        i === index
-          ? {
-              ...milestone,
-              [field]: value,
-            }
-          : milestone
-      )
-    );
-  };
+  const savePlanningData = useCallback(async () => {
+    if (isSaving) return;
 
-  const handleRemoveMilestone = (index: number) => {
-    setMilestones((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const handleReset = () => {
-    hydrateFromSource(latestServerSnapshot.current.planning, latestServerSnapshot.current.controlMilestones);
-  };
-
-  const handleSave = async () => {
-    // Simple validation for milestones
-    const hasEmptyMilestoneName = milestones.some((milestone) => milestone.name.trim() === '');
-    if (hasEmptyMilestoneName) {
-      alert('Please provide a name for each control milestone before saving.');
-      return;
-    }
+    const currentMilestones = milestonesRef.current;
+    // Validate milestones - skip empty rows (newly added rows without names)
+    const validMilestones = currentMilestones.filter((milestone) => milestone.name.trim() !== '');
 
     setIsSaving(true);
     try {
@@ -319,7 +291,7 @@ export default function ProjectPlanning({
           planningState.eotDays !== '' && !Number.isNaN(Number(planningState.eotDays))
             ? Number(planningState.eotDays)
             : null,
-        controlMilestones: milestones.map((milestone, index) => ({
+        controlMilestones: validMilestones.map((milestone, index) => ({
           id: milestone.id,
           name: milestone.name.trim(),
           startDate: milestone.startDate || null,
@@ -343,15 +315,120 @@ export default function ProjectPlanning({
       hydrateFromSource(planning, controlMilestones);
       onPlanningUpdatedRef.current?.({ planning: planning ?? null, controlMilestones });
       setLoadError(null);
-      alert('Planning data saved successfully');
     } catch (error) {
       console.error('Error saving planning data:', error);
-      alert('Failed to save planning data. Please try again.');
       setLoadError(error instanceof Error ? error.message : 'Failed to save planning data');
     } finally {
       setIsSaving(false);
     }
+  }, [planningState, projectId, put, hydrateFromSource, isSaving]);
+
+  const handleAddMilestone = () => {
+    setMilestones((prev) => {
+      const updated = [
+        ...prev,
+        {
+          name: '',
+          startDate: '',
+          endDate: '',
+          actualStartDate: '',
+          actualEndDate: '',
+          status: 'Pending',
+        },
+      ];
+      milestonesRef.current = updated;
+      return updated;
+    });
   };
+
+  const handleUpdateMilestone = (index: number, field: keyof MilestoneFormValue, value: string) => {
+    setMilestones((prev) => {
+      const updated = prev.map((milestone, i) =>
+        i === index
+          ? {
+              ...milestone,
+              [field]: value,
+            }
+          : milestone
+      );
+      milestonesRef.current = updated;
+      return updated;
+    });
+  };
+
+  const handleMilestoneBlur = () => {
+    // Save when user finishes editing (on blur)
+    saveMilestones();
+  };
+
+  const saveMilestones = useCallback(async () => {
+    const currentMilestones = milestonesRef.current;
+    if (isSavingMilestones || currentMilestones.length === 0) return;
+
+    // Validate milestones - skip empty rows (newly added rows without names)
+    const validMilestones = currentMilestones.filter((milestone) => milestone.name.trim() !== '');
+    if (validMilestones.length === 0 && currentMilestones.length > 0) {
+      return; // Don't save if all rows are empty
+    }
+
+    setIsSavingMilestones(true);
+    try {
+      const payload = {
+        targetProgramStart: planningState.targetProgramStart || null,
+        targetProgramEnd: planningState.targetProgramEnd || null,
+        plannedProgress:
+          planningState.plannedProgress !== '' && !Number.isNaN(Number(planningState.plannedProgress))
+            ? Number(planningState.plannedProgress)
+            : null,
+        actualProgress:
+          planningState.actualProgress !== '' && !Number.isNaN(Number(planningState.actualProgress))
+            ? Number(planningState.actualProgress)
+            : null,
+        eotDays:
+          planningState.eotDays !== '' && !Number.isNaN(Number(planningState.eotDays))
+            ? Number(planningState.eotDays)
+            : null,
+        controlMilestones: validMilestones.map((milestone, index) => ({
+          id: milestone.id,
+          name: milestone.name.trim(),
+          startDate: milestone.startDate || null,
+          endDate: milestone.endDate || null,
+          actualStartDate: milestone.actualStartDate || null,
+          actualEndDate: milestone.actualEndDate || null,
+          status: milestone.status || 'Pending',
+          sortOrder: index,
+        })),
+      };
+
+      const response = await put<PlanningApiResponse>(`/api/admin/projects/${projectId}/planning`, payload);
+
+      if (!response.success) {
+        throw new Error(response.error || 'Failed to save milestones');
+      }
+
+      const planning = response.data.planning;
+      const controlMilestones = response.data.controlMilestones ?? [];
+      latestServerSnapshot.current = { planning, controlMilestones };
+      hydrateFromSource(planning, controlMilestones);
+      onPlanningUpdatedRef.current?.({ planning: planning ?? null, controlMilestones });
+      
+      const now = new Date();
+      setLastSavedMilestones(now.toLocaleTimeString());
+    } catch (error) {
+      console.error('Error auto-saving milestones:', error);
+    } finally {
+      setIsSavingMilestones(false);
+    }
+  }, [planningState, projectId, put, hydrateFromSource, isSavingMilestones]);
+
+  const handleRemoveMilestone = (index: number) => {
+    setMilestones((prev) => {
+      const updated = prev.filter((_, i) => i !== index);
+      milestonesRef.current = updated;
+      return updated;
+    });
+  };
+
 
   return (
     <div className="space-y-6">
@@ -362,30 +439,14 @@ export default function ProjectPlanning({
               Planning Overview
             </h2>
             <p className="text-sm" style={{ color: colors.textSecondary }}>
-              Track baseline, targets, and control milestones for {projectName}.
+              Track baseline, targets, and control milestones for {projectName}. Changes are auto-saved.
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            <Button
-              onClick={handleReset}
-              variant="ghost"
-              disabled={isLoading || isSaving}
-              className="flex items-center gap-2"
-              style={{ color: colors.textSecondary }}
-            >
-              <RefreshCcw className="w-4 h-4" />
-              <span>Reset</span>
-            </Button>
-            <Button
-              onClick={handleSave}
-              className="flex items-center gap-2"
-              style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
-              disabled={isSaving}
-            >
-              <Save className="w-4 h-4" />
-              <span>{isSaving ? 'Saving...' : 'Save Planning'}</span>
-            </Button>
-          </div>
+          {isSaving && (
+            <div className="text-xs" style={{ color: colors.textSecondary }}>
+              Saving...
+            </div>
+          )}
         </div>
 
         {loadError && (
@@ -406,59 +467,78 @@ export default function ProjectPlanning({
           </div>
         ) : (
             <div className="space-y-6">
-            <div className="overflow-x-auto rounded-lg border" style={{ borderColor: colors.border }}>
+            <style dangerouslySetInnerHTML={{
+              __html: `
+                #planning-form input:focus,
+                #planning-form select:focus,
+                .planning-input:focus,
+                .planning-select:focus {
+                  border-color: ${colors.borderLight} !important;
+                  box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.05) !important;
+                }
+                #planning-form input,
+                #planning-form select,
+                .planning-input,
+                .planning-select {
+                  border-color: ${colors.borderLight} !important;
+                }
+              `
+            }} />
+            <div id="planning-form" className="overflow-x-auto rounded-lg border" style={{ borderColor: colors.borderLight }}>
               <table className="w-full text-sm">
-                <thead style={{ backgroundColor: colors.backgroundPrimary }}>
-                  <tr className="text-left">
-                    <th className="px-4 py-3 font-medium" style={{ color: colors.textPrimary }}>
+                <thead>
+                  <tr style={{ backgroundColor: colors.backgroundPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
+                    <th className="px-4 py-3 font-medium text-left" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       Type
                     </th>
-                    <th className="px-4 py-3 font-medium" style={{ color: colors.textPrimary }}>
+                    <th className="px-4 py-3 font-medium text-left" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       Start
                     </th>
-                    <th className="px-4 py-3 font-medium" style={{ color: colors.textPrimary }}>
+                    <th className="px-4 py-3 font-medium text-left" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       End / Value
                     </th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr className="border-t" style={{ borderColor: colors.border }}>
-                    <td className="px-4 py-3" style={{ color: colors.textSecondary }}>
+                  <tr style={{ borderBottom: `1px solid ${colors.borderLight}`, backgroundColor: 'transparent' }}>
+                    <td className="px-4 py-3" style={{ color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       Program of Work
                     </td>
-                    <td className="px-4 py-3" style={{ color: colors.textPrimary }}>
+                    <td className="px-4 py-3" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       {formatDateForDisplay(projectStartDate) || 'Not set'}
                     </td>
-                    <td className="px-4 py-3" style={{ color: colors.textPrimary }}>
+                    <td className="px-4 py-3" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       {formatDateForDisplay(projectEndDate) || 'Not set'}
                     </td>
                   </tr>
-                  <tr className="border-t" style={{ borderColor: colors.border }}>
-                      <td className="px-4 py-3" style={{ color: colors.textSecondary }}>
+                  <tr style={{ borderBottom: `1px solid ${colors.borderLight}`, backgroundColor: 'transparent' }}>
+                      <td className="px-4 py-3" style={{ color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
                         Target Program of Work
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                         <Input
                           type="date"
                           value={planningState.targetProgramStart}
                           onChange={(event) => handleFieldChange('targetProgramStart', event.target.value)}
+                          onBlur={handlePlanningBlur}
                           style={{ backgroundColor: colors.backgroundPrimary, color: colors.textPrimary }}
                         />
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                         <Input
                           type="date"
                           value={planningState.targetProgramEnd}
                           onChange={(event) => handleFieldChange('targetProgramEnd', event.target.value)}
+                          onBlur={handlePlanningBlur}
                           style={{ backgroundColor: colors.backgroundPrimary, color: colors.textPrimary }}
                         />
                       </td>
                   </tr>
-                  <tr className="border-t" style={{ borderColor: colors.border }}>
-                    <td className="px-4 py-3" style={{ color: colors.textSecondary }}>
+                  <tr style={{ borderBottom: `1px solid ${colors.borderLight}`, backgroundColor: 'transparent' }}>
+                    <td className="px-4 py-3" style={{ color: colors.textSecondary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       Progress
                     </td>
-                    <td className="px-4 py-3" colSpan={2}>
+                    <td className="px-4 py-3" colSpan={2} style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                         <div className="flex flex-col">
                           <label className="text-xs font-medium" style={{ color: colors.textSecondary }}>
@@ -471,6 +551,7 @@ export default function ProjectPlanning({
                             step="0.1"
                             value={planningState.plannedProgress}
                             onChange={(event) => handleFieldChange('plannedProgress', event.target.value)}
+                            onBlur={handlePlanningBlur}
                             style={{
                               backgroundColor: colors.backgroundPrimary,
                               color: colors.textPrimary,
@@ -489,6 +570,7 @@ export default function ProjectPlanning({
                             step="0.1"
                             value={planningState.actualProgress}
                             onChange={(event) => handleFieldChange('actualProgress', event.target.value)}
+                            onBlur={handlePlanningBlur}
                             style={{
                               backgroundColor: colors.backgroundPrimary,
                               color: colors.textPrimary,
@@ -498,7 +580,7 @@ export default function ProjectPlanning({
                         </div>
                         <div
                           className="flex flex-col justify-center p-3 rounded-md border"
-                          style={{ borderColor: colors.border, backgroundColor: colors.backgroundPrimary }}
+                          style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}
                         >
                           <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>Variance</span>
                           <span className="text-sm font-semibold" style={{ color: varianceDisplay.color }}>
@@ -508,27 +590,22 @@ export default function ProjectPlanning({
                       </div>
                     </td>
                   </tr>
-                  <tr
-                    className="border-t"
-                    style={{
-                      borderColor: colors.border,
-                      backgroundColor: colors.backgroundSecondary,
-                    }}
-                  >
-                    <td className="px-4 py-3 font-medium" style={{ color: colors.textPrimary }}>
+                  <tr style={{ borderBottom: `1px solid ${colors.borderLight}`, backgroundColor: 'transparent' }}>
+                    <td className="px-4 py-3 font-medium" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       EOT (Days Approved)
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3" style={{ borderBottom: `1px solid ${colors.borderLight}` }}>
                       <Input
                         type="number"
                         min="0"
                         step="1"
                         value={planningState.eotDays}
                         onChange={(event) => handleFieldChange('eotDays', event.target.value)}
+                        onBlur={handlePlanningBlur}
                         style={{ backgroundColor: colors.backgroundPrimary, color: colors.textPrimary }}
                       />
                     </td>
-                    <td className="px-4 py-3" style={{ color: colors.textPrimary }}>
+                    <td className="px-4 py-3" style={{ color: colors.textPrimary, borderBottom: `1px solid ${colors.borderLight}` }}>
                       Approved Completion Date:{' '}
                       {approvedEotCompletionDate || '-'}
                     </td>
@@ -544,128 +621,315 @@ export default function ProjectPlanning({
                     Control Milestones
                   </h3>
                   <p className="text-xs" style={{ color: colors.textSecondary }}>
-                    Add key milestones with their planned start and end dates.
+                    Add key milestones with their planned start and end dates. Changes are auto-saved.
                   </p>
                 </div>
-                <Button
-                  onClick={handleAddMilestone}
-                  variant="ghost"
-                  className="flex items-center gap-2"
-                  style={{ color: colors.primary }}
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Milestone</span>
-                </Button>
+                <div className="flex items-center gap-3">
+                  {isSavingMilestones && (
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      Saving...
+                    </span>
+                  )}
+                  {!isSavingMilestones && lastSavedMilestones && (
+                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                      Saved at {lastSavedMilestones}
+                    </span>
+                  )}
+                  <Button
+                    onClick={handleAddMilestone}
+                    variant="ghost"
+                    className="flex items-center gap-2"
+                    style={{ color: colors.primary }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Milestone</span>
+                  </Button>
+                </div>
               </div>
 
               {milestones.length === 0 ? (
                 <div
                   className="rounded-lg border border-dashed p-6 text-center text-sm"
-                  style={{ borderColor: colors.border, color: colors.textSecondary }}
+                  style={{ borderColor: colors.borderLight, color: colors.textSecondary }}
                 >
                   No control milestones yet. Use the "Add Milestone" button to define key deliverables.
                 </div>
               ) : (
-                <div className="space-y-4">
-                  {milestones.map((milestone, index) => (
-                    <div
-                      key={milestone.id ?? index}
-                      className="space-y-4 rounded-lg border p-4"
-                      style={{ borderColor: colors.border }}
-                    >
-                      <div className="grid grid-cols-1 gap-4 md:grid-cols-[3fr_0.9fr_0.9fr_0.9fr_0.9fr_0.7fr]">
-                        <div>
-                          <label className="block text-xs font-medium mb-2" style={{ color: colors.textSecondary }}>
-                            Milestone Name
-                          </label>
-                          <Input
-                            type="text"
-                            value={milestone.name}
-                            onChange={(event) => handleUpdateMilestone(index, 'name', event.target.value)}
-                            placeholder="e.g., Mobilization Complete"
-                            style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2" style={{ color: colors.textSecondary }}>
-                            Planned Start Date
-                          </label>
-                          <Input
-                            type="date"
-                            value={milestone.startDate}
-                            onChange={(event) => handleUpdateMilestone(index, 'startDate', event.target.value)}
-                            style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2" style={{ color: colors.textSecondary }}>
-                            Planned End Date
-                          </label>
-                          <Input
-                            type="date"
-                            value={milestone.endDate}
-                            onChange={(event) => handleUpdateMilestone(index, 'endDate', event.target.value)}
-                            style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2" style={{ color: colors.textSecondary }}>
-                            Actual Start Date
-                          </label>
-                          <Input
-                            type="date"
-                            value={milestone.actualStartDate}
-                            onChange={(event) => handleUpdateMilestone(index, 'actualStartDate', event.target.value)}
-                            style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2" style={{ color: colors.textSecondary }}>
-                            Actual End Date
-                          </label>
-                          <Input
-                            type="date"
-                            value={milestone.actualEndDate}
-                            onChange={(event) => handleUpdateMilestone(index, 'actualEndDate', event.target.value)}
-                            style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}
-                          />
-                        </div>
-                        <div>
-                          <label className="block text-xs font-medium mb-2" style={{ color: colors.textSecondary }}>
-                            Status
-                          </label>
-                          <select
-                            value={milestone.status}
-                            onChange={(event) => handleUpdateMilestone(index, 'status', event.target.value)}
-                            className="w-full rounded-md border px-3 py-2 text-sm"
-                            style={{
-                              backgroundColor: colors.backgroundSecondary,
-                              color: colors.textPrimary,
-                              borderColor: colors.border,
-                            }}
-                          >
-                            {milestoneStatusOptions.map((option) => (
-                              <option key={option.value} value={option.value}>
-                                {option.label}
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      </div>
-                      <div className="flex justify-end">
-                        <Button
-                          onClick={() => handleRemoveMilestone(index)}
-                          variant="ghost"
-                          size="sm"
-                          className="flex items-center gap-1"
-                          style={{ color: colors.error }}
+                <div className="overflow-x-auto">
+                  <table
+                    className="min-w-full text-sm"
+                    style={{
+                      borderCollapse: 'collapse',
+                      border: `1px solid ${colors.borderLight}`,
+                    }}
+                  >
+                    <thead>
+                      <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
                         >
-                          <Trash2 className="w-4 h-4" />
-                          <span>Remove</span>
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                          No
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Milestone Name
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Planned Start
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Planned End
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Actual Start
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Actual End
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                          }}
+                        >
+                          Status
+                        </th>
+                        <th
+                          style={{
+                            border: `1px solid ${colors.borderLight}`,
+                            padding: '0.65rem 0.5rem',
+                            textAlign: 'center',
+                            fontWeight: 600,
+                            width: '3.5rem',
+                          }}
+                        >
+                          Actions
+                        </th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {milestones.map((milestone, index) => {
+                        const rowBackgroundColor =
+                          index % 2 === 0 ? colors.backgroundPrimary : colors.backgroundSecondary;
+                        const cellInputClass =
+                          'sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none';
+                        const cellInputStyle: CSSProperties = {
+                          color: colors.textPrimary,
+                          caretColor: colors.primary,
+                          border: 'none',
+                          textAlign: 'center',
+                        };
+                        const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
+                        const cellFocusShadowColor = colors.primary || '#2563EB';
+
+                        return (
+                          <tr key={milestone.id ?? index} style={{ backgroundColor: rowBackgroundColor }}>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: '0.55rem 0.5rem',
+                                color: colors.textSecondary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              {index + 1}
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: 0,
+                                color: colors.textPrimary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              <input
+                                type="text"
+                                value={milestone.name}
+                                onChange={(event) => handleUpdateMilestone(index, 'name', event.target.value)}
+                                onBlur={handleMilestoneBlur}
+                                placeholder="e.g., Mobilization Complete"
+                                className={cellInputClass}
+                                style={cellInputStyle}
+                              />
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: 0,
+                                color: colors.textPrimary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              <input
+                                type="date"
+                                value={milestone.startDate}
+                                onChange={(event) => handleUpdateMilestone(index, 'startDate', event.target.value)}
+                                onBlur={handleMilestoneBlur}
+                                className={cellInputClass}
+                                style={cellInputStyle}
+                              />
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: 0,
+                                color: colors.textPrimary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              <input
+                                type="date"
+                                value={milestone.endDate}
+                                onChange={(event) => handleUpdateMilestone(index, 'endDate', event.target.value)}
+                                onBlur={handleMilestoneBlur}
+                                className={cellInputClass}
+                                style={cellInputStyle}
+                              />
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: 0,
+                                color: colors.textPrimary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              <input
+                                type="date"
+                                value={milestone.actualStartDate}
+                                onChange={(event) => handleUpdateMilestone(index, 'actualStartDate', event.target.value)}
+                                onBlur={handleMilestoneBlur}
+                                className={cellInputClass}
+                                style={cellInputStyle}
+                              />
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: 0,
+                                color: colors.textPrimary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              <input
+                                type="date"
+                                value={milestone.actualEndDate}
+                                onChange={(event) => handleUpdateMilestone(index, 'actualEndDate', event.target.value)}
+                                onBlur={handleMilestoneBlur}
+                                className={cellInputClass}
+                                style={cellInputStyle}
+                              />
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: '0.55rem 0.5rem',
+                                color: colors.textPrimary,
+                                textAlign: 'center',
+                              }}
+                            >
+                              <select
+                                value={milestone.status}
+                                onChange={(event) => handleUpdateMilestone(index, 'status', event.target.value)}
+                                onBlur={handleMilestoneBlur}
+                                className={`${cellInputClass} cursor-pointer`}
+                                style={cellInputStyle}
+                              >
+                                {milestoneStatusOptions.map((option) => (
+                                  <option key={option.value} value={option.value}>
+                                    {option.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </td>
+                            <td
+                              style={{
+                                border: `1px solid ${colors.borderLight}`,
+                                padding: '0.4rem 0.25rem',
+                                textAlign: 'center',
+                              }}
+                            >
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  handleRemoveMilestone(index);
+                                  // Save immediately after removal
+                                  saveMilestones();
+                                }}
+                                className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                                style={{
+                                  color: colors.textPrimary,
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                }}
+                                aria-label="Delete row"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                  <style jsx>{`
+                    .sheet-input {
+                      cursor: text;
+                      transition: background-color 0.15s ease, box-shadow 0.15s ease;
+                    }
+                    .sheet-input:hover {
+                      background-color: ${colors.backgroundSecondary};
+                    }
+                    .sheet-input:focus {
+                      background-color: ${colors.backgroundSecondary};
+                      box-shadow: inset 0 0 0 1px ${colors.primary};
+                      outline: none;
+                    }
+                    select.sheet-input {
+                      cursor: pointer;
+                    }
+                  `}</style>
                 </div>
               )}
             </Card>
