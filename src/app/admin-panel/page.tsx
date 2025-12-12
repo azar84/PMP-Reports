@@ -13,6 +13,8 @@ import {
   Menu,
   X,
   ChevronLeft,
+  ChevronDown,
+  ChevronRight,
   FolderOpen,
   Palette,
   Layers,
@@ -35,12 +37,12 @@ import {
   Shield,
   Factory,
   FileBarChart,
-  ArrowRight
+  ArrowRight,
+  Truck
 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import SiteSettingsManager from './components/SiteSettingsManager';
 import DesignSystemManager from './components/DesignSystemManager';
-import MediaLibraryManager from './components/MediaLibraryManager';
 import UserManagement from './components/UserManagement';
 import SchedulerManager from './components/SchedulerManager';
 import ProjectManager from './components/ProjectManager';
@@ -71,7 +73,6 @@ type Section =
   | 'suppliers'
   | 'plants'
   | 'contacts'
-  | 'media-library'
   | 'users'
   | 'roles'
   | 'scheduler'
@@ -79,11 +80,12 @@ type Section =
   | 'design-system';
 
 interface NavigationItem {
-  id: Section;
+  id: Section | 'settings' | 'people' | 'contacts';
   name: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
   permission?: PermissionKey | null;
+  children?: NavigationItem[];
 }
 
 // Navigation items with design system colors
@@ -94,19 +96,45 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
     { id: 'dashboard', name: 'Dashboard', icon: Home, color: colors.primary, permission: null },
     { id: 'reports', name: 'Reports', icon: FileBarChart, color: colors.primary, permission: 'projects.view' },
     { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary, permission: 'projects.view' },
-    { id: 'clients', name: 'Clients', icon: Building2, color: colors.info, permission: 'clients.view' },
-    { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
-    { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning, permission: 'staff.view' },
-    { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
+    { 
+      id: 'people', 
+      name: 'People', 
+      icon: Users, 
+      color: colors.primary, 
+      permission: null,
+      children: [
+        { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning, permission: 'staff.view' },
+        { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
+      ]
+    },
     { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'suppliers.view' },
-    { id: 'plants', name: 'Plants', icon: Factory, color: colors.success, permission: 'projects.view' },
-    { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info, permission: 'contacts.view' },
-    { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary, permission: 'media-library.view' },
-    { id: 'users', name: 'Users', icon: Users, color: colors.error, permission: 'users.view' },
-    { id: 'roles', name: 'Roles', icon: Shield, color: colors.success, permission: 'roles.view' },
-    { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning, permission: 'scheduler.view' },
-    { id: 'design-system', name: 'Design System', icon: Layers, color: colors.primary, permission: 'design-system.view' },
-    { id: 'site-settings', name: 'Settings', icon: Settings, color: colors.textSecondary, permission: 'settings.view' },
+    { id: 'plants', name: 'Plant', icon: Truck, color: colors.success, permission: 'projects.view' },
+    { 
+      id: 'contacts', 
+      name: 'Contacts', 
+      icon: Users, 
+      color: colors.info, 
+      permission: null,
+      children: [
+        { id: 'contacts', name: 'All Contacts', icon: Users, color: colors.info, permission: 'contacts.view' },
+        { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
+        { id: 'clients', name: 'Clients', icon: Building2, color: colors.info, permission: 'clients.view' },
+      ]
+    },
+    { 
+      id: 'settings', 
+      name: 'Settings', 
+      icon: Settings, 
+      color: colors.textSecondary, 
+      permission: null,
+      children: [
+        { id: 'users', name: 'Users', icon: Users, color: colors.error, permission: 'users.view' },
+        { id: 'roles', name: 'Roles', icon: Shield, color: colors.success, permission: 'roles.view' },
+        { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning, permission: 'scheduler.view' },
+        { id: 'design-system', name: 'Design System', icon: Layers, color: colors.primary, permission: 'design-system.view' },
+        { id: 'site-settings', name: 'Site Settings', icon: Settings, color: colors.textSecondary, permission: 'settings.view' },
+      ]
+    },
   ];
 };
 
@@ -139,6 +167,9 @@ export default function AdminPanel() {
   
   const [activeSection, setActiveSection] = useState<Section>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true); // Default to open on desktop
+  const [settingsMenuOpen, setSettingsMenuOpen] = useState(false);
+  const [peopleMenuOpen, setPeopleMenuOpen] = useState(false);
+  const [contactsMenuOpen, setContactsMenuOpen] = useState(false);
   const [siteSettings, setSiteSettings] = useState<SiteSettings | null>(null);
   const [loadingStats, setLoadingStats] = useState(true);
   const [showNotifications, setShowNotifications] = useState(false);
@@ -210,19 +241,56 @@ export default function AdminPanel() {
     if (userPermissionsLoading) {
       return navigationItems;
     }
-    return navigationItems.filter((item) => !item.permission || hasPermission(grantedPermissions, item.permission));
+    return navigationItems.filter((item) => {
+      if (item.children) {
+        // For parent items with children, check if any child has permission
+        return item.children.some(child => !child.permission || hasPermission(grantedPermissions, child.permission));
+      }
+      return !item.permission || hasPermission(grantedPermissions, item.permission);
+    });
   }, [navigationItems, grantedPermissions, userPermissionsLoading]);
+  
+  // Flatten navigation items for active section checking
+  const allNavigationItems = useMemo(() => {
+    const items: NavigationItem[] = [];
+    navigationItems.forEach(item => {
+      if (item.children) {
+        items.push(...item.children);
+      } else {
+        items.push(item);
+      }
+    });
+    return items;
+  }, [navigationItems]);
 
   useEffect(() => {
     if (visibleNavigationItems.length === 0) {
       return;
     }
 
-    const hasActiveSection = visibleNavigationItems.some((item) => item.id === activeSection);
-    if (!hasActiveSection) {
-      setActiveSection(visibleNavigationItems[0].id);
+    const hasActiveSection = allNavigationItems.some((item) => item.id === activeSection);
+    if (!hasActiveSection && allNavigationItems.length > 0) {
+      setActiveSection(allNavigationItems[0].id as Section);
     }
-  }, [visibleNavigationItems, activeSection]);
+    
+    // Auto-expand settings menu if a settings child is active
+    const settingsItem = navigationItems.find(item => item.id === 'settings');
+    if (settingsItem?.children?.some(child => child.id === activeSection)) {
+      setSettingsMenuOpen(true);
+    }
+    
+    // Auto-expand people menu if a people child is active
+    const peopleItem = navigationItems.find(item => item.id === 'people');
+    if (peopleItem?.children?.some(child => child.id === activeSection)) {
+      setPeopleMenuOpen(true);
+    }
+    
+    // Auto-expand contacts menu if a contacts child is active
+    const contactsItem = navigationItems.find(item => item.id === 'contacts');
+    if (contactsItem?.children?.some(child => child.id === activeSection)) {
+      setContactsMenuOpen(true);
+    }
+  }, [allNavigationItems, activeSection, navigationItems]);
 
   useEffect(() => {
     console.log('🔍 Admin Panel: Checking user authentication...');
@@ -248,11 +316,7 @@ export default function AdminPanel() {
         console.log('🔍 Admin Panel: Fetching site settings...');
         // Fetch site settings
         const settingsResponse = await get<{ success: boolean; data: SiteSettings }>('/api/admin/site-settings');
-        console.log('🔍 Admin Panel: Site settings response:', settingsResponse);
         if (settingsResponse.success) {
-          console.log('🔍 Admin Panel: Logo URL:', settingsResponse.data.logoUrl);
-          console.log('🔍 Admin Panel: Logo Light URL:', settingsResponse.data.logoLightUrl);
-          console.log('🔍 Admin Panel: Logo Dark URL:', settingsResponse.data.logoDarkUrl);
           setSiteSettings(settingsResponse.data);
         }
 
@@ -458,15 +522,6 @@ export default function AdminPanel() {
             <RolesManager />
           </div>
         );
-      case 'media-library':
-        return (
-          <div 
-            className="p-8 space-y-8"
-            style={{ backgroundColor: colors.backgroundSecondary }}
-          >
-            <MediaLibraryManager designSystem={designSystem || undefined} onClose={() => setActiveSection('dashboard')} />
-          </div>
-        );
       case 'users':
         return (
           <div 
@@ -553,10 +608,8 @@ export default function AdminPanel() {
             {sidebarOpen ? (
               <div className="flex flex-col items-center w-full flex-1 min-w-0">
                 {(() => {
-                  // Try to get logo from any available logo field
-                  const logoUrl = siteSettings?.logoUrl || siteSettings?.logoLightUrl || siteSettings?.logoDarkUrl;
-                  console.log('🔍 Sidebar Header - Logo URL:', logoUrl);
-                  console.log('🔍 Sidebar Header - Site Settings:', siteSettings);
+                  // Use the single logo URL
+                  const logoUrl = siteSettings?.logoUrl;
                   
                   if (logoUrl) {
                     return (
@@ -620,62 +673,146 @@ export default function AdminPanel() {
 
           {/* Navigation */}
           <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
-            {visibleNavigationItems.map((item) => (
-              <button
-                key={item.id}
-                onClick={() => {
-                  setActiveSection(item.id as Section);
-                  // Only close on mobile (check if window is available)
-                  if (typeof window !== 'undefined' && window.innerWidth < 1024) {
-                  setSidebarOpen(false);
-                  }
-                }}
-                className={`w-full flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'} px-4 py-3 rounded-lg text-left transition-colors relative group`}
-                        style={{ 
-                          backgroundColor: activeSection === item.id 
-                            ? colors.borderStrong
-                            : 'transparent',
-                          color: 'var(--color-sidebar-text-color)'
-                        }}
-                title={!sidebarOpen ? item.name : undefined}
-              >
-                {activeSection === item.id && (
-                  <div 
-                    className="absolute left-0 top-0 bottom-0 w-1 rounded-r"
+            {visibleNavigationItems.map((item) => {
+              const hasChildren = item.children && item.children.length > 0;
+              const isSettingsItem = item.id === 'settings';
+              const isPeopleItem = item.id === 'people';
+              const isContactsItem = item.id === 'contacts';
+              const isActive = hasChildren 
+                ? item.children?.some(child => child.id === activeSection)
+                : activeSection === item.id;
+              const isExpanded = isSettingsItem ? settingsMenuOpen : (isPeopleItem ? peopleMenuOpen : (isContactsItem ? contactsMenuOpen : false));
+              
+              // Filter children by permissions
+              const visibleChildren = hasChildren ? item.children?.filter(child => 
+                !child.permission || hasPermission(grantedPermissions, child.permission)
+              ) : [];
+              
+              return (
+                <div key={item.id}>
+                  <button
+                    onClick={() => {
+                      if (hasChildren) {
+                        if (isSettingsItem) {
+                          setSettingsMenuOpen(!settingsMenuOpen);
+                        } else if (isPeopleItem) {
+                          setPeopleMenuOpen(!peopleMenuOpen);
+                        } else if (isContactsItem) {
+                          setContactsMenuOpen(!contactsMenuOpen);
+                        }
+                      } else {
+                        setActiveSection(item.id as Section);
+                        // Only close on mobile (check if window is available)
+                        if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                          setSidebarOpen(false);
+                        }
+                      }
+                    }}
+                    className={`w-full flex items-center ${sidebarOpen ? 'space-x-3' : 'justify-center'} px-4 py-3 rounded-lg text-left transition-colors relative group`}
                     style={{ 
-                      backgroundColor: colors.primary
+                      backgroundColor: isActive && !hasChildren
+                        ? colors.borderStrong
+                        : 'transparent',
+                      color: 'var(--color-sidebar-text-color)'
                     }}
-                  />
-                )}
-                <div style={{ 
-                    color: activeSection === item.id 
-                      ? colors.primary
-                      : 'var(--color-sidebar-text-color)'
-                  }}>
-                  <item.icon className="w-5 h-5 flex-shrink-0" />
-                </div>
-                {sidebarOpen && (
-                <span 
-                    className={`${activeSection === item.id ? 'font-medium' : ''} whitespace-nowrap`}
-                >
-                  {item.name}
-                </span>
-                )}
-                {/* Tooltip for collapsed state */}
-                {!sidebarOpen && (
-                  <div 
-                    className="absolute left-full ml-2 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50"
-                    style={{
-                      backgroundColor: colors.backgroundDark,
-                      color: colors.textPrimary,
-                      border: `1px solid ${colors.border}`
-                    }}
+                    title={!sidebarOpen ? item.name : undefined}
                   >
-                    {item.name}
-                  </div>
-                )}
-              </button>
-            ))}
+                    {isActive && !hasChildren && (
+                      <div 
+                        className="absolute left-0 top-0 bottom-0 w-1 rounded-r"
+                        style={{ 
+                          backgroundColor: colors.primary
+                        }}
+                      />
+                    )}
+                    <div style={{ 
+                        color: isActive 
+                          ? colors.primary
+                          : 'var(--color-sidebar-text-color)'
+                      }}>
+                      <item.icon className="w-5 h-5 flex-shrink-0" />
+                    </div>
+                    {sidebarOpen && (
+                      <>
+                        <span 
+                          className={`${isActive ? 'font-medium' : ''} whitespace-nowrap flex-1`}
+                        >
+                          {item.name}
+                        </span>
+                        {hasChildren && (
+                          <div style={{ color: 'var(--color-sidebar-text-color)' }}>
+                            {isExpanded ? (
+                              <ChevronDown className="w-4 h-4" />
+                            ) : (
+                              <ChevronRight className="w-4 h-4" />
+                            )}
+                          </div>
+                        )}
+                      </>
+                    )}
+                    {/* Tooltip for collapsed state */}
+                    {!sidebarOpen && (
+                      <div 
+                        className="absolute left-full ml-2 px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-50"
+                        style={{
+                          backgroundColor: colors.backgroundDark,
+                          color: colors.textPrimary,
+                          border: `1px solid ${colors.border}`
+                        }}
+                      >
+                        {item.name}
+                      </div>
+                    )}
+                  </button>
+                  
+                  {/* Nested children */}
+                  {hasChildren && isExpanded && sidebarOpen && visibleChildren && visibleChildren.length > 0 && (
+                    <div className="ml-4 space-y-1 mt-1">
+                      {visibleChildren.map((child) => (
+                        <button
+                          key={child.id}
+                          onClick={() => {
+                            setActiveSection(child.id as Section);
+                            // Only close on mobile (check if window is available)
+                            if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                              setSidebarOpen(false);
+                            }
+                          }}
+                          className="w-full flex items-center space-x-3 px-4 py-2 rounded-lg text-left transition-colors relative group"
+                          style={{ 
+                            backgroundColor: activeSection === child.id 
+                              ? colors.borderStrong
+                              : 'transparent',
+                            color: 'var(--color-sidebar-text-color)'
+                          }}
+                        >
+                          {activeSection === child.id && (
+                            <div 
+                              className="absolute left-0 top-0 bottom-0 w-1 rounded-r"
+                              style={{ 
+                                backgroundColor: colors.primary
+                              }}
+                            />
+                          )}
+                          <div style={{ 
+                              color: activeSection === child.id 
+                                ? colors.primary
+                                : 'var(--color-sidebar-text-color)'
+                            }}>
+                            <child.icon className="w-4 h-4 flex-shrink-0" />
+                          </div>
+                          <span 
+                            className={`${activeSection === child.id ? 'font-medium' : ''} whitespace-nowrap text-sm`}
+                          >
+                            {child.name}
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
           </nav>
 
           {/* User Info */}

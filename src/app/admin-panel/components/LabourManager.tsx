@@ -92,6 +92,7 @@ interface Labour {
   projectLabours?: ProjectLabourAssignment[];
   vacationStartDate?: string | null;
   vacationEndDate?: string | null;
+  monthlyBaseRate?: number | null;
 }
 
 export default function LabourManager() {
@@ -468,6 +469,10 @@ export default function LabourManager() {
         employeeNumber: formData.employeeNumber || undefined,
         phone: formData.phone || undefined,
         trade: selectedTrade?.name || formData.trade || undefined,
+        monthlyBaseRate:
+          formData.monthlyBaseRate === undefined || formData.monthlyBaseRate === null
+            ? null
+            : Number(formData.monthlyBaseRate),
       };
 
       // Remove tradeId from the payload
@@ -497,6 +502,7 @@ export default function LabourManager() {
         trade: '',
         tradeId: undefined,
         isActive: true,
+        monthlyBaseRate: undefined,
       });
     } catch (error) {
       console.error('Error saving labour:', error);
@@ -514,6 +520,7 @@ export default function LabourManager() {
       phone: labour.phone || '',
       trade: labour.trade || '',
       isActive: labour.isActive,
+      monthlyBaseRate: labour.monthlyBaseRate || undefined,
     });
     setShowForm(true);
   };
@@ -1386,6 +1393,7 @@ export default function LabourManager() {
                         trade: '',
                         tradeId: undefined,
                         isActive: true,
+                        monthlyBaseRate: undefined,
                       });
                     }}
                     variant="ghost"
@@ -1517,6 +1525,28 @@ export default function LabourManager() {
                           color: colors.textPrimary
                         }}
                       />
+                    </div>
+
+                    <div>
+                      <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                        Monthly Rate
+                      </label>
+                      <Input
+                        type="number"
+                        value={formData.monthlyBaseRate || ''}
+                        onChange={(e) => setFormData({ ...formData, monthlyBaseRate: e.target.value ? Number(e.target.value) : undefined })}
+                        placeholder="e.g., 5000"
+                        min="0"
+                        step="0.01"
+                        style={{
+                          backgroundColor: colors.backgroundPrimary,
+                          borderColor: 'rgba(229, 231, 235, 0.1)',
+                          color: colors.textPrimary
+                        }}
+                      />
+                      <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                        Monthly salary/rate for this labour
+                      </p>
                     </div>
 
                     <div className="flex items-center space-x-2">

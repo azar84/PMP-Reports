@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 
@@ -65,7 +66,6 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const hydrationRef = useRef<boolean>(true);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const latestRowsRef = useRef<{ assetRows: AssetRow[] }>({
     assetRows: assetRows,
   });
@@ -149,11 +149,72 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
           throw new Error(response.error || 'Failed to save assets data');
         }
 
-        const nextRows = buildRowsFromEntries(response.data.entries ?? []);
+        const serverRows = buildRowsFromEntries(response.data.entries ?? []);
+        // Only update state if current local state matches what we sent (no new edits)
+        // This prevents overwriting user input if they continued typing after blur
+        setAssetRows((currentLocalRows) => {
+          // Check if local state has changed since we sent the request
+          const sentIds = new Set(assetRows.map((r) => r.id));
+          const currentIds = new Set(currentLocalRows.map((r) => r.id));
+          
+          // If IDs don't match (rows added/removed), always update
+          if (sentIds.size !== currentIds.size || 
+              !Array.from(sentIds).every(id => currentIds.has(id))) {
+            const serverRowsMap = new Map(serverRows.map((r) => [r.id, r]));
+            const merged = currentLocalRows.map((localRow) => {
+              const serverRow = serverRowsMap.get(localRow.id);
+              return serverRow || localRow;
+            });
+            const localIds = new Set(currentLocalRows.map((r) => r.id));
+            const newServerRows = serverRows.filter((r) => !localIds.has(r.id));
+            latestRowsRef.current = { assetRows: [...merged, ...newServerRows] };
+            return [...merged, ...newServerRows];
+          }
+          
+          // Check if any field values have changed since we sent
+          const hasLocalChanges = currentLocalRows.some((localRow) => {
+            const sentRow = assetRows.find((r) => r.id === localRow.id);
+            if (!sentRow) return false;
+            return (
+              localRow.type !== sentRow.type ||
+              localRow.description !== sentRow.description ||
+              localRow.assetNumber !== sentRow.assetNumber ||
+              localRow.status !== sentRow.status
+            );
+          });
+          
+          // If local state hasn't changed, safe to update from server
+          if (!hasLocalChanges) {
+            latestRowsRef.current = { assetRows: serverRows };
+            return serverRows;
+          }
+          
+          // Local state has changes, preserve them by merging intelligently
+          const serverRowsMap = new Map(serverRows.map((r) => [r.id, r]));
+          const merged = currentLocalRows.map((localRow) => {
+            const serverRow = serverRowsMap.get(localRow.id);
+            const sentRow = assetRows.find((r) => r.id === localRow.id);
+            
+            if (!serverRow) return localRow;
+            if (!sentRow) return serverRow;
+            
+            // For each field: if local differs from sent, user continued editing - keep local
+            // Otherwise, use server value (might have server-side formatting/updates)
+            return {
+              id: serverRow.id,
+              type: localRow.type !== sentRow.type ? localRow.type : serverRow.type,
+              description: localRow.description !== sentRow.description ? localRow.description : serverRow.description,
+              assetNumber: localRow.assetNumber !== sentRow.assetNumber ? localRow.assetNumber : serverRow.assetNumber,
+              status: localRow.status !== sentRow.status ? localRow.status : serverRow.status,
+            };
+          });
+          
+          latestRowsRef.current = { assetRows: merged };
+          return merged;
+        });
+        
         hydrationRef.current = true;
         nextRowIdRef.current = -1;
-        setAssetRows(nextRows);
-        latestRowsRef.current = { assetRows: nextRows };
         setLastSavedAt(new Date());
       } catch (error: any) {
         console.error('Error saving assets data:', error);
@@ -172,7 +233,17 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
   ): T[] => rows.map((row, index) => (index === rowIndex ? { ...row, ...patch } : row));
 
   const handleAssetChange = (rowIndex: number, field: AssetEditableField, value: string) => {
-    setAssetRows((prev) => updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<AssetRow>));
+    setAssetRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<AssetRow>);
+      // Update ref immediately so it's current when onBlur fires
+      latestRowsRef.current = { assetRows: updated };
+      return updated;
+    });
+  };
+
+  const handleAssetBlur = () => {
+    // Save assets data when user finishes editing a field
+    saveAssetsData();
   };
 
   const handleAddRow = () => {
@@ -206,8 +277,6 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
   };
 
   const gridBorderColor = colors.borderLight || colors.border || '#D1D5DB';
-  const headerBackgroundColor = colors.backgroundSecondary;
-  const headerTextColor = colors.textPrimary;
   const spreadsheetBackground = colors.backgroundPrimary;
   const spreadsheetSecondaryBackground = colors.backgroundSecondary;
   const cellInputClass =
@@ -221,34 +290,6 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
   const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
   const cellFocusShadowColor = colors.primary || '#2563EB';
 
-  useEffect(() => {
-    if (hydrationRef.current || isLoading) {
-      hydrationRef.current = false;
-      return;
-    }
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveAssetsData();
-    }, 1200);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [assetRows, isLoading, saveAssetsData]);
-
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, []);
 
   const lastSavedLabel = useMemo(() => {
     if (!lastSavedAt) return null;
@@ -287,13 +328,13 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
         </div>
       </div>
 
-      <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
+      <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
         <div className="mb-4">
           <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
             Asset List
           </h3>
           <p className="text-xs" style={{ color: colors.textSecondary }}>
-            Track and manage project assets. Changes are auto-saved shortly after typing.
+            Track and manage project assets. Changes are auto-saved.
           </p>
         </div>
 
@@ -309,30 +350,29 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
             <div className="h-8 w-8 animate-spin rounded-full border-b-2" style={{ borderColor: colors.primary }}></div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
             <div className="mb-3 flex items-center justify-end">
-              <button
-                type="button"
+              <Button
                 onClick={handleAddRow}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-2"
+                style={{ color: colors.primary }}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Row</span>
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table
+                className="min-w-full text-sm"
                 style={{
-                  backgroundColor: colors.backgroundSecondary,
-                  color: colors.textPrimary,
-                  borderColor: colors.border,
+                  borderCollapse: 'collapse',
+                  border: `1px solid ${gridBorderColor}`,
                 }}
               >
-                Add Row
-              </button>
-            </div>
-            <table
-              className="min-w-full text-sm"
-              style={{
-                borderCollapse: 'collapse',
-                border: `1px solid ${gridBorderColor}`,
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: headerBackgroundColor, color: headerTextColor }}>
+                <thead>
+                  <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
                   <th
                     style={{
                       border: `1px solid ${gridBorderColor}`,
@@ -425,6 +465,7 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
                           type="text"
                           value={row.type}
                           onChange={(event) => handleAssetChange(index, 'type', event.target.value)}
+                          onBlur={handleAssetBlur}
                           placeholder="Type"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -442,6 +483,7 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
                           type="text"
                           value={row.description}
                           onChange={(event) => handleAssetChange(index, 'description', event.target.value)}
+                          onBlur={handleAssetBlur}
                           placeholder="Description"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -452,6 +494,7 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
                           type="text"
                           value={row.assetNumber}
                           onChange={(event) => handleAssetChange(index, 'assetNumber', event.target.value)}
+                          onBlur={handleAssetBlur}
                           placeholder="Asset Number"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -468,6 +511,7 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
                         <select
                           value={row.status}
                           onChange={(event) => handleAssetChange(index, 'status', event.target.value)}
+                          onBlur={handleAssetBlur}
                           className={`${cellInputClass} text-center cursor-pointer`}
                           style={cellInputStyle}
                         >
@@ -488,11 +532,11 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
                         <button
                           type="button"
                           onClick={() => handleDeleteRow(index)}
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+                          className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
                           style={{
-                            color: colors.error,
-                            border: `1px solid ${colors.border}`,
-                            backgroundColor: colors.backgroundPrimary,
+                            color: colors.textPrimary,
+                            backgroundColor: 'transparent',
+                            border: 'none',
                           }}
                           aria-label="Delete row"
                         >
@@ -521,7 +565,8 @@ export default function ProjectAssets({ projectId, projectName, projectStartDate
                 cursor: pointer;
               }
             `}</style>
-          </div>
+            </div>
+          </Card>
         )}
       </Card>
     </div>

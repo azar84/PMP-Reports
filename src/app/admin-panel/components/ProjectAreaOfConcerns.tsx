@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 
@@ -56,6 +55,7 @@ export default function ProjectAreaOfConcerns({ projectId, projectName }: Projec
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const tempIdRef = useRef<number>(-1);
+  const latestRowsRef = useRef<AreaOfConcernRow[]>(concernRows);
 
   const createEmptyConcernRow = useCallback(
     (sortOrder: number): AreaOfConcernRow => ({
@@ -121,23 +121,17 @@ export default function ProjectAreaOfConcerns({ projectId, projectName }: Projec
     fetchConcernData();
   }, [fetchConcernData]);
 
-  const handleConcernFieldChange = useCallback(
-    (id: number, field: keyof AreaOfConcernRow, value: string) => {
-      setConcernRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
-    },
-    []
-  );
+  useEffect(() => {
+    latestRowsRef.current = concernRows;
+  }, [concernRows]);
 
-  const handleRemoveConcern = useCallback((id: number) => {
-    setConcernRows((prev) => prev.filter((row) => row.id !== id));
-  }, []);
-
-  const handleSave = useCallback(async () => {
+  const saveConcernsData = useCallback(async () => {
+    const rowsToSave = latestRowsRef.current ?? [];
     setIsSaving(true);
     setSaveError(null);
     try {
       const payload = {
-        areaOfConcerns: concernRows.map((row, index) => ({
+        areaOfConcerns: rowsToSave.map((row, index) => ({
           description: row.description,
           actionNeeded: row.actionNeeded,
           startedDate: row.startedDate || null,
@@ -172,6 +166,7 @@ export default function ProjectAreaOfConcerns({ projectId, projectName }: Projec
         }));
 
       setConcernRows(nextRows);
+      latestRowsRef.current = nextRows;
       setLastSavedAt(new Date());
     } catch (error: any) {
       console.error('Failed to save project area of concerns:', error);
@@ -179,7 +174,52 @@ export default function ProjectAreaOfConcerns({ projectId, projectName }: Projec
     } finally {
       setIsSaving(false);
     }
-  }, [projectId, put, concernRows]);
+  }, [projectId, put]);
+
+  const handleConcernBlur = () => {
+    // Save only when user finishes editing a field
+    saveConcernsData();
+  };
+
+  const handleConcernFieldChange = useCallback(
+    (id: number, field: keyof AreaOfConcernRow, value: string) => {
+      setConcernRows((prev) => {
+        const updated = prev.map((row) => (row.id === id ? { ...row, [field]: value } : row));
+        latestRowsRef.current = updated;
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleRemoveConcern = useCallback(
+    (id: number) => {
+      setConcernRows((prev) => {
+        const updated = prev.filter((row) => row.id !== id);
+        latestRowsRef.current = updated;
+        return updated;
+      });
+      // Save immediately after delete
+      saveConcernsData();
+    },
+    [saveConcernsData]
+  );
+
+  const gridBorderColor = colors.borderLight || colors.border || '#D1D5DB';
+  const spreadsheetBackground = colors.backgroundPrimary;
+  const spreadsheetSecondaryBackground = colors.backgroundSecondary;
+  const cellInputStyle: CSSProperties = {
+    color: colors.textPrimary,
+    caretColor: colors.primary,
+    border: 'none',
+  };
+  const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
+  const cellFocusShadowColor = colors.primary || '#2563EB';
+
+  const lastSavedLabel = useMemo(() => {
+    if (!lastSavedAt) return null;
+    return `Saved ${lastSavedAt.toLocaleTimeString()}`;
+  }, [lastSavedAt]);
 
   if (isLoading) {
     return (
@@ -219,46 +259,34 @@ export default function ProjectAreaOfConcerns({ projectId, projectName }: Projec
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
             Area of Concerns
           </h2>
           <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Track and manage areas of concern for {projectName}.
+            Track and manage areas of concern for {projectName}. Changes are auto-saved.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {lastSavedAt && (
-            <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-              Last saved {lastSavedAt.toLocaleString()}
+        <div className="flex flex-col items-start gap-2 md:items-end">
+          {saveError && (
+            <span className="text-xs" style={{ color: colors.error }}>
+              {saveError}
             </span>
           )}
-          <Button
-            variant="primary"
-            leftIcon={<Save className="h-4 w-4" />}
-            onClick={handleSave}
-            disabled={isSaving}
-            isLoading={isSaving}
-          >
-            Save Changes
-          </Button>
+          {isSaving && !saveError && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              Saving...
+            </span>
+          )}
+          {!isSaving && !saveError && lastSavedLabel && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              {lastSavedLabel}
+            </span>
+          )}
         </div>
       </div>
-
-      {saveError && (
-        <div
-          className="rounded-lg border px-4 py-3 text-sm"
-          style={{
-            backgroundColor: `${colors.error}15`,
-            borderColor: `${colors.error}45`,
-            color: colors.error,
-          }}
-        >
-          {saveError}
-        </div>
-      )}
 
       <Card
         className="space-y-4 p-6"
@@ -273,160 +301,283 @@ export default function ProjectAreaOfConcerns({ projectId, projectName }: Projec
             <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
               Area of Concerns Register
             </h3>
-            <p className="text-sm" style={{ color: colors.textSecondary }}>
-              Add each area of concern with its description, required actions, and status.
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+              Spreadsheet-style register. Updates save when you leave a field.
             </p>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
+            className="flex items-center gap-2"
+            style={{ color: colors.primary }}
             onClick={() => setConcernRows((prev) => [...prev, createEmptyConcernRow(prev.length)])}
           >
+            <Plus className="h-4 w-4" />
             Add Concern
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y text-sm">
-            <thead>
-              <tr
-                style={{
-                  backgroundColor: colors.backgroundPrimary,
-                  color: colors.textSecondary,
-                }}
-              >
-                <th className="px-4 py-3 text-left font-medium" style={{ minWidth: '300px' }}>Description</th>
-                <th className="px-4 py-3 text-left font-medium" style={{ minWidth: '250px' }}>Action Needed</th>
-                <th className="px-4 py-3 text-left font-medium">Started Date</th>
-                <th className="px-4 py-3 text-left font-medium">Resolution Date</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium" style={{ minWidth: '250px' }}>Remarks</th>
-                <th className="px-4 py-3 text-left font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: `${colors.borderLight}80` }}>
-              {concernRows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={7}
-                    className="px-4 py-6 text-center text-sm"
-                    style={{ color: colors.textSecondary }}
+        <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
+          <div className="overflow-x-auto">
+            <table
+              className="min-w-full text-sm"
+              style={{
+                borderCollapse: 'collapse',
+                border: `1px solid ${gridBorderColor}`,
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '4rem',
+                    }}
                   >
-                    No areas of concern recorded. Add the first concern to begin tracking.
-                  </td>
+                    No
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '320px',
+                    }}
+                  >
+                    Description
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '280px',
+                    }}
+                  >
+                    Action Needed
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    Started Date
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '170px',
+                    }}
+                  >
+                    Resolution Date
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '280px',
+                    }}
+                  >
+                    Remarks
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '3.5rem',
+                    }}
+                  >
+                    Actions
+                  </th>
                 </tr>
-              )}
-              {concernRows.map((row) => (
-                <tr key={row.id}>
-                  <td className="px-4 py-3 align-top" style={{ minWidth: '300px', maxWidth: '400px' }}>
-                    <textarea
-                      placeholder="Describe the area of concern"
-                      value={row.description}
-                      onChange={(event) =>
-                        handleConcernFieldChange(row.id, 'description', event.target.value)
-                      }
-                      rows={3}
-                      className="w-full rounded-md border px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2"
+              </thead>
+              <tbody>
+                {concernRows.length === 0 ? (
+                  <tr style={{ backgroundColor: spreadsheetBackground }}>
+                    <td
+                      colSpan={8}
                       style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        borderColor: colors.borderLight,
-                        color: colors.textPrimary,
-                        minHeight: '60px',
+                        border: `1px solid ${gridBorderColor}`,
+                        padding: '1rem',
+                        color: colors.textSecondary,
+                        textAlign: 'center',
                       }}
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top" style={{ minWidth: '250px', maxWidth: '350px' }}>
-                    <textarea
-                      placeholder="Action needed"
-                      value={row.actionNeeded}
-                      onChange={(event) =>
-                        handleConcernFieldChange(row.id, 'actionNeeded', event.target.value)
-                      }
-                      rows={3}
-                      className="w-full rounded-md border px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2"
-                      style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        borderColor: colors.borderLight,
-                        color: colors.textPrimary,
-                        minHeight: '60px',
-                      }}
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      placeholder="Started date"
-                      className="max-w-[180px]"
-                      value={row.startedDate}
-                      onChange={(event) =>
-                        handleConcernFieldChange(row.id, 'startedDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      placeholder="Resolution date"
-                      className="max-w-[180px]"
-                      value={row.resolutionDate}
-                      onChange={(event) =>
-                        handleConcernFieldChange(row.id, 'resolutionDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <select
-                      className="w-full rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2"
-                      style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        borderColor: colors.borderLight,
-                        color: colors.textPrimary,
-                      }}
-                      value={row.status}
-                      onChange={(event) =>
-                        handleConcernFieldChange(row.id, 'status', event.target.value)
-                      }
                     >
-                      {STATUS_OPTIONS.map((option) => (
-                        <option key={option} value={option}>
-                          {option}
-                        </option>
-                      ))}
-                    </select>
-                  </td>
-                  <td className="px-4 py-3 align-top" style={{ minWidth: '250px', maxWidth: '350px' }}>
-                    <textarea
-                      placeholder="Remarks"
-                      value={row.remarks}
-                      onChange={(event) =>
-                        handleConcernFieldChange(row.id, 'remarks', event.target.value)
-                      }
-                      rows={3}
-                      className="w-full rounded-md border px-3 py-2 text-sm resize-y focus:outline-none focus:ring-2"
-                      style={{
-                        backgroundColor: colors.backgroundPrimary,
-                        borderColor: colors.borderLight,
-                        color: colors.textPrimary,
-                        minHeight: '60px',
-                      }}
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="Remove concern"
-                      onClick={() => handleRemoveConcern(row.id)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+                      No areas of concern recorded. Click “Add Concern” to begin.
+                    </td>
+                  </tr>
+                ) : (
+                  concernRows.map((row, index) => {
+                    // Header is backgroundSecondary; first row should be backgroundPrimary
+                    const rowBackgroundColor =
+                      index % 2 === 0 ? spreadsheetBackground : spreadsheetSecondaryBackground;
+
+                    return (
+                      <tr key={row.id} style={{ backgroundColor: rowBackgroundColor }}>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.55rem 0.5rem',
+                            color: colors.textSecondary,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {index + 1}
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <textarea
+                            value={row.description}
+                            onChange={(event) =>
+                              handleConcernFieldChange(row.id, 'description', event.target.value)
+                            }
+                            onBlur={handleConcernBlur}
+                            placeholder="Describe the area of concern"
+                            rows={3}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none resize-y"
+                            style={{ ...cellInputStyle, textAlign: 'left', minHeight: '72px' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <textarea
+                            value={row.actionNeeded}
+                            onChange={(event) =>
+                              handleConcernFieldChange(row.id, 'actionNeeded', event.target.value)
+                            }
+                            onBlur={handleConcernBlur}
+                            placeholder="Action needed"
+                            rows={3}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none resize-y"
+                            style={{ ...cellInputStyle, textAlign: 'left', minHeight: '72px' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={row.startedDate}
+                            onChange={(event) =>
+                              handleConcernFieldChange(row.id, 'startedDate', event.target.value)
+                            }
+                            onBlur={handleConcernBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={row.resolutionDate}
+                            onChange={(event) =>
+                              handleConcernFieldChange(row.id, 'resolutionDate', event.target.value)
+                            }
+                            onBlur={handleConcernBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <select
+                            value={row.status}
+                            onChange={(event) =>
+                              handleConcernFieldChange(row.id, 'status', event.target.value)
+                            }
+                            onBlur={handleConcernBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none cursor-pointer"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          >
+                            {STATUS_OPTIONS.map((option) => (
+                              <option key={option} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <textarea
+                            value={row.remarks}
+                            onChange={(event) =>
+                              handleConcernFieldChange(row.id, 'remarks', event.target.value)
+                            }
+                            onBlur={handleConcernBlur}
+                            placeholder="Remarks"
+                            rows={3}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none resize-y"
+                            style={{ ...cellInputStyle, textAlign: 'left', minHeight: '72px' }}
+                          />
+                        </td>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.4rem 0.25rem',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveConcern(row.id)}
+                            className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                            style={{
+                              color: colors.textPrimary,
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                            }}
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            <style jsx>{`
+              .sheet-input {
+                cursor: text;
+                transition: background-color 0.15s ease, box-shadow 0.15s ease;
+              }
+              .sheet-input:hover {
+                background-color: ${cellHoverBackground};
+              }
+              .sheet-input:focus {
+                background-color: ${cellHoverBackground};
+                box-shadow: inset 0 0 0 1px ${cellFocusShadowColor};
+                outline: none;
+              }
+              select.sheet-input {
+                cursor: pointer;
+              }
+            `}</style>
+          </div>
+        </Card>
       </Card>
     </div>
   );

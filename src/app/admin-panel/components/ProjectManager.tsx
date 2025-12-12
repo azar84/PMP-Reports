@@ -6,7 +6,7 @@ import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/us
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { formatCurrency } from '@/lib/currency';
-import { formatDateForInput } from '@/lib/dateUtils';
+import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -61,6 +61,7 @@ import {
   ClipboardCheck,
   MessageSquare,
   Download,
+  CheckCircle,
   Truck,
   FileBarChart,
   Hammer,
@@ -116,7 +117,6 @@ interface Project {
   startDate?: string;
   endDate?: string;
   duration?: string;
-  eot?: string;
   projectValue?: number;
   status?: 'ongoing' | 'completed';
   lastUpdate: string;
@@ -265,6 +265,7 @@ export default function ProjectManager() {
   const [reportMonth, setReportMonth] = useState<number>(new Date().getMonth() + 1);
   const [reportYear, setReportYear] = useState<number>(new Date().getFullYear());
   const [isGeneratingReport, setIsGeneratingReport] = useState(false);
+  const [reportSuccessMessage, setReportSuccessMessage] = useState<string | null>(null);
   const [availablePictures, setAvailablePictures] = useState<any[]>([]);
   const [selectedPictureIds, setSelectedPictureIds] = useState<Set<number>>(new Set());
   const [isLoadingPictures, setIsLoadingPictures] = useState(false);
@@ -397,7 +398,6 @@ export default function ProjectManager() {
     startDate: '',
     endDate: '',
     duration: '',
-    eot: '',
     projectValue: undefined,
     status: 'ongoing',
   });
@@ -603,7 +603,6 @@ export default function ProjectManager() {
         startDate: '',
         endDate: '',
         duration: '',
-        eot: '',
         projectValue: undefined,
         status: 'ongoing',
       });
@@ -660,7 +659,6 @@ export default function ProjectManager() {
           startDate: '',
           endDate: '',
           duration: '',
-          eot: '',
         });
       } else {
         alert('Failed to confirm staff movement. Please try again.');
@@ -686,8 +684,11 @@ export default function ProjectManager() {
       // Check if dates are valid
       if (isNaN(start.getTime()) || isNaN(end.getTime())) return '';
       
+      // Calculate difference in days
+      // Since both start and end dates are included, we add 1 to the difference
+      // Example: Jan 1 to Jan 3 = 3 days (Jan 1, Jan 2, Jan 3)
       const diffTime = Math.abs(end.getTime() - start.getTime());
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24)) + 1;
       
       return `${diffDays} days`;
     } catch (error) {
@@ -833,7 +834,6 @@ export default function ProjectManager() {
         startDate: fullProjectData.startDate,
         endDate: fullProjectData.endDate,
         duration: fullProjectData.duration,
-        eot: fullProjectData.eot,
         projectValue: fullProjectData.projectValue ? fullProjectData.projectValue.toString() : null,
       },
       // Store full contact data with all contact details
@@ -1933,8 +1933,13 @@ export default function ProjectManager() {
       });
 
       if (response.success) {
-        alert(`Report generated successfully for ${new Date(reportYear, reportMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`);
+        const successMessage = `Report generated successfully for ${new Date(reportYear, reportMonth - 1).toLocaleString('default', { month: 'long', year: 'numeric' })}`;
+        setReportSuccessMessage(successMessage);
         setShowGenerateReportModal(false);
+        // Auto-dismiss after 3 seconds
+        setTimeout(() => {
+          setReportSuccessMessage(null);
+        }, 3000);
       } else {
         alert(response.error || 'Failed to generate report');
       }
@@ -1986,7 +1991,6 @@ export default function ProjectManager() {
       startDate: formatDateForInput(project.startDate),
       endDate: formatDateForInput(project.endDate),
       duration: project.duration || '',
-      eot: project.eot || '',
       projectValue: project.projectValue ?? undefined,
       status: (project.status as 'ongoing' | 'completed') || 'ongoing',
     };
@@ -3324,11 +3328,7 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Start Date</span>
                     <p style={{ color: colors.textPrimary }}>
-                      {new Date(selectedProject.startDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {formatDateForDisplay(selectedProject.startDate)}
                     </p>
                   </div>
                 )}
@@ -3336,11 +3336,7 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>End Date</span>
                     <p style={{ color: colors.textPrimary }}>
-                      {new Date(selectedProject.endDate).toLocaleDateString('en-US', {
-                        year: 'numeric',
-                        month: 'long',
-                        day: 'numeric'
-                      })}
+                      {formatDateForDisplay(selectedProject.endDate)}
                     </p>
                   </div>
                 )}
@@ -3348,12 +3344,6 @@ export default function ProjectManager() {
                   <div>
                     <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Duration</span>
                     <p style={{ color: colors.textPrimary }}>{selectedProject.duration}</p>
-                  </div>
-                )}
-                {selectedProject.eot && (
-                  <div>
-                    <span className="text-sm font-medium block mb-1" style={{ color: colors.textSecondary }}>Extension of Time</span>
-                    <p style={{ color: colors.textPrimary }}>{selectedProject.eot}</p>
                   </div>
                 )}
               </div>
@@ -3962,7 +3952,6 @@ export default function ProjectManager() {
                   startDate: '',
                   endDate: '',
                   duration: '',
-                  eot: '',
                 });
               }}
               variant="ghost"
@@ -7038,22 +7027,6 @@ export default function ProjectManager() {
 
               <div>
                 <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
-                  EOT (Extension of Time)
-                </label>
-                <Input
-                  type="text"
-                  value={formData.eot}
-                  onChange={(e) => setFormData({ ...formData, eot: e.target.value })}
-                  style={{
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary,
-                    borderColor: colors.borderLight
-                  }}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
                   Project Value
                 </label>
                 <Input
@@ -7185,7 +7158,7 @@ export default function ProjectManager() {
                       <Calendar className="w-4 h-4" style={{ color: colors.textMuted }} />
                       <span style={{ color: colors.textSecondary }}>Start:</span>
                       <span style={{ color: colors.textPrimary }}>
-                        {new Date(project.startDate).toLocaleDateString()}
+                        {formatDateForDisplay(project.startDate)}
                       </span>
                     </div>
                   )}
@@ -7195,7 +7168,7 @@ export default function ProjectManager() {
                       <Calendar className="w-4 h-4" style={{ color: colors.textMuted }} />
                       <span style={{ color: colors.textSecondary }}>End:</span>
                       <span style={{ color: colors.textPrimary }}>
-                        {new Date(project.endDate).toLocaleDateString()}
+                        {formatDateForDisplay(project.endDate)}
                       </span>
                     </div>
                   )}
@@ -7930,21 +7903,55 @@ export default function ProjectManager() {
                   onClick={handleGenerateReport}
                   className="px-4 py-2 flex items-center space-x-2"
                   variant="outline"
+                  isLoading={isGeneratingReport}
+                  loadingText="Generating..."
                   disabled={isGeneratingReport}
                 >
-                  {isGeneratingReport ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-t-transparent" style={{ borderColor: colors.primary }}></div>
-                      <span>Generating...</span>
-                    </>
-                  ) : (
-                    <>
-                      <FileBarChart className="w-4 h-4" />
-                      <span>Generate Report</span>
-                    </>
-                  )}
+                  <FileBarChart className="w-4 h-4" />
+                  <span>Generate Report</span>
                 </Button>
               </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Success Message Modal */}
+      {reportSuccessMessage && (
+        <div 
+          className="fixed inset-0 bg-black/20 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => setReportSuccessMessage(null)}
+        >
+          <Card 
+            className="w-full max-w-md p-6 animate-in fade-in slide-in-from-bottom-4 duration-300"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center space-x-4">
+              <div className="flex-shrink-0">
+                <CheckCircle className="w-8 h-8" style={{ color: colors.success || '#10B981' }} />
+              </div>
+              <div className="flex-1">
+                <h3 className="text-lg font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                  Success!
+                </h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  {reportSuccessMessage}
+                </p>
+              </div>
+              <button
+                onClick={() => setReportSuccessMessage(null)}
+                className="p-2 rounded-lg transition-colors flex-shrink-0"
+                style={{ color: colors.textSecondary }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
           </Card>
         </div>

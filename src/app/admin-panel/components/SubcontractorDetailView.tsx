@@ -10,7 +10,7 @@ import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/us
 import { useAdminApi } from '@/hooks/useApi';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { ArrowLeft, Plus, Save, Edit, Trash2, Tag, X, ChevronRight, ChevronDown, FileText, ShoppingCart, Package, Receipt, Filter, XCircle, CreditCard, Calendar, AlertCircle, Clock, Wallet, File, Upload, Loader2, CheckCircle, Star } from 'lucide-react';
-import { formatDateForInput } from '@/lib/dateUtils';
+import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { formatCurrency, formatCurrencyWithDecimals } from '@/lib/currency';
 
 interface SubcontractorOption {
@@ -2758,7 +2758,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           {po.lpoNumber}
                         </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {new Date(po.lpoDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDateForDisplay(po.lpoDate)}
                         </td>
                         <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {formatCurrencyWithDecimals(Number(po.lpoValue))}
@@ -2771,24 +2771,34 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            <button
+                              type="button"
                               onClick={() => handleEditPO(po)}
-                              className="h-7 w-7"
-                              style={{ color: colors.info }}
+                              className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                              style={{
+                                color: colors.textPrimary,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                              }}
+                              title="Edit PO"
+                              aria-label="Edit PO"
                             >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleDeletePO(po.id, po.lpoNumber)}
-                              className="h-7 w-7"
-                              style={{ color: colors.error }}
+                              className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                              style={{
+                                color: colors.textPrimary,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                              }}
+                              title="Delete PO"
+                              aria-label="Delete PO"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>
@@ -3100,7 +3110,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                             {changeOrder.chRefNo}
                                           </td>
                           <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                            {new Date(changeOrder.chDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                            {formatDateForDisplay(changeOrder.chDate)}
                                           </td>
                           <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                                             <span className={`px-2 py-1 rounded text-xs font-medium ${
@@ -3125,24 +3135,34 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                           </td>
                           <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                             <div className="flex items-center justify-center gap-2">
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
-                                                onClick={() => handleEditChangeOrder(changeOrder)}
-                                className="h-7 w-7"
-                                                style={{ color: colors.info }}
-                                              >
-                                <Edit className="h-3.5 w-3.5" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
+                              <button
+                                type="button"
+                                onClick={() => handleEditChangeOrder(changeOrder)}
+                                className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                                style={{
+                                  color: colors.textPrimary,
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                }}
+                                title="Edit Change Order"
+                                aria-label="Edit Change Order"
+                              >
+                                <Edit className="h-4 w-4" />
+                              </button>
+                              <button
+                                type="button"
                                 onClick={() => handleDeleteChangeOrder(changeOrder.purchaseOrderId, changeOrder.id, changeOrder.chRefNo)}
-                                className="h-7 w-7"
-                                                style={{ color: colors.error }}
-                                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                                              </Button>
+                                className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                                style={{
+                                  color: colors.textPrimary,
+                                  backgroundColor: 'transparent',
+                                  border: 'none',
+                                }}
+                                title="Delete Change Order"
+                                aria-label="Delete Change Order"
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </button>
                                             </div>
                                           </td>
                                         </tr>
@@ -4036,51 +4056,51 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                               )}
 
                               <div className="overflow-x-auto">
-              <table className="w-full border-collapse" style={{ borderColor: colors.borderLight }}>
+              <table className="w-full table-auto border-collapse" style={{ borderColor: colors.borderLight }}>
                                   <thead>
                   <tr style={{ backgroundColor: `${colors.primary}20` }}>
-                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                        Invoice Number
-                                      </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                        Invoice Date
-                                      </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                        Due Date
-                                      </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Status
-                                      </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Due Days
-                                      </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Payment Type
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Invoice Amount (Excluding VAT)
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Recovered from AP
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Retention Held
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Contra Charges
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      VAT (5%)
-                                      </th>
-                    <th className="px-4 py-3 text-right text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Total Amount
-                                      </th>
-                    <th className="px-4 py-3 text-left text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                      Purchase Order
+                    <th className="px-3 py-2 text-left text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Inv #
                     </th>
-                    <th className="px-4 py-3 text-center text-xs font-semibold border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                        Actions
-                                      </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Inv Date
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Due
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Status
+                    </th>
+                    <th className="px-3 py-2 text-center text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Days
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Type
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Amount
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      AP Rec
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Ret
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Contra
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      VAT
+                    </th>
+                    <th className="px-3 py-2 text-right text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Total
+                    </th>
+                    <th className="px-3 py-2 text-left text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      PO
+                    </th>
+                    <th className="px-3 py-2 text-center text-xs font-semibold border whitespace-normal leading-tight" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                      Actions
+                    </th>
                                     </tr>
                                   </thead>
                                   <tbody>
@@ -4097,19 +4117,18 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                     return filteredInvoices.length > 0 ? (
                       filteredInvoices.map((invoice) => (
                         <tr key={invoice.id} style={{ backgroundColor: `${colors.success}08` }}>
-                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {invoice.invoiceNumber}
+                        <td className="px-3 py-2 text-sm border whitespace-nowrap" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          <span className="block max-w-[140px] truncate" title={invoice.invoiceNumber}>
+                            {invoice.invoiceNumber}
+                          </span>
                                           </td>
-                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                        <td className="px-3 py-2 text-sm border whitespace-nowrap" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {formatDateForDisplay(invoice.invoiceDate)}
                                           </td>
-                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {invoice.dueDate 
-                            ? new Date(invoice.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : <span style={{ color: colors.textSecondary }}>-</span>
-                          }
+                        <td className="px-3 py-2 text-sm border whitespace-nowrap" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {formatDateForDisplay(invoice.dueDate)}
                                           </td>
-                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight }}>
+                        <td className="px-3 py-2 text-sm border" style={{ borderColor: colors.borderLight }}>
                           {(() => {
                             const status = getInvoiceStatus(invoice);
                             const statusConfig = {
@@ -4131,7 +4150,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             };
                             const config = statusConfig[status];
                             return (
-                              <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                              <span className="text-xs px-2 py-1 rounded font-medium whitespace-nowrap" style={{
                                 backgroundColor: config.bgColor,
                                 color: config.textColor,
                               }}>
@@ -4140,7 +4159,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             );
                           })()}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-center border" style={{ borderColor: colors.borderLight }}>
+                        <td className="px-3 py-2 text-sm text-center border" style={{ borderColor: colors.borderLight }}>
                           {(() => {
                             const dueDays = calculateDueDays(invoice);
                             if (dueDays === null) {
@@ -4153,13 +4172,13 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             const invoiceStatus = getInvoiceStatus(invoice);
                             
                             return (
-                              <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                              <span className="text-xs px-2 py-1 rounded font-medium whitespace-nowrap" style={{
                                 backgroundColor: isOverdue ? `${colors.error}20` : `${colors.info}20`,
                                 color: isOverdue ? colors.error : colors.info,
                               }}>
                                 {isOverdue ? `-${displayDays}` : `+${displayDays}`}
                                 {invoiceStatus === 'paid' && (
-                                  <span className="ml-1 text-xs" style={{ color: colors.textSecondary }}>
+                                  <span className="ml-1 text-xs whitespace-nowrap" style={{ color: colors.textSecondary }}>
                                     (paid)
                                   </span>
                                 )}
@@ -4167,98 +4186,96 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                             );
                           })()}
                                           </td>
-                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          <span className="text-xs px-2 py-1 rounded font-medium" style={{
+                        <td className="px-3 py-2 text-sm border whitespace-nowrap" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          <span className="text-xs px-2 py-1 rounded font-medium whitespace-nowrap" style={{
                             backgroundColor: invoice.paymentType === 'Advance Payment' ? `${colors.info}20` : invoice.paymentType === 'Retention Release Payment' ? `${colors.warning}20` : `${colors.success}20`,
                             color: invoice.paymentType === 'Advance Payment' ? colors.info : invoice.paymentType === 'Retention Release Payment' ? colors.warning : colors.success,
                           }}>
                             {invoice.paymentType}
                           </span>
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                        <td className="px-3 py-2 text-xs text-right border whitespace-nowrap tabular-nums" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {formatCurrencyWithDecimals(invoice.invoiceAmount)}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                        <td className="px-3 py-2 text-xs text-right border whitespace-nowrap tabular-nums" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {invoice.paymentType === 'Progress Payment' && invoice.advanceRecovery ? (
                             formatCurrencyWithDecimals(invoice.advanceRecovery)
                           ) : (
                             <span style={{ color: colors.textSecondary }}>-</span>
                           )}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                        <td className="px-3 py-2 text-xs text-right border whitespace-nowrap tabular-nums" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {invoice.paymentType === 'Progress Payment' && invoice.retention ? (
                             formatCurrencyWithDecimals(invoice.retention)
                           ) : (
                             <span style={{ color: colors.textSecondary }}>-</span>
                           )}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                        <td className="px-3 py-2 text-xs text-right border whitespace-nowrap tabular-nums" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                           {invoice.paymentType === 'Progress Payment' && invoice.contraChargesAmount ? (
                             formatCurrencyWithDecimals(invoice.contraChargesAmount)
                           ) : (
                             <span style={{ color: colors.textSecondary }}>-</span>
                           )}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right border" style={{ borderColor: colors.borderLight, color: colors.primary }}>
+                        <td className="px-3 py-2 text-xs text-right border whitespace-nowrap tabular-nums" style={{ borderColor: colors.borderLight, color: colors.primary }}>
                           {formatCurrencyWithDecimals(invoice.vatAmount)}
                                           </td>
-                        <td className="px-4 py-3 text-sm text-right font-semibold border" style={{ borderColor: colors.borderLight, color: colors.success }}>
+                        <td className="px-3 py-2 text-xs text-right font-semibold border whitespace-nowrap tabular-nums" style={{ borderColor: colors.borderLight, color: colors.success }}>
                           {formatCurrencyWithDecimals(invoice.totalAmount)}
                                           </td>
-                        <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                            {invoice.paymentType === 'Advance Payment' ? (
-                            invoice.purchaseOrder ? (
-                              <span className="text-xs px-2 py-1 rounded" style={{
-                                backgroundColor: colors.backgroundPrimary,
-                                color: colors.textPrimary,
-                              }}>
-                                PO: {invoice.purchaseOrder.lpoNumber}
-                              </span>
-                            ) : (
-                              <span className="text-xs" style={{ color: colors.textSecondary }}>-</span>
-                            )
+                        <td className="px-3 py-2 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
+                          {invoice.purchaseOrder?.lpoNumber ? (
+                            <span
+                              className="block max-w-[160px] truncate text-xs"
+                              title={`PO: ${invoice.purchaseOrder.lpoNumber}`}
+                              style={{ color: colors.textPrimary }}
+                            >
+                              PO: {invoice.purchaseOrder.lpoNumber}
+                            </span>
                           ) : (
-                            <div className="flex flex-wrap gap-1">
-                              {invoice.purchaseOrder?.lpoNumber ? (
-                                <span className="text-xs px-2 py-1 rounded" style={{
-                                    backgroundColor: colors.backgroundPrimary,
-                                    color: colors.textPrimary,
-                                  }}>
-                                  {invoice.purchaseOrder.lpoNumber}
-                                  </span>
-                              ) : (
-                                <span className="text-xs" style={{ color: colors.textSecondary }}>-</span>
-                              )}
-                            </div>
+                            <span className="text-xs" style={{ color: colors.textSecondary }}>
+                              -
+                            </span>
                           )}
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           <div className="flex items-center justify-center gap-2">
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
+                            <button
+                              type="button"
                               onClick={() => handleEditInvoice(invoice)}
-                              className="h-7 w-7"
-                                                style={{ color: colors.info }}
-                                              >
-                              <Edit className="h-3.5 w-3.5" />
-                                              </Button>
-                                              <Button
-                                                variant="ghost"
-                                                size="sm"
+                              className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                              style={{
+                                color: colors.textPrimary,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                              }}
+                              title="Edit Invoice"
+                              aria-label="Edit Invoice"
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => handleDeleteInvoice(invoice.id, invoice.invoiceNumber)}
-                              className="h-7 w-7"
-                                                style={{ color: colors.error }}
-                                              >
-                              <Trash2 className="h-3.5 w-3.5" />
-                                              </Button>
+                              className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                              style={{
+                                color: colors.textPrimary,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                              }}
+                              title="Delete Invoice"
+                              aria-label="Delete Invoice"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                                             </div>
                                           </td>
                                         </tr>
                                       ))
                                     ) : (
                                       <tr>
-                        <td colSpan={11} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
+                        <td colSpan={14} className="px-4 py-6 text-center text-sm border" style={{ borderColor: colors.borderLight, color: colors.textSecondary }}>
                           {poFilterId ? 'No invoices found for the selected PO.' : 'No invoices yet. Click "Add Invoice" to add one.'}
                                         </td>
                                       </tr>
@@ -4670,7 +4687,7 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                                     {invoice.invoiceNumber}
                                   </td>
                                   <td className="px-3 py-2 text-sm border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                                    {new Date(invoice.invoiceDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                                    {formatDateForDisplay(invoice.invoiceDate)}
                                   </td>
                                   <td className="px-3 py-2 text-sm text-right font-semibold border-r" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
                                     {formatCurrencyWithDecimals(invoiceTotal)}
@@ -4933,13 +4950,10 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                           {payment.paymentType || '-'}
                         </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {new Date(payment.paymentDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })}
+                          {formatDateForDisplay(payment.paymentDate)}
                         </td>
                         <td className="px-4 py-3 text-sm border" style={{ borderColor: colors.borderLight, color: colors.textPrimary }}>
-                          {payment.dueDate 
-                            ? new Date(payment.dueDate).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-                            : '-'
-                          }
+                          {formatDateForDisplay(payment.dueDate)}
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           {payment.paymentMethod === 'Post Dated' ? (
@@ -4957,27 +4971,37 @@ export default function SubcontractorDetailView({ projectId, projectName, subcon
                         </td>
                         <td className="px-4 py-3 text-center border" style={{ borderColor: colors.borderLight }}>
                           <div className="flex items-center justify-center gap-2">
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                            <button
+                              type="button"
                               onClick={() => handleEditPayment(payment)}
-                              className="h-7 w-7"
-                              style={{ color: colors.info }}
+                              className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                              style={{
+                                color: colors.textPrimary,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                              }}
+                              title="Edit Payment"
+                              aria-label="Edit Payment"
                             >
-                              <Edit className="h-3.5 w-3.5" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => {
                                 const invoiceNumbers = payment.paymentInvoices?.map(pi => pi.invoice.invoiceNumber).join(', ') || 'payment';
                                 handleDeletePayment(payment.id, invoiceNumbers);
                               }}
-                              className="h-7 w-7"
-                              style={{ color: colors.error }}
+                              className="flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                              style={{
+                                color: colors.textPrimary,
+                                backgroundColor: 'transparent',
+                                border: 'none',
+                              }}
+                              title="Delete Payment"
+                              aria-label="Delete Payment"
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
-                            </Button>
+                              <Trash2 className="h-4 w-4" />
+                            </button>
                           </div>
                         </td>
                       </tr>

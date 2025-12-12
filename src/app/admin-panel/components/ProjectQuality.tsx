@@ -1,8 +1,9 @@
 'use client';
 
 import { useMemo, useState, useEffect, useRef, useCallback, type CSSProperties } from 'react';
-import { Trash2 } from 'lucide-react';
+import { Trash2, Plus } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
+import { Button } from '@/components/ui/Button';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 
@@ -244,7 +245,6 @@ export default function ProjectQuality({ projectId, projectName, projectStartDat
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const hydrationRef = useRef<boolean>(true);
-  const autoSaveTimerRef = useRef<NodeJS.Timeout | null>(null);
   const latestRowsRef = useRef<{ e1Rows: E1LogRow[]; e2Rows: E1LogRow[]; checklistRows: QualityChecklistRow[] }>({
     e1Rows: e1LogRows,
     e2Rows: e2LogRows,
@@ -485,19 +485,35 @@ useEffect(() => {
   ): T[] => rows.map((row, index) => (index === rowIndex ? { ...row, ...patch } : row));
 
   const handleE1LogChange = (rowIndex: number, field: LogEditableField, value: string) => {
-    setE1LogRows((prev) => updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<E1LogRow>));
+    setE1LogRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<E1LogRow>);
+      latestRowsRef.current = { e1Rows: updated, e2Rows: e2LogRows, checklistRows: qualityChecklistRows };
+      return updated;
+    });
   };
 
   const handleE2LogChange = (rowIndex: number, field: LogEditableField, value: string) => {
-    setE2LogRows((prev) => updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<E1LogRow>));
+    setE2LogRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<E1LogRow>);
+      latestRowsRef.current = { e1Rows: e1LogRows, e2Rows: updated, checklistRows: qualityChecklistRows };
+      return updated;
+    });
   };
 
   const handleE1SubmissionTypeChange = (rowIndex: number, value: string) => {
-    setE1LogRows((prev) => updateRowsAtIndex(prev, rowIndex, { submissionType: value }));
+    setE1LogRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { submissionType: value });
+      latestRowsRef.current = { e1Rows: updated, e2Rows: e2LogRows, checklistRows: qualityChecklistRows };
+      return updated;
+    });
   };
 
   const handleE2SubmissionTypeChange = (rowIndex: number, value: string) => {
-    setE2LogRows((prev) => updateRowsAtIndex(prev, rowIndex, { submissionType: value }));
+    setE2LogRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { submissionType: value });
+      latestRowsRef.current = { e1Rows: e1LogRows, e2Rows: updated, checklistRows: qualityChecklistRows };
+      return updated;
+    });
   };
 
   const handleAddE1Row = () => {
@@ -565,13 +581,24 @@ useEffect(() => {
   };
 
   const handleChecklistChange = (rowIndex: number, field: ChecklistEditableField, value: string) => {
-    setQualityChecklistRows((prev) =>
-      updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<QualityChecklistRow>)
-    );
+    setQualityChecklistRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { [field]: value } as Partial<QualityChecklistRow>);
+      latestRowsRef.current = { e1Rows: e1LogRows, e2Rows: e2LogRows, checklistRows: updated };
+      return updated;
+    });
   };
 
   const handleChecklistSubmissionTypeChange = (rowIndex: number, value: string) => {
-    setQualityChecklistRows((prev) => updateRowsAtIndex(prev, rowIndex, { submissionType: value }));
+    setQualityChecklistRows((prev) => {
+      const updated = updateRowsAtIndex(prev, rowIndex, { submissionType: value });
+      latestRowsRef.current = { e1Rows: e1LogRows, e2Rows: e2LogRows, checklistRows: updated };
+      return updated;
+    });
+  };
+
+  const handleQualityBlur = () => {
+    // Save quality data when user finishes editing a field
+    saveQualityData();
   };
 
   const handleAddChecklistRow = () => {
@@ -606,8 +633,6 @@ useEffect(() => {
   };
 
   const gridBorderColor = colors.borderLight || colors.border || '#D1D5DB';
-  const headerBackgroundColor = colors.backgroundSecondary;
-  const headerTextColor = colors.textPrimary;
   const spreadsheetBackground = colors.backgroundPrimary;
   const spreadsheetSecondaryBackground = colors.backgroundSecondary;
   const cellInputClass =
@@ -621,34 +646,6 @@ useEffect(() => {
   const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
   const cellFocusShadowColor = colors.primary || '#2563EB';
 
-  useEffect(() => {
-    if (hydrationRef.current || isLoading) {
-      hydrationRef.current = false;
-      return;
-    }
-
-    if (autoSaveTimerRef.current) {
-      clearTimeout(autoSaveTimerRef.current);
-    }
-
-    autoSaveTimerRef.current = setTimeout(() => {
-      saveQualityData();
-    }, 1200);
-
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, [e1LogRows, e2LogRows, qualityChecklistRows, isLoading, saveQualityData]);
-
-  useEffect(() => {
-    return () => {
-      if (autoSaveTimerRef.current) {
-        clearTimeout(autoSaveTimerRef.current);
-      }
-    };
-  }, []);
 
   const lastSavedLabel = useMemo(() => {
     if (!lastSavedAt) return null;
@@ -685,14 +682,13 @@ useEffect(() => {
         </div>
       </div>
 
-      <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
+      <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
         <div className="mb-4">
           <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
             Submittals Tracker (E1 Log)
           </h3>
           <p className="text-xs" style={{ color: colors.textSecondary }}>
-            Capture the current status of quality submissions. Yellow columns highlight the key tracked inputs. Changes are
-            auto-saved shortly after typing.
+            Capture the current status of quality submissions. Yellow columns highlight the key tracked inputs. Changes are auto-saved.
           </p>
         </div>
 
@@ -708,30 +704,29 @@ useEffect(() => {
             <div className="h-8 w-8 animate-spin rounded-full border-b-2" style={{ borderColor: colors.primary }}></div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
             <div className="mb-3 flex items-center justify-end">
-              <button
-                type="button"
+              <Button
                 onClick={handleAddE1Row}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-2"
+                style={{ color: colors.primary }}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Row</span>
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table
+                className="min-w-full text-sm"
                 style={{
-                  backgroundColor: colors.backgroundSecondary,
-                  color: colors.textPrimary,
-                  borderColor: colors.border,
+                  borderCollapse: 'collapse',
+                  border: `1px solid ${gridBorderColor}`,
                 }}
               >
-                Add Row
-              </button>
-            </div>
-            <table
-              className="min-w-full text-sm"
-              style={{
-                borderCollapse: 'collapse',
-                border: `1px solid ${gridBorderColor}`,
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: headerBackgroundColor, color: headerTextColor }}>
+                <thead>
+                  <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
                   <th
                     style={{
                       border: `1px solid ${gridBorderColor}`,
@@ -864,6 +859,7 @@ useEffect(() => {
                           type="text"
                           value={row.submissionType}
                           onChange={(event) => handleE1SubmissionTypeChange(index, event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="Submission Type"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -876,6 +872,7 @@ useEffect(() => {
                           inputMode="numeric"
                         value={row.totalNumber}
                         onChange={(event) => handleE1LogChange(index, 'totalNumber', event.target.value)}
+                        onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -888,6 +885,7 @@ useEffect(() => {
                           inputMode="numeric"
                         value={row.submitted}
                         onChange={(event) => handleE1LogChange(index, 'submitted', event.target.value)}
+                        onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -900,6 +898,7 @@ useEffect(() => {
                           inputMode="numeric"
                         value={row.underReview}
                         onChange={(event) => handleE1LogChange(index, 'underReview', event.target.value)}
+                        onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -912,6 +911,7 @@ useEffect(() => {
                           inputMode="numeric"
                         value={row.approved}
                         onChange={(event) => handleE1LogChange(index, 'approved', event.target.value)}
+                        onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -924,6 +924,7 @@ useEffect(() => {
                           inputMode="numeric"
                         value={row.reviseAndResubmit}
                         onChange={(event) => handleE1LogChange(index, 'reviseAndResubmit', event.target.value)}
+                        onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -959,11 +960,11 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={() => handleDeleteE1Row(index)}
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+                          className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
                           style={{
-                            color: colors.error,
-                            border: `1px solid ${colors.border}`,
-                            backgroundColor: colors.backgroundPrimary,
+                            color: colors.textPrimary,
+                            backgroundColor: 'transparent',
+                            border: 'none',
                           }}
                           aria-label="Delete row"
                         >
@@ -997,17 +998,18 @@ useEffect(() => {
                 margin: 0;
               }
             `}</style>
-          </div>
+            </div>
+          </Card>
         )}
       </Card>
 
-      <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
+      <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
         <div className="mb-4">
           <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
             Procurement Tracker (E2 Log)
           </h3>
           <p className="text-xs" style={{ color: colors.textSecondary }}>
-            Track procurement submissions across key supplier categories. Changes autosave after a short pause.
+            Track procurement submissions across key supplier categories. Changes are auto-saved.
           </p>
         </div>
 
@@ -1023,30 +1025,29 @@ useEffect(() => {
             <div className="h-8 w-8 animate-spin rounded-full border-b-2" style={{ borderColor: colors.primary }}></div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
             <div className="mb-3 flex items-center justify-end">
-              <button
-                type="button"
+              <Button
                 onClick={handleAddE2Row}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-2"
+                style={{ color: colors.primary }}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Row</span>
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table
+                className="min-w-full text-sm"
                 style={{
-                  backgroundColor: colors.backgroundSecondary,
-                  color: colors.textPrimary,
-                  borderColor: colors.border,
+                  borderCollapse: 'collapse',
+                  border: `1px solid ${gridBorderColor}`,
                 }}
               >
-                Add Row
-              </button>
-            </div>
-            <table
-              className="min-w-full text-sm"
-              style={{
-                borderCollapse: 'collapse',
-                border: `1px solid ${gridBorderColor}`,
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: headerBackgroundColor, color: headerTextColor }}>
+                <thead>
+                  <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
                   <th
                     style={{
                       border: `1px solid ${gridBorderColor}`,
@@ -1179,6 +1180,7 @@ useEffect(() => {
                           type="text"
                           value={row.submissionType}
                           onChange={(event) => handleE2SubmissionTypeChange(index, event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="Type"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1191,6 +1193,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.totalNumber}
                           onChange={(event) => handleE2LogChange(index, 'totalNumber', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1203,6 +1206,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.submitted}
                           onChange={(event) => handleE2LogChange(index, 'submitted', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1215,6 +1219,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.underReview}
                           onChange={(event) => handleE2LogChange(index, 'underReview', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1227,6 +1232,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.approved}
                           onChange={(event) => handleE2LogChange(index, 'approved', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1239,6 +1245,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.reviseAndResubmit}
                           onChange={(event) => handleE2LogChange(index, 'reviseAndResubmit', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1274,11 +1281,11 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={() => handleDeleteE2Row(index)}
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+                          className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
                           style={{
-                            color: colors.error,
-                            border: `1px solid ${colors.border}`,
-                            backgroundColor: colors.backgroundPrimary,
+                            color: colors.textPrimary,
+                            backgroundColor: 'transparent',
+                            border: 'none',
                           }}
                           aria-label="Delete row"
                         >
@@ -1312,11 +1319,12 @@ useEffect(() => {
                 margin: 0;
               }
             `}</style>
-          </div>
+            </div>
+          </Card>
         )}
       </Card>
 
-      <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
+      <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
         <div className="mb-4">
           <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
             Project Quality Checklist
@@ -1338,30 +1346,29 @@ useEffect(() => {
             <div className="h-8 w-8 animate-spin rounded-full border-b-2" style={{ borderColor: colors.primary }}></div>
           </div>
         ) : (
-          <div className="overflow-x-auto">
+          <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
             <div className="mb-3 flex items-center justify-end">
-              <button
-                type="button"
+              <Button
                 onClick={handleAddChecklistRow}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-2"
+                style={{ color: colors.primary }}
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Row</span>
+              </Button>
+            </div>
+            <div className="overflow-x-auto">
+              <table
+                className="min-w-full text-sm"
                 style={{
-                  backgroundColor: colors.backgroundSecondary,
-                  color: colors.textPrimary,
-                  borderColor: colors.border,
+                  borderCollapse: 'collapse',
+                  border: `1px solid ${gridBorderColor}`,
                 }}
               >
-                Add Row
-              </button>
-            </div>
-            <table
-              className="min-w-full text-sm"
-              style={{
-                borderCollapse: 'collapse',
-                border: `1px solid ${gridBorderColor}`,
-              }}
-            >
-              <thead>
-                <tr style={{ backgroundColor: headerBackgroundColor, color: headerTextColor }}>
+                <thead>
+                  <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
                   <th
                     style={{
                       border: `1px solid ${gridBorderColor}`,
@@ -1464,6 +1471,7 @@ useEffect(() => {
                           type="text"
                           value={row.submissionType}
                           onChange={(event) => handleChecklistSubmissionTypeChange(index, event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="Type"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1476,6 +1484,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.submitted}
                           onChange={(event) => handleChecklistChange(index, 'submitted', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1488,6 +1497,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.approved}
                           onChange={(event) => handleChecklistChange(index, 'approved', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1500,6 +1510,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.underReview}
                           onChange={(event) => handleChecklistChange(index, 'underReview', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1512,6 +1523,7 @@ useEffect(() => {
                           inputMode="numeric"
                           value={row.rejected}
                           onChange={(event) => handleChecklistChange(index, 'rejected', event.target.value)}
+                          onBlur={handleQualityBlur}
                           placeholder="0"
                           className={`${cellInputClass} text-center`}
                           style={cellInputStyle}
@@ -1527,11 +1539,11 @@ useEffect(() => {
                         <button
                           type="button"
                           onClick={() => handleDeleteChecklistRow(index)}
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+                          className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
                           style={{
-                            color: colors.error,
-                            border: `1px solid ${colors.border}`,
-                            backgroundColor: colors.backgroundPrimary,
+                            color: colors.textPrimary,
+                            backgroundColor: 'transparent',
+                            border: 'none',
                           }}
                           aria-label="Delete row"
                         >
@@ -1565,7 +1577,8 @@ useEffect(() => {
                 margin: 0;
               }
             `}</style>
-          </div>
+            </div>
+          </Card>
         )}
       </Card>
     </div>

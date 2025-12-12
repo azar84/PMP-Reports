@@ -11,8 +11,6 @@ interface SiteSettings {
   footerCompanyDescription?: string;
   footerCopyrightMessage?: string;
   logoUrl?: string | null;
-  logoLightUrl?: string | null;
-  logoDarkUrl?: string | null;
   faviconUrl?: string | null;
 }
 
@@ -109,14 +107,8 @@ export default function AdminLogin() {
   };
 
   const getAppropriateLogoUrl = () => {
-    // For login page with white background, we'll use the dark logo
-    if (siteSettings.logoDarkUrl) {
-      return siteSettings.logoDarkUrl;
-    }
-    if (siteSettings.logoUrl) {
-      return siteSettings.logoUrl;
-    }
-    return null;
+    // Use the single logo URL
+    return siteSettings.logoUrl || null;
   };
 
   if (loadingSettings) {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
@@ -9,7 +9,7 @@ import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { formatCurrency } from '@/lib/currency';
-import { Save, RefreshCcw, Calculator, Plus, Trash2 } from 'lucide-react';
+import { RefreshCcw, Calculator, Plus, Trash2 } from 'lucide-react';
 
 interface CommercialData {
   id?: number;
@@ -111,7 +111,7 @@ export default function ProjectCommercial({
   const [commercialData, setCommercialData] = useState<Partial<CommercialData>>(emptyCommercialState);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
+  const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
   
   // Store raw string values for inputs to preserve decimal points during typing
   const [inputValues, setInputValues] = useState<Record<string, string>>({});
@@ -121,6 +121,11 @@ export default function ProjectCommercial({
   const [checklistLoading, setChecklistLoading] = useState<boolean>(false);
   const [checklistSaving, setChecklistSaving] = useState<boolean>(false);
   const [checklistInitializing, setChecklistInitializing] = useState<boolean>(false);
+  const commercialDataRef = useRef<Partial<CommercialData>>(commercialData);
+
+  useEffect(() => {
+    commercialDataRef.current = commercialData;
+  }, [commercialData]);
 
   // Calculate totals
   // Effective Contract Value = Contract Value - Provisional Sum + Instructed Provisional Sum - Omissions + Variations - Dayworks
@@ -234,13 +239,13 @@ export default function ProjectCommercial({
   };
 
   const handleSave = async () => {
+    if (isSaving) return;
     setIsSaving(true);
     setSaveError(null);
-    setSaveSuccess(false);
     
     try {
       // Remove projectProgressPercentage (read-only from planning) and overallStatus (calculated) from save
-      const { projectProgressPercentage, overallStatus, ...dataToSaveWithoutCalculated } = commercialData;
+      const { projectProgressPercentage, overallStatus, ...dataToSaveWithoutCalculated } = commercialDataRef.current;
       const dataToSave = {
         ...dataToSaveWithoutCalculated,
         projectId,
@@ -288,8 +293,7 @@ export default function ProjectCommercial({
           projectRevenuePercentage: convertDecimalToNumber(data.projectRevenuePercentage),
           projectCostPercentage: convertDecimalToNumber(data.projectCostPercentage),
         });
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
+        setLastSavedAt(new Date());
       } else {
         setSaveError(response.error || 'Failed to save commercial data');
       }
@@ -299,6 +303,11 @@ export default function ProjectCommercial({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const handleCommercialBlur = () => {
+    // Save only when user finishes editing a field
+    handleSave();
   };
 
   const handleReset = () => {
@@ -571,6 +580,10 @@ export default function ProjectCommercial({
   };
   const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
   const cellFocusShadowColor = colors.primary || '#2563EB';
+  const lastSavedLabel = useMemo(() => {
+    if (!lastSavedAt) return null;
+    return `Saved ${lastSavedAt.toLocaleTimeString()}`;
+  }, [lastSavedAt]);
 
   if (isLoading) {
     return (
@@ -585,14 +598,29 @@ export default function ProjectCommercial({
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center space-x-2">
           <Calculator className="w-5 h-5" style={{ color: colors.primary }} />
           <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
             Commercial - {projectName}
           </h2>
         </div>
-        <div className="flex items-center space-x-2">
+        <div className="flex flex-col items-start gap-2 md:items-end">
+          {saveError && (
+            <span className="text-xs" style={{ color: colors.error }}>
+              {saveError}
+            </span>
+          )}
+          {isSaving && !saveError && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              Saving...
+            </span>
+          )}
+          {!isSaving && !saveError && lastSavedLabel && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              {lastSavedLabel}
+            </span>
+          )}
           <Button
             onClick={handleReset}
             variant="ghost"
@@ -602,14 +630,6 @@ export default function ProjectCommercial({
             <RefreshCcw className="w-4 h-4 mr-2" />
             Reset
           </Button>
-          <Button
-            onClick={handleSave}
-            variant="primary"
-            disabled={isSaving || isLoading}
-          >
-            <Save className="w-4 h-4 mr-2" />
-            {isSaving ? 'Saving...' : 'Save'}
-          </Button>
         </div>
       </div>
 
@@ -617,16 +637,6 @@ export default function ProjectCommercial({
       {loadError && (
         <Card className="p-4" style={{ backgroundColor: colors.error + '20', borderColor: colors.error }}>
           <p style={{ color: colors.error }}>{loadError}</p>
-        </Card>
-      )}
-      {saveError && (
-        <Card className="p-4" style={{ backgroundColor: colors.error + '20', borderColor: colors.error }}>
-          <p style={{ color: colors.error }}>{saveError}</p>
-        </Card>
-      )}
-      {saveSuccess && (
-        <Card className="p-4" style={{ backgroundColor: colors.success + '20', borderColor: colors.success }}>
-          <p style={{ color: colors.success }}>Commercial data saved successfully!</p>
         </Card>
       )}
 
@@ -648,18 +658,16 @@ export default function ProjectCommercial({
         ) : (
           <div className="overflow-x-auto">
             <div className="mb-3 flex items-center justify-end">
-              <button
-                type="button"
+              <Button
                 onClick={handleAddChecklistRow}
-                className="rounded-md border px-3 py-1.5 text-sm font-medium transition-colors"
-                style={{
-                  backgroundColor: colors.backgroundSecondary,
-                  color: colors.textPrimary,
-                  borderColor: colors.border,
-                }}
+                variant="ghost"
+                size="sm"
+                className="flex items-center gap-2"
+                style={{ color: colors.primary }}
               >
-                Add Row
-              </button>
+                <Plus className="w-4 h-4" />
+                <span>Add Row</span>
+              </Button>
             </div>
             <table
               className="min-w-full text-sm"
@@ -929,11 +937,11 @@ export default function ProjectCommercial({
                         <button
                           type="button"
                           onClick={() => handleDeleteChecklistRow(index)}
-                          className="mx-auto flex h-8 w-8 items-center justify-center rounded-full transition-colors"
+                          className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
                           style={{
-                            color: colors.error,
-                            border: `1px solid ${colors.border}`,
-                            backgroundColor: colors.backgroundPrimary,
+                            color: colors.textPrimary,
+                            backgroundColor: 'transparent',
+                            border: 'none',
                           }}
                           aria-label="Delete row"
                         >
@@ -967,7 +975,7 @@ export default function ProjectCommercial({
       </Card>
 
       {/* Financial Breakdown Table */}
-      <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }}>
+      <Card className="p-6" style={{ backgroundColor: colors.backgroundPrimary }} onBlur={handleCommercialBlur}>
         <div className="mb-4">
           <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
             Project Commercial Information

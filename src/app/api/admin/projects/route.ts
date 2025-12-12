@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
-import { parseDateFromInput } from '@/lib/dateUtils';
+import { parseDateFromInput, formatDateForInput } from '@/lib/dateUtils';
 
 // Default checklist template
 const defaultChecklistTemplate = [
@@ -63,7 +63,6 @@ const projectSchema = z.object({
   startDate: z.string().optional().or(z.null()),
   endDate: z.string().optional().or(z.null()),
   duration: z.string().optional().or(z.literal('')),
-  eot: z.string().optional().or(z.literal('')),
   projectValue: z.number().positive().optional().or(z.null()),
   status: z.enum(['ongoing', 'completed']).optional().default('ongoing'),
   contacts: z.array(z.object({
@@ -114,7 +113,14 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ success: true, data: projects });
+    // Convert DateTime fields to date-only strings (YYYY-MM-DD) to avoid timezone issues
+    const projectsWithDateStrings = projects.map(project => ({
+      ...project,
+      startDate: project.startDate ? formatDateForInput(project.startDate) : null,
+      endDate: project.endDate ? formatDateForInput(project.endDate) : null,
+    }));
+
+    return NextResponse.json({ success: true, data: projectsWithDateStrings });
   } catch (error) {
     console.error('Error fetching projects:', error);
     return NextResponse.json(
@@ -338,7 +344,21 @@ export async function POST(request: NextRequest) {
       });
     });
 
-    return NextResponse.json({ success: true, data: result });
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Failed to create project' },
+        { status: 500 }
+      );
+    }
+
+    // Convert DateTime fields to date-only strings (YYYY-MM-DD) to avoid timezone issues
+    const formattedProject = {
+      ...result,
+      startDate: result.startDate ? formatDateForInput(result.startDate) : null,
+      endDate: result.endDate ? formatDateForInput(result.endDate) : null,
+    };
+
+    return NextResponse.json({ success: true, data: formattedProject });
   } catch (error) {
     console.error('Error creating project:', error);
     if (error instanceof z.ZodError) {

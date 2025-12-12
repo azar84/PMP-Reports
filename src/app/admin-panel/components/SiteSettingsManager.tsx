@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { Checkbox } from '@/components/ui/Checkbox';
 import MediaSelector from '@/components/ui/MediaSelector';
 import { useDesignSystem } from '@/hooks/useDesignSystem';
 import { 
@@ -28,7 +29,11 @@ import {
   Palette,
   Monitor,
   Eye,
-  EyeOff
+  EyeOff,
+  Building2,
+  DollarSign,
+  Briefcase,
+  Coins
 } from 'lucide-react';
 
 interface MediaItem {
@@ -152,11 +157,7 @@ export default function SiteSettingsManager() {
   
   // File upload states
   const [uploadingLogo, setUploadingLogo] = useState(false);
-  const [uploadingLogoLight, setUploadingLogoLight] = useState(false);
-  const [uploadingLogoDark, setUploadingLogoDark] = useState(false);
   const [uploadingFavicon, setUploadingFavicon] = useState(false);
-  const [uploadingFaviconLight, setUploadingFaviconLight] = useState(false);
-  const [uploadingFaviconDark, setUploadingFaviconDark] = useState(false);
   
   // Email test states
   const [testEmail, setTestEmail] = useState('');
@@ -165,11 +166,7 @@ export default function SiteSettingsManager() {
   
   // File input refs
   const logoFileRef = useRef<HTMLInputElement>(null);
-  const logoLightFileRef = useRef<HTMLInputElement>(null);
-  const logoDarkFileRef = useRef<HTMLInputElement>(null);
   const faviconFileRef = useRef<HTMLInputElement>(null);
-  const faviconLightFileRef = useRef<HTMLInputElement>(null);
-  const faviconDarkFileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetchSettings();
@@ -257,14 +254,10 @@ export default function SiteSettingsManager() {
     }
   };
 
-  const handleFileUpload = async (file: File, type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const handleFileUpload = async (file: File, type: 'logo' | 'favicon') => {
     const setUploading = {
       logo: setUploadingLogo,
-      logoLight: setUploadingLogoLight,
-      logoDark: setUploadingLogoDark,
       favicon: setUploadingFavicon,
-      faviconLight: setUploadingFaviconLight,
-      faviconDark: setUploadingFaviconDark,
     }[type];
 
     try {
@@ -284,11 +277,7 @@ export default function SiteSettingsManager() {
       if (result.success) {
         const fieldMap = {
           logo: 'logoUrl',
-          logoLight: 'logoLightUrl',
-          logoDark: 'logoDarkUrl',
           favicon: 'faviconUrl',
-          faviconLight: 'faviconLightUrl',
-          faviconDark: 'faviconDarkUrl',
         } as const;
         
         handleInputChange(fieldMap[type], result.data.publicUrl);
@@ -308,7 +297,7 @@ export default function SiteSettingsManager() {
     e.preventDefault();
   };
 
-  const handleDrop = (e: React.DragEvent, type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const handleDrop = (e: React.DragEvent, type: 'logo' | 'favicon') => {
     e.preventDefault();
     const files = e.dataTransfer.files;
     if (files.length > 0) {
@@ -316,21 +305,17 @@ export default function SiteSettingsManager() {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'favicon') => {
     const files = e.target.files;
     if (files && files.length > 0) {
       handleFileUpload(files[0], type);
     }
   };
 
-  const removeImage = (type: 'logo' | 'logoLight' | 'logoDark' | 'favicon' | 'faviconLight' | 'faviconDark') => {
+  const removeImage = (type: 'logo' | 'favicon') => {
     const fieldMap = {
       logo: 'logoUrl',
-      logoLight: 'logoLightUrl',
-      logoDark: 'logoDarkUrl',
       favicon: 'faviconUrl',
-      faviconLight: 'faviconLightUrl',
-      faviconDark: 'faviconDarkUrl',
     } as const;
     
     handleInputChange(fieldMap[type], '');
@@ -414,10 +399,10 @@ export default function SiteSettingsManager() {
     return (
       <div className="p-8">
         <div className="animate-pulse">
-          <div className="h-8 rounded w-1/3 mb-6" style={{ backgroundColor: 'var(--color-gray-light)' }}></div>
+          <div className="h-8 rounded w-1/3 mb-6" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
           <div className="space-y-4">
-            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-gray-light)' }}></div>
-            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-gray-light)' }}></div>
+            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
+            <div className="h-32 rounded" style={{ backgroundColor: 'var(--color-border-light)' }}></div>
           </div>
         </div>
       </div>
@@ -445,7 +430,7 @@ export default function SiteSettingsManager() {
             disabled={saving}
             style={{ 
               color: 'var(--color-text-secondary)', 
-              borderColor: 'var(--color-gray-light)',
+              borderColor: 'var(--color-border-light)',
               backgroundColor: 'var(--color-bg-primary)'
             }}
           >
@@ -455,9 +440,9 @@ export default function SiteSettingsManager() {
           <Button
             onClick={handleSave}
             disabled={saving}
-            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text-primary)' }}
+            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-bg-primary)' }}
           >
-            <Save className="w-4 h-4" style={{ color: 'var(--color-text-primary)' }} />
+            <Save className="w-4 h-4" style={{ color: 'var(--color-bg-primary)' }} />
             <span>{saving ? 'Saving...' : 'Save Changes'}</span>
           </Button>
         </div>
@@ -475,7 +460,7 @@ export default function SiteSettingsManager() {
       )}
 
       {/* Tabs Navigation */}
-      <div className="border-b" style={{ borderColor: 'var(--color-gray-light)' }}>
+      <div className="border-b" style={{ borderColor: 'var(--color-border-light)' }}>
         <nav className="-mb-px flex space-x-8">
           <button
             onClick={() => setActiveTab('general')}
@@ -577,12 +562,12 @@ export default function SiteSettingsManager() {
             }}
           >
             <div className="flex items-center space-x-2">
-              <Palette className="w-4 h-4" style={{
+              <Briefcase className="w-4 h-4" style={{
                 color: activeTab === 'sidebar' 
                   ? 'var(--color-primary)' 
                   : 'var(--color-text-secondary)'
               }} />
-              <span>Sidebar Colors</span>
+              <span>Company Settings</span>
             </div>
           </button>
         </nav>
@@ -592,7 +577,7 @@ export default function SiteSettingsManager() {
       {activeTab === 'general' && (
         <div className="space-y-6">
           {/* Base URL Section - Separate row with reduced height */}
-          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
             <div className="flex items-center space-x-2 mb-3">
               <div className="p-1.5 rounded-lg" style={{ backgroundColor: 'var(--color-info-light)' }}>
                 <Globe className="w-4 h-4" style={{ color: 'var(--color-info)' }} />
@@ -615,7 +600,7 @@ export default function SiteSettingsManager() {
                 style={{ 
                   color: 'var(--color-text-primary)',
                   backgroundColor: 'var(--color-bg-primary)',
-                  borderColor: 'var(--color-gray-light)'
+                  borderColor: 'var(--color-border-light)'
                 }}
               />
               <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -624,346 +609,206 @@ export default function SiteSettingsManager() {
             </div>
           </Card>
 
-          {/* Logo Settings Grid - 2 columns */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            {/* Light Logo Settings */}
-            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
-              <div className="flex items-center space-x-2 mb-4">
-                <Image className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Light Logo</h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>For dark backgrounds</p>
-                </div>
+          {/* Logo Settings */}
+          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
+            <div className="flex items-center space-x-2 mb-4">
+              <Image className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Site Logo</h3>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Used for sidebar and login page</p>
               </div>
+            </div>
 
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                    Logo URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com/logo-light.png"
-                    value={settings.logoLightUrl || ''}
-                    onChange={(e) => handleInputChange('logoLightUrl', e.target.value)}
-                    className="h-10"
-                    style={{ 
-                      color: 'var(--color-text-primary)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
-                    }}
-                  />
-                </div>
-
-                {/* Media Selector */}
-                <MediaSelector
-                  value={settings.logoLightUrl ? {
-                    id: 0,
-                    filename: 'Selected Logo',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.logoLightUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('logoLightUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media library"
-                  placeholder="Choose from uploaded images..."
-                  className="mb-3"
-                />
-
-                {/* Light Logo Preview */}
-                {settings.logoLightUrl && (
-                  <div className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-gray-700">Preview on dark:</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeImage('logoLight')}
-                        className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-center bg-gray-800 rounded p-2">
-                      <img
-                        src={settings.logoLightUrl}
-                        alt="Light Logo Preview"
-                        className="max-h-12 max-w-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* File Upload Area */}
-                <div
-                  className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
-                  style={{ borderColor: 'var(--color-gray-light)' }}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, 'logoLight')}
-                  onClick={() => logoLightFileRef.current?.click()}
-                >
-                  <input
-                    ref={logoLightFileRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelect(e, 'logoLight')}
-                    className="hidden"
-                  />
-                  {uploadingLogoLight ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
-                      <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
-                      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                        <span className="font-medium">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG up to 2MB</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Card>
-
-            {/* Dark Logo Settings */}
-            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
-              <div className="flex items-center space-x-2 mb-4">
-                <Image className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Dark Logo</h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>For light backgrounds</p>
-                </div>
-              </div>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                    Logo URL
-                  </label>
-                  <Input
-                    type="url"
-                    placeholder="https://example.com/logo-dark.png"
-                    value={settings.logoDarkUrl || ''}
-                    onChange={(e) => handleInputChange('logoDarkUrl', e.target.value)}
-                    className="h-10"
-                    style={{ 
-                      color: 'var(--color-text-primary)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
-                    }}
-                  />
-                </div>
-
-                {/* Media Selector */}
-                <MediaSelector
-                  value={settings.logoDarkUrl ? {
-                    id: 0,
-                    filename: 'Selected Logo',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.logoDarkUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('logoDarkUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media library"
-                  placeholder="Choose from uploaded images..."
-                  className="mb-3"
-                />
-
-                {/* Dark Logo Preview */}
-                {settings.logoDarkUrl && (
-                  <div className="border border-gray-200 rounded-lg p-3">
-                    <div className="flex items-center justify-between mb-2">
-                      <p className="text-xs font-medium text-gray-700">Preview on light:</p>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeImage('logoDark')}
-                        className="text-red-600 hover:text-red-700 h-6 w-6 p-0"
-                      >
-                        <X className="w-3 h-3" />
-                      </Button>
-                    </div>
-                    <div className="flex items-center justify-center bg-white border rounded p-2">
-                      <img
-                        src={settings.logoDarkUrl}
-                        alt="Dark Logo Preview"
-                        className="max-h-12 max-w-full object-contain"
-                        onError={(e) => {
-                          (e.target as HTMLImageElement).style.display = 'none';
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                {/* File Upload Area */}
-                <div
-                  className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
-                  style={{ borderColor: 'var(--color-gray-light)' }}
-                  onDragOver={handleDragOver}
-                  onDrop={(e) => handleDrop(e, 'logoDark')}
-                  onClick={() => logoDarkFileRef.current?.click()}
-                >
-                  <input
-                    ref={logoDarkFileRef}
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileSelect(e, 'logoDark')}
-                    className="hidden"
-                  />
-                  {uploadingLogoDark ? (
-                    <div className="flex items-center justify-center">
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
-                      <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
-                    </div>
-                  ) : (
-                    <>
-                      <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
-                      <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
-                        <span className="font-medium">Click to upload</span> or drag and drop
-                      </p>
-                      <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG up to 2MB</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </Card>
-          </div>
-
-          {/* Favicon Settings */}
-          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
-                          <div className="flex items-center space-x-2 mb-4">
-                <Globe className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-                <div>
-                  <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Favicon</h3>
-                  <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Small icon displayed in browser tabs</p>
-                </div>
-              </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-              {/* Main Favicon */}
+            <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Main Favicon
+                  Logo URL
+                </label>
+                <Input
+                  type="url"
+                  placeholder="https://example.com/logo.png"
+                  value={settings.logoUrl || ''}
+                  onChange={(e) => handleInputChange('logoUrl', e.target.value)}
+                  className="h-10"
+                  style={{ 
+                    color: 'var(--color-text-primary)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    borderColor: 'var(--color-border-light)'
+                  }}
+                />
+              </div>
+
+              {/* Media Selector */}
+              <MediaSelector
+                value={settings.logoUrl ? {
+                  id: 0,
+                  filename: 'Selected Logo',
+                  fileType: 'image' as const,
+                  mimeType: 'image/*',
+                  fileSize: 0,
+                  publicUrl: settings.logoUrl
+                } : null}
+                onChange={(media) => handleMediaSelect('logoUrl', media)}
+                acceptedTypes={['image/*']}
+                label="Select from media library"
+                placeholder="Choose from uploaded images..."
+                className="mb-3"
+              />
+
+              {/* Logo Preview */}
+              {settings.logoUrl && (
+                <div className="rounded-lg p-3" style={{ border: '1px solid var(--color-border-light)' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium" style={{ color: 'var(--color-text-primary)' }}>Preview:</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeImage('logo')}
+                      className="h-6 w-6 p-0"
+                      style={{ color: 'var(--color-error)', borderColor: 'var(--color-border-light)' }}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-center rounded p-2" style={{ backgroundColor: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-light)' }}>
+                    <img
+                      src={settings.logoUrl}
+                      alt="Logo Preview"
+                      className="max-h-12 max-w-full object-contain"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* File Upload Area */}
+              <div
+                className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
+                style={{ borderColor: 'var(--color-border-light)' }}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, 'logo')}
+                onClick={() => logoFileRef.current?.click()}
+              >
+                <input
+                  ref={logoFileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileSelect(e, 'logo')}
+                  className="hidden"
+                />
+                {uploadingLogo ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
+                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <span className="font-medium">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG up to 2MB</p>
+                  </>
+                )}
+              </div>
+            </div>
+          </Card>
+
+          {/* Favicon Settings */}
+          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
+            <div className="flex items-center space-x-2 mb-4">
+              <Globe className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
+              <div>
+                <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Site Favicon</h3>
+                <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>Small icon displayed in browser tabs</p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
+                  Favicon URL
                 </label>
                 <Input
                   type="url"
                   placeholder="https://example.com/favicon.ico"
                   value={settings.faviconUrl || ''}
                   onChange={(e) => handleInputChange('faviconUrl', e.target.value)}
-                  className="h-10 mb-2"
+                  className="h-10"
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
-                <MediaSelector
-                  value={settings.faviconUrl ? {
-                    id: 0,
-                    filename: 'Selected Favicon',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.faviconUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('faviconUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media"
-                  placeholder="Choose favicon..."
-                  className="mb-2"
-                />
-                {settings.faviconUrl && (
-                  <div className="border border-gray-200 rounded p-2 text-center">
-                    <img src={settings.faviconUrl} alt="Favicon" className="w-4 h-4 mx-auto" />
-                  </div>
-                )}
               </div>
 
-              {/* Light Favicon */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Light Favicon
-                </label>
-                <Input
-                  type="url"
-                  placeholder="https://example.com/favicon-light.ico"
-                  value={settings.faviconLightUrl || ''}
-                  onChange={(e) => handleInputChange('faviconLightUrl', e.target.value)}
-                  className="h-10 mb-2"
-                  style={{ 
-                    color: 'var(--color-text-primary)',
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
-                  }}
-                />
-                <MediaSelector
-                  value={settings.faviconLightUrl ? {
-                    id: 0,
-                    filename: 'Selected Favicon',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.faviconLightUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('faviconLightUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media"
-                  placeholder="Choose favicon..."
-                  className="mb-2"
-                />
-                {settings.faviconLightUrl && (
-                  <div className="border border-gray-200 rounded p-2 text-center bg-gray-800">
-                    <img src={settings.faviconLightUrl} alt="Light Favicon" className="w-4 h-4 mx-auto" />
-                  </div>
-                )}
-              </div>
+              <MediaSelector
+                value={settings.faviconUrl ? {
+                  id: 0,
+                  filename: 'Selected Favicon',
+                  fileType: 'image' as const,
+                  mimeType: 'image/*',
+                  fileSize: 0,
+                  publicUrl: settings.faviconUrl
+                } : null}
+                onChange={(media) => handleMediaSelect('faviconUrl', media)}
+                acceptedTypes={['image/*']}
+                label="Select from media library"
+                placeholder="Choose from uploaded images..."
+                className="mb-3"
+              />
 
-              {/* Dark Favicon */}
-              <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
-                  Dark Favicon
-                </label>
-                <Input
-                  type="url"
-                  placeholder="https://example.com/favicon-dark.ico"
-                  value={settings.faviconDarkUrl || ''}
-                  onChange={(e) => handleInputChange('faviconDarkUrl', e.target.value)}
-                  className="h-10 mb-2"
-                  style={{ 
-                    color: 'var(--color-text-primary)',
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
-                  }}
-                />
-                <MediaSelector
-                  value={settings.faviconDarkUrl ? {
-                    id: 0,
-                    filename: 'Selected Favicon',
-                    fileType: 'image' as const,
-                    mimeType: 'image/*',
-                    fileSize: 0,
-                    publicUrl: settings.faviconDarkUrl
-                  } : null}
-                  onChange={(media) => handleMediaSelect('faviconDarkUrl', media)}
-                  acceptedTypes={['image/*']}
-                  label="Select from media"
-                  placeholder="Choose favicon..."
-                  className="mb-2"
-                />
-                {settings.faviconDarkUrl && (
-                  <div className="border border-gray-200 rounded p-2 text-center bg-white">
-                    <img src={settings.faviconDarkUrl} alt="Dark Favicon" className="w-4 h-4 mx-auto" />
+              {settings.faviconUrl && (
+                <div className="rounded-lg p-3" style={{ border: '1px solid var(--color-border-light)' }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-medium" style={{ color: 'var(--color-text-primary)' }}>Preview:</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => removeImage('favicon')}
+                      className="h-6 w-6 p-0"
+                      style={{ color: 'var(--color-error)', borderColor: 'var(--color-border-light)' }}
+                    >
+                      <X className="w-3 h-3" />
+                    </Button>
                   </div>
+                  <div className="rounded p-2 text-center" style={{ border: '1px solid var(--color-border-light)', backgroundColor: 'var(--color-bg-secondary)' }}>
+                    <img src={settings.faviconUrl} alt="Favicon" className="w-8 h-8 mx-auto" />
+                  </div>
+                </div>
+              )}
+
+              {/* File Upload Area */}
+              <div
+                className="border-2 border-dashed rounded-lg p-4 text-center transition-colors cursor-pointer"
+                style={{ borderColor: 'var(--color-border-light)' }}
+                onDragOver={handleDragOver}
+                onDrop={(e) => handleDrop(e, 'favicon')}
+                onClick={() => faviconFileRef.current?.click()}
+              >
+                <input
+                  ref={faviconFileRef}
+                  type="file"
+                  accept="image/*"
+                  onChange={(e) => handleFileSelect(e, 'favicon')}
+                  className="hidden"
+                />
+                {uploadingFavicon ? (
+                  <div className="flex items-center justify-center">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2" style={{ borderColor: 'var(--color-info)' }}></div>
+                    <span className="ml-2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>Uploading...</span>
+                  </div>
+                ) : (
+                  <>
+                    <Upload className="w-6 h-6 mx-auto mb-1" style={{ color: 'var(--color-text-muted)' }} />
+                    <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                      <span className="font-medium">Click to upload</span> or drag and drop
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>PNG, JPG, SVG, ICO up to 2MB</p>
+                  </>
                 )}
               </div>
             </div>
@@ -976,7 +821,7 @@ export default function SiteSettingsManager() {
         <div className="space-y-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {/* Company Branding */}
-            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
+            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
               <div className="flex items-center space-x-2 mb-4">
                 <Globe className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                 <div>
@@ -999,7 +844,7 @@ export default function SiteSettingsManager() {
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
+                      borderColor: 'var(--color-border-light)'
                     }}
                   />
                   <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1016,11 +861,20 @@ export default function SiteSettingsManager() {
                     placeholder="Brief description of your company..."
                     value={settings.footerCompanyDescription || ''}
                     onChange={(e) => handleEmailSettingChange('footerCompanyDescription', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200/10 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 rounded-md focus:outline-none focus:ring-2"
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
+                      border: '1px solid var(--color-border-light)',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--color-border-strong)';
+                      e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--color-border-light)';
+                      e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
                     }}
                   />
                   <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1041,7 +895,7 @@ export default function SiteSettingsManager() {
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
+                      borderColor: 'var(--color-border-light)'
                     }}
                   />
                   <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1052,7 +906,7 @@ export default function SiteSettingsManager() {
             </Card>
 
             {/* Company Contact Information */}
-            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
+            <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
               <div className="flex items-center space-x-2 mb-4">
                 <Phone className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                 <div>
@@ -1075,7 +929,7 @@ export default function SiteSettingsManager() {
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
+                      borderColor: 'var(--color-border-light)'
                     }}
                   />
                 </div>
@@ -1093,7 +947,7 @@ export default function SiteSettingsManager() {
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
+                      borderColor: 'var(--color-border-light)'
                     }}
                   />
                 </div>
@@ -1107,11 +961,20 @@ export default function SiteSettingsManager() {
                     placeholder="123 Business St, City, State 12345"
                     value={settings.companyAddress || ''}
                     onChange={(e) => handleEmailSettingChange('companyAddress', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-200/10 rounded-md shadow-sm focus:outline-none focus:ring-2"
+                    className="w-full px-3 py-2 rounded-md focus:outline-none focus:ring-2"
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
+                      border: '1px solid var(--color-border-light)',
+                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = 'var(--color-border-strong)';
+                      e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = 'var(--color-border-light)';
+                      e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
                     }}
                   />
                 </div>
@@ -1120,7 +983,7 @@ export default function SiteSettingsManager() {
           </div>
 
           {/* Social Media Links */}
-          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+          <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
                           <div className="flex items-center space-x-2 mb-4">
                 <Facebook className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
                 <div>
@@ -1144,7 +1007,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
               </div>
@@ -1163,7 +1026,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
               </div>
@@ -1182,7 +1045,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
               </div>
@@ -1201,7 +1064,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
               </div>
@@ -1220,7 +1083,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
               </div>
@@ -1236,7 +1099,7 @@ export default function SiteSettingsManager() {
         <div className="space-y-8">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
             {/* SMTP Configuration */}
-            <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+            <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
               <div className="flex items-center space-x-3 mb-6">
                 <Mail className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
                 <div>
@@ -1246,23 +1109,13 @@ export default function SiteSettingsManager() {
               </div>
 
               <div className="space-y-4">
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="smtpEnabled"
-                    checked={settings.smtpEnabled || false}
-                    onChange={(e) => handleEmailSettingChange('smtpEnabled', e.target.checked)}
-                    className="h-4 w-4 rounded focus:ring-2"
-                    style={{
-                      color: 'var(--color-primary)',
-                      backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-gray-light)'
-                    }}
-                  />
-                  <label htmlFor="smtpEnabled" className="ml-2 block text-sm" style={{ color: 'var(--color-text-primary)' }}>
-                    Enable SMTP Email Sending
-                  </label>
-                </div>
+                <Checkbox
+                  id="smtpEnabled"
+                  checked={settings.smtpEnabled || false}
+                  onChange={(e) => handleEmailSettingChange('smtpEnabled', e.target.checked)}
+                  variant="primary"
+                  label="Enable SMTP Email Sending"
+                />
 
                 {settings.smtpEnabled && (
                   <>
@@ -1278,7 +1131,7 @@ export default function SiteSettingsManager() {
                         style={{ 
                           color: 'var(--color-text-primary)',
                           backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
+                          borderColor: 'var(--color-border-light)'
                         }}
                       />
                     </div>
@@ -1295,28 +1148,18 @@ export default function SiteSettingsManager() {
                         style={{ 
                           color: 'var(--color-text-primary)',
                           backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
+                          borderColor: 'var(--color-border-light)'
                         }}
                       />
                     </div>
 
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="smtpSecure"
-                        checked={settings.smtpSecure || false}
-                        onChange={(e) => handleEmailSettingChange('smtpSecure', e.target.checked)}
-                        className="h-4 w-4 rounded focus:ring-2"
-                        style={{
-                          color: 'var(--color-primary)',
-                          backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
-                        }}
-                      />
-                      <label htmlFor="smtpSecure" className="ml-2 block text-sm" style={{ color: 'var(--color-text-primary)' }}>
-                        Use SSL/TLS
-                      </label>
-                    </div>
+                    <Checkbox
+                      id="smtpSecure"
+                      checked={settings.smtpSecure || false}
+                      onChange={(e) => handleEmailSettingChange('smtpSecure', e.target.checked)}
+                      variant="primary"
+                      label="Use SSL/TLS"
+                    />
 
                     <div>
                       <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
@@ -1330,7 +1173,7 @@ export default function SiteSettingsManager() {
                         style={{ 
                           color: 'var(--color-text-primary)',
                           backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
+                          borderColor: 'var(--color-border-light)'
                         }}
                       />
                     </div>
@@ -1347,7 +1190,7 @@ export default function SiteSettingsManager() {
                         style={{ 
                           color: 'var(--color-text-primary)',
                           backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
+                          borderColor: 'var(--color-border-light)'
                         }}
                       />
                     </div>
@@ -1364,7 +1207,7 @@ export default function SiteSettingsManager() {
                         style={{ 
                           color: 'var(--color-text-primary)',
                           backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
+                          borderColor: 'var(--color-border-light)'
                         }}
                       />
                     </div>
@@ -1381,7 +1224,7 @@ export default function SiteSettingsManager() {
                         style={{ 
                           color: 'var(--color-text-primary)',
                           backgroundColor: 'var(--color-bg-primary)',
-                          borderColor: 'var(--color-gray-light)'
+                          borderColor: 'var(--color-border-light)'
                         }}
                       />
                     </div>
@@ -1391,18 +1234,18 @@ export default function SiteSettingsManager() {
             </Card>
 
             {/* Test Email */}
-            <Card className="p-6" style={{ backgroundColor: 'var(--color-success-light)', borderColor: 'var(--color-success)' }}>
+            <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
               <div className="flex items-center space-x-3 mb-6">
-                <Send className="w-5 h-5" style={{ color: 'var(--color-success-dark)' }} />
+                <Send className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
                 <div>
-                  <h3 className="text-xl font-semibold" style={{ color: 'var(--color-success-dark)' }}>Test Email</h3>
-                  <p className="text-sm" style={{ color: 'var(--color-success-dark)' }}>Send a test email to verify settings</p>
+                  <h3 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Test Email</h3>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Send a test email to verify settings</p>
                 </div>
               </div>
 
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-success-dark)' }}>
+                  <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
                     Test Email Address
                   </label>
                   <Input
@@ -1413,7 +1256,7 @@ export default function SiteSettingsManager() {
                     style={{ 
                       color: 'var(--color-text-primary)',
                       backgroundColor: 'var(--color-bg-primary)',
-                      borderColor: 'var(--color-success)'
+                      borderColor: 'var(--color-border-light)'
                     }}
                   />
                 </div>
@@ -1421,32 +1264,33 @@ export default function SiteSettingsManager() {
                 <Button
                   onClick={handleTestEmail}
                   disabled={testingEmail || !settings.smtpEnabled || !testEmail}
-                  style={{ backgroundColor: 'var(--color-success)', color: 'var(--color-text-primary)' }}
+                  style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-bg-primary)' }}
                 >
                   {testingEmail ? 'Sending...' : 'Send Test Email'}
                 </Button>
 
                 {!settings.smtpEnabled && (
-                  <p className="text-sm" style={{ color: 'var(--color-success-dark)' }}>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                     Please enable SMTP and configure your settings before testing.
                   </p>
                 )}
 
                 {/* Test Results */}
                 {emailTestResult && (
-                  <div className={`mt-4 p-4 rounded-lg ${
-                    emailTestResult.success 
-                      ? 'bg-green-100 border border-green-200' 
-                      : 'bg-red-100 border border-red-200'
-                  }`}>
-                    <h4 className={`text-sm font-semibold mb-2 ${
-                      emailTestResult.success ? 'text-green-800' : 'text-red-800'
-                    }`}>
+                  <div className="mt-4 p-4 rounded-lg" style={{
+                    backgroundColor: emailTestResult.success 
+                      ? 'var(--color-success-light)' 
+                      : 'var(--color-error-light)',
+                    border: `1px solid ${emailTestResult.success ? 'var(--color-success)' : 'var(--color-error)'}`
+                  }}>
+                    <h4 className="text-sm font-semibold mb-2" style={{
+                      color: emailTestResult.success ? 'var(--color-success-dark)' : 'var(--color-error-dark)'
+                    }}>
                       {emailTestResult.success ? '✅ Email Test Successful!' : '❌ Email Test Failed'}
                     </h4>
-                    <p className={`text-sm ${
-                      emailTestResult.success ? 'text-green-700' : 'text-red-700'
-                    }`}>
+                    <p className="text-sm" style={{
+                      color: emailTestResult.success ? 'var(--color-success-dark)' : 'var(--color-error-dark)'
+                    }}>
                       {emailTestResult.success 
                         ? 'Your email configuration is working correctly!'
                         : emailTestResult.error || 'Unknown error occurred'
@@ -1463,7 +1307,7 @@ export default function SiteSettingsManager() {
       {/* Cloudinary Settings Tab */}
       {activeTab === 'cloudinary' && (
         <div className="space-y-6">
-          <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+          <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
                           <div className="flex items-center space-x-3 mb-6">
                 <Upload className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
                 <div>
@@ -1473,23 +1317,13 @@ export default function SiteSettingsManager() {
               </div>
 
             <div className="space-y-4">
-              <div className="flex items-center space-x-3">
-                <input
-                  type="checkbox"
-                  id="cloudinaryEnabled"
-                  checked={settings.cloudinaryEnabled || false}
-                  onChange={(e) => handleEmailSettingChange('cloudinaryEnabled', e.target.checked)}
-                  className="h-4 w-4 rounded focus:ring-2"
-                  style={{
-                    color: 'var(--color-primary)',
-                    backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
-                  }}
-                />
-                <label htmlFor="cloudinaryEnabled" className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                  Enable Cloudinary Media Management
-                </label>
-              </div>
+              <Checkbox
+                id="cloudinaryEnabled"
+                checked={settings.cloudinaryEnabled || false}
+                onChange={(e) => handleEmailSettingChange('cloudinaryEnabled', e.target.checked)}
+                variant="primary"
+                label="Enable Cloudinary Media Management"
+              />
 
               {settings.cloudinaryEnabled && (
                 <>
@@ -1505,7 +1339,7 @@ export default function SiteSettingsManager() {
                       style={{ 
                         color: 'var(--color-text-primary)',
                         backgroundColor: 'var(--color-bg-primary)',
-                        borderColor: 'var(--color-gray-light)'
+                        borderColor: 'var(--color-border-light)'
                       }}
                     />
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1525,7 +1359,7 @@ export default function SiteSettingsManager() {
                       style={{ 
                         color: 'var(--color-text-primary)',
                         backgroundColor: 'var(--color-bg-primary)',
-                        borderColor: 'var(--color-gray-light)'
+                        borderColor: 'var(--color-border-light)'
                       }}
                     />
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1545,7 +1379,7 @@ export default function SiteSettingsManager() {
                       style={{ 
                         color: 'var(--color-text-primary)',
                         backgroundColor: 'var(--color-bg-primary)',
-                        borderColor: 'var(--color-gray-light)'
+                        borderColor: 'var(--color-border-light)'
                       }}
                     />
                     <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1556,7 +1390,7 @@ export default function SiteSettingsManager() {
                   <div className="rounded-lg p-4" style={{ backgroundColor: 'var(--color-info-light)', borderColor: 'var(--color-info)' }}>
                     <h4 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-info-dark)' }}>ℹ️ Cloudinary Setup Instructions</h4>
                     <ul className="text-sm space-y-1" style={{ color: 'var(--color-info-dark)' }}>
-                      <li>• Sign up for a free account at <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="underline">cloudinary.com</a></li>
+                      <li>• Sign up for a free account at <a href="https://cloudinary.com" target="_blank" rel="noopener noreferrer" className="underline" style={{ color: 'var(--color-info)' }}>cloudinary.com</a></li>
                       <li>• Get your credentials from the Dashboard → Settings → Access Keys</li>
                       <li>• Cloudinary will be used for all media uploads and image transformations</li>
                       <li>• Files will be stored in the "yourcompany" folder by default</li>
@@ -1581,12 +1415,12 @@ export default function SiteSettingsManager() {
       {/* Sidebar Settings Tab */}
       {activeTab === 'sidebar' && (
         <div className="space-y-6">
-          <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+          <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
             <div className="flex items-center space-x-3 mb-6">
-              <Settings className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
+              <Briefcase className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
               <div>
-                <h3 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>General Configuration</h3>
-                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Configure general application settings</p>
+                <h3 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>Company Settings</h3>
+                <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Configure company-wide application settings</p>
               </div>
             </div>
 
@@ -1605,7 +1439,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -1630,7 +1464,7 @@ export default function SiteSettingsManager() {
                   style={{ 
                     color: 'var(--color-text-primary)',
                     backgroundColor: 'var(--color-bg-primary)',
-                    borderColor: 'var(--color-gray-light)'
+                    borderColor: 'var(--color-border-light)'
                   }}
                 />
                 <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>

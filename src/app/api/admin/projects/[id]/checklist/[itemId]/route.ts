@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { prisma } from '@/lib/db';
+import { parseDateFromInput } from '@/lib/dateUtils';
 
 const checklistItemSchema = z.object({
   itemNumber: z.string().optional().or(z.literal('')),
@@ -77,8 +78,8 @@ export async function PUT(
     // Convert date strings to DateTime objects if provided
     const updateData = {
       ...validatedData,
-      plannedDate: validatedData.plannedDate ? new Date(validatedData.plannedDate) : null,
-      actualDate: validatedData.actualDate ? new Date(validatedData.actualDate) : null,
+      plannedDate: parseDateFromInput(validatedData.plannedDate),
+      actualDate: parseDateFromInput(validatedData.actualDate),
     };
 
     const checklistItem = await prisma.projectChecklistItem.update({

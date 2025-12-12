@@ -23,6 +23,7 @@ import {
   ChevronLeft,
   GripVertical
 } from 'lucide-react';
+import { formatDateForDisplay } from '@/lib/dateUtils';
 
 interface ChecklistItem {
   id: number;
@@ -532,7 +533,7 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                           />
                         ) : (
                           <span style={{ color: colors.textSecondary }}>
-                            {item.plannedDate ? new Date(item.plannedDate).toLocaleDateString() : '-'}
+                            {formatDateForDisplay(item.plannedDate)}
                           </span>
                         )}
                       </td>
@@ -546,7 +547,7 @@ export default function ProjectChecklist({ projectId, projectName }: ProjectChec
                           />
                         ) : (
                           <span style={{ color: colors.textSecondary }}>
-                            {item.actualDate ? new Date(item.actualDate).toLocaleDateString() : '-'}
+                            {formatDateForDisplay(item.actualDate)}
                           </span>
                         )}
                       </td>

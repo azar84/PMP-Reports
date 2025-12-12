@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyToken } from '@/lib/jwt';
+import { Prisma } from '@prisma/client';
 
 function sanitizeString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
@@ -143,6 +144,13 @@ export async function POST(request: NextRequest) {
     });
   } catch (error) {
     console.error('Error creating supplier:', error);
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
+      // Unique constraint violation: (tenantId, name)
+      return NextResponse.json(
+        { success: false, error: 'A supplier with this name already exists.' },
+        { status: 409 }
+      );
+    }
     return NextResponse.json(
       { success: false, error: 'Failed to create supplier' },
       { status: 500 }

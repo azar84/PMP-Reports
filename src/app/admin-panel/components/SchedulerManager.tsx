@@ -104,7 +104,7 @@ const CronExpressionEditor = ({
   };
 
   return (
-    <Card className="p-4 space-y-4" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
+    <Card className="p-4 space-y-4" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>Edit Schedule</h3>
         <div className="flex gap-2">
@@ -112,7 +112,7 @@ const CronExpressionEditor = ({
             onClick={handleSave} 
             size="sm" 
             leftIcon={<Save className="w-4 h-4" />}
-            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-text-primary)' }}
+            style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-bg-primary)' }}
           >
             Save
           </Button>
@@ -123,7 +123,7 @@ const CronExpressionEditor = ({
             leftIcon={<X className="w-4 h-4" />}
             style={{ 
               color: 'var(--color-text-secondary)', 
-              borderColor: 'var(--color-gray-light)',
+              borderColor: 'var(--color-border-light)',
               backgroundColor: 'var(--color-bg-primary)'
             }}
           >
@@ -139,11 +139,20 @@ const CronExpressionEditor = ({
           <select
             value={schedule.frequency}
             onChange={(e) => setSchedule({ ...schedule, frequency: e.target.value as any })}
-            className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+            className="w-full rounded-md px-3 py-2 focus:outline-none focus:ring-2"
             style={{ 
-              borderColor: 'var(--color-gray-light)',
+              border: '1px solid var(--color-border-light)',
               color: 'var(--color-text-primary)',
-              backgroundColor: 'var(--color-bg-primary)'
+              backgroundColor: 'var(--color-bg-primary)',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--color-border-strong)';
+              e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'var(--color-border-light)';
+              e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
             }}
           >
             <option value="daily">Daily</option>
@@ -160,11 +169,20 @@ const CronExpressionEditor = ({
             type="time"
             value={schedule.time}
             onChange={(e) => setSchedule({ ...schedule, time: e.target.value })}
-            className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+            className="w-full rounded-md px-3 py-2 focus:outline-none focus:ring-2"
             style={{ 
-              borderColor: 'var(--color-gray-light)',
+              border: '1px solid var(--color-border-light)',
               color: 'var(--color-text-primary)',
-              backgroundColor: 'var(--color-bg-primary)'
+              backgroundColor: 'var(--color-bg-primary)',
+              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+            }}
+            onFocus={(e) => {
+              e.target.style.borderColor = 'var(--color-border-strong)';
+              e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+            }}
+            onBlur={(e) => {
+              e.target.style.borderColor = 'var(--color-border-light)';
+              e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
             }}
           />
         </div>
@@ -176,11 +194,20 @@ const CronExpressionEditor = ({
             <select
               value={schedule.dayOfWeek || 0}
               onChange={(e) => setSchedule({ ...schedule, dayOfWeek: parseInt(e.target.value) })}
-              className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              className="w-full rounded-md px-3 py-2 focus:outline-none focus:ring-2"
               style={{ 
-                borderColor: 'var(--color-gray-light)',
+                border: '1px solid var(--color-border-light)',
                 color: 'var(--color-text-primary)',
-                backgroundColor: 'var(--color-bg-primary)'
+                backgroundColor: 'var(--color-bg-primary)',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--color-border-strong)';
+                e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--color-border-light)';
+                e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
               }}
             >
               <option value={0}>Sunday</option>
@@ -201,11 +228,20 @@ const CronExpressionEditor = ({
             <select
               value={schedule.dayOfMonth || 1}
               onChange={(e) => setSchedule({ ...schedule, dayOfMonth: parseInt(e.target.value) })}
-              className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              className="w-full rounded-md px-3 py-2 focus:outline-none focus:ring-2"
               style={{ 
-                borderColor: 'var(--color-gray-light)',
+                border: '1px solid var(--color-border-light)',
                 color: 'var(--color-text-primary)',
-                backgroundColor: 'var(--color-bg-primary)'
+                backgroundColor: 'var(--color-bg-primary)',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--color-border-strong)';
+                e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--color-border-light)';
+                e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
               }}
             >
               {Array.from({ length: 31 }, (_, i) => i + 1).map(day => (
@@ -224,11 +260,20 @@ const CronExpressionEditor = ({
               value={schedule.customExpression || ''}
               onChange={(e) => setSchedule({ ...schedule, customExpression: e.target.value })}
               placeholder="0 2 * * * (minute hour day month weekday)"
-              className="w-full border border-gray-200/10 rounded-md px-3 py-2 focus:outline-none focus:ring-2"
+              className="w-full rounded-md px-3 py-2 focus:outline-none focus:ring-2"
               style={{ 
-                borderColor: 'var(--color-gray-light)',
+                border: '1px solid var(--color-border-light)',
                 color: 'var(--color-text-primary)',
-                backgroundColor: 'var(--color-bg-primary)'
+                backgroundColor: 'var(--color-bg-primary)',
+                boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = 'var(--color-border-strong)';
+                e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = 'var(--color-border-light)';
+                e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
               }}
             />
             <p className="text-xs mt-1" style={{ color: 'var(--color-text-muted)' }}>
@@ -419,7 +464,7 @@ export default function SchedulerManager() {
   };
 
   const getStatusColor = (enabled: boolean) => {
-    return enabled ? 'text-green-600' : 'text-gray-400';
+    return enabled ? 'var(--color-success)' : 'var(--color-text-muted)';
   };
 
   const getStatusIcon = (enabled: boolean) => {
@@ -456,7 +501,7 @@ export default function SchedulerManager() {
             <Button 
               onClick={() => handleSchedulerAction('start')} 
               leftIcon={<Play className="w-4 h-4" />}
-              style={{ backgroundColor: 'var(--color-success)', color: 'var(--color-text-primary)' }}
+              style={{ backgroundColor: 'var(--color-primary)', color: 'var(--color-bg-primary)' }}
             >
               Start Scheduler
             </Button>
@@ -467,7 +512,7 @@ export default function SchedulerManager() {
             leftIcon={<RefreshCw className="w-4 h-4" />}
             style={{ 
               color: 'var(--color-text-secondary)', 
-              borderColor: 'var(--color-gray-light)',
+              borderColor: 'var(--color-border-light)',
               backgroundColor: 'var(--color-bg-primary)'
             }}
           >
@@ -488,7 +533,7 @@ export default function SchedulerManager() {
       )}
 
       {/* Status Overview */}
-      <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+      <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="text-center">
             <div className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>{status?.isRunning ? 'Running' : 'Stopped'}</div>
@@ -512,11 +557,11 @@ export default function SchedulerManager() {
       </Card>
 
       {/* Tasks List */}
-      <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-gray-light)' }}>
+      <Card className="p-6" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
         <h2 className="text-xl font-semibold mb-4" style={{ color: 'var(--color-text-primary)' }}>Scheduled Tasks</h2>
         
         {tasks.length === 0 ? (
-          <div className="p-12 text-center" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)', borderRadius: '0.5rem', border: '1px solid' }}>
+          <div className="p-12 text-center rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)', border: '1px solid var(--color-border-light)' }}>
             <Clock className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
             <h3 className="text-lg font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>No scheduled tasks found</h3>
             <p style={{ color: 'var(--color-text-secondary)' }}>Scheduled tasks will appear here.</p>
@@ -524,7 +569,7 @@ export default function SchedulerManager() {
         ) : (
           <div className="space-y-4">
             {tasks.map((task) => (
-              <Card key={task.id} className="p-6 hover:shadow-lg transition-shadow" style={{ backgroundColor: 'var(--color-bg-primary)', borderColor: 'var(--color-gray-light)' }}>
+              <Card key={task.id} className="p-6 hover:shadow-lg transition-shadow" style={{ backgroundColor: 'var(--color-bg-secondary)', borderColor: 'var(--color-border-light)' }}>
               {editingTask === task.id ? (
                 <CronExpressionEditor
                   cronExpression={task.cronExpression}

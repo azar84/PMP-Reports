@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyToken } from '@/lib/jwt';
+import { randomBytes } from 'crypto';
 
 // Helper to get user from request
 async function getUserFromRequest(request: NextRequest) {
@@ -115,12 +116,18 @@ export async function POST(request: NextRequest) {
     });
 
     if (existingReport) {
+      // Generate shareToken if it doesn't exist
+      let shareToken = existingReport.shareToken;
+      if (!shareToken) {
+        shareToken = randomBytes(32).toString('hex');
+      }
+      
       // Update existing report
       const updatedReport = await prisma.projectReport.update({
         where: { id: existingReport.id },
         data: {
           reportData: reportData,
-          userId: user.userId,
+          shareToken: shareToken,
         },
         include: {
           project: {
@@ -144,6 +151,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: true, data: updatedReport });
     }
 
+    // Generate unique share token
+    const shareToken = randomBytes(32).toString('hex');
+
     // Create new report
     const report = await prisma.projectReport.create({
       data: {
@@ -152,6 +162,7 @@ export async function POST(request: NextRequest) {
         reportMonth: parseInt(reportMonth),
         reportYear: parseInt(reportYear),
         reportData: reportData,
+        shareToken: shareToken,
       },
       include: {
         project: {

@@ -192,7 +192,7 @@ export default function AdminPanelShell({ children, activeSection: propActiveSec
             {sidebarOpen ? (
               <div className="flex flex-col items-center w-full flex-1 min-w-0">
                 {(() => {
-                  const logoUrl = siteSettings?.logoUrl || siteSettings?.logoLightUrl || siteSettings?.logoDarkUrl;
+                  const logoUrl = siteSettings?.logoUrl;
                   
                   if (logoUrl) {
                     return (

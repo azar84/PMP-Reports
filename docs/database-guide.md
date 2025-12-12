@@ -8,10 +8,21 @@ This project uses Prisma with SQLite for local development. The canonical schema
    ```bash
    npm install
    ```
-2. Copy `.env.example` to `.env` (if it exists) and set `DATABASE_URL`. For SQLite we use `file:./prisma/dev.db`:
-   ```env
-   DATABASE_URL="file:./prisma/dev.db"
+2. Set up database connection:
+   
+   **Option A: Local SQLite Database (Development)**
+   ```bash
+   # Create .env.local file
+   echo 'DATABASE_URL="file:./prisma/dev.db"' > .env.local
    ```
+   
+   **Option B: Connect to Vercel Preview Database**
+   ```bash
+   # Pull preview environment variables from Vercel
+   vercel env pull .env.local --environment=preview
+   ```
+   
+   This connects your local development to the Vercel preview database, allowing you to test against the same database as preview deployments.
 
 ## 2. Creating or Recreating the Local Database
 

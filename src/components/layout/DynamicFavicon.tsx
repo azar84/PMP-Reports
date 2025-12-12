@@ -24,13 +24,13 @@ export default function DynamicFavicon({ faviconUrl }: DynamicFaviconProps) {
           const data = await response.json();
           if (data.success && data.data) {
             const settings = data.data;
-            // Try to get the most appropriate favicon
-            const favicon = settings.faviconDarkUrl || settings.faviconLightUrl || settings.faviconUrl || '/favicon.svg';
+            // Use the single favicon URL
+            const favicon = settings.faviconUrl || '/favicon.svg';
             setDynamicFaviconUrl(favicon);
           } else {
             // If no data structure, try to use the response directly
             const settings = data;
-            const favicon = settings.faviconDarkUrl || settings.faviconLightUrl || settings.faviconUrl || '/favicon.svg';
+            const favicon = settings.faviconUrl || '/favicon.svg';
             setDynamicFaviconUrl(favicon);
           }
         } else {

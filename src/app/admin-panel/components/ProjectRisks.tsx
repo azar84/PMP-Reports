@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 
@@ -50,6 +49,7 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const tempIdRef = useRef<number>(-1);
+  const latestRowsRef = useRef<ProjectRiskRow[]>(riskRows);
 
   const createEmptyRiskRow = useCallback(
     (sortOrder: number): ProjectRiskRow => ({
@@ -61,6 +61,10 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
     }),
     []
   );
+
+  useEffect(() => {
+    latestRowsRef.current = riskRows;
+  }, [riskRows]);
 
   const fetchRiskData = useCallback(async () => {
     setIsLoading(true);
@@ -98,23 +102,13 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
     fetchRiskData();
   }, [fetchRiskData]);
 
-  const handleRiskFieldChange = useCallback(
-    (id: number, field: keyof ProjectRiskRow, value: string) => {
-      setRiskRows((prev) => prev.map((row) => (row.id === id ? { ...row, [field]: value } : row)));
-    },
-    []
-  );
-
-  const handleRemoveRisk = useCallback((id: number) => {
-    setRiskRows((prev) => prev.filter((row) => row.id !== id));
-  }, []);
-
-  const handleSave = useCallback(async () => {
+  const saveRisksData = useCallback(async () => {
+    const rowsToSave = latestRowsRef.current ?? [];
     setIsSaving(true);
     setSaveError(null);
     try {
       const payload = {
-        risks: riskRows.map((row, index) => ({
+        risks: rowsToSave.map((row, index) => ({
           riskItem: row.riskItem,
           impact: row.impact,
           remarks: row.remarks,
@@ -143,6 +137,7 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
         }));
 
       setRiskRows(nextRows);
+      latestRowsRef.current = nextRows;
       setLastSavedAt(new Date());
     } catch (error: any) {
       console.error('Failed to save project risks:', error);
@@ -150,7 +145,52 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
     } finally {
       setIsSaving(false);
     }
-  }, [projectId, put, riskRows]);
+  }, [projectId, put]);
+
+  const handleRiskBlur = () => {
+    // Save only when user finishes editing a field
+    saveRisksData();
+  };
+
+  const handleRiskFieldChange = useCallback(
+    (id: number, field: keyof ProjectRiskRow, value: string) => {
+      setRiskRows((prev) => {
+        const updated = prev.map((row) => (row.id === id ? { ...row, [field]: value } : row));
+        latestRowsRef.current = updated;
+        return updated;
+      });
+    },
+    []
+  );
+
+  const handleRemoveRisk = useCallback(
+    (id: number) => {
+      setRiskRows((prev) => {
+        const updated = prev.filter((row) => row.id !== id);
+        latestRowsRef.current = updated;
+        return updated;
+      });
+      // Save immediately after delete
+      saveRisksData();
+    },
+    [saveRisksData]
+  );
+
+  const gridBorderColor = colors.borderLight || colors.border || '#D1D5DB';
+  const spreadsheetBackground = colors.backgroundPrimary;
+  const spreadsheetSecondaryBackground = colors.backgroundSecondary;
+  const cellInputStyle: CSSProperties = {
+    color: colors.textPrimary,
+    caretColor: colors.primary,
+    border: 'none',
+  };
+  const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
+  const cellFocusShadowColor = colors.primary || '#2563EB';
+
+  const lastSavedLabel = useMemo(() => {
+    if (!lastSavedAt) return null;
+    return `Saved ${lastSavedAt.toLocaleTimeString()}`;
+  }, [lastSavedAt]);
 
   if (isLoading) {
     return (
@@ -190,46 +230,34 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
   }
 
   return (
-    <div className="space-y-8">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
             Project Risks
           </h2>
           <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Record and monitor risk items for {projectName}.
+            Record and monitor risk items for {projectName}. Changes are auto-saved.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {lastSavedAt && (
-            <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-              Last saved {lastSavedAt.toLocaleString()}
+        <div className="flex flex-col items-start gap-2 md:items-end">
+          {saveError && (
+            <span className="text-xs" style={{ color: colors.error }}>
+              {saveError}
             </span>
           )}
-          <Button
-            variant="primary"
-            leftIcon={<Save className="h-4 w-4" />}
-            onClick={handleSave}
-            disabled={isSaving}
-            isLoading={isSaving}
-          >
-            Save Changes
-          </Button>
+          {isSaving && !saveError && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              Saving...
+            </span>
+          )}
+          {!isSaving && !saveError && lastSavedLabel && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              {lastSavedLabel}
+            </span>
+          )}
         </div>
       </div>
-
-  {saveError && (
-        <div
-          className="rounded-lg border px-4 py-3 text-sm"
-          style={{
-            backgroundColor: `${colors.error}15`,
-            borderColor: `${colors.error}45`,
-            color: colors.error,
-          }}
-        >
-          {saveError}
-        </div>
-      )}
 
       <Card
         className="space-y-4 p-6"
@@ -244,99 +272,207 @@ export default function ProjectRisks({ projectId, projectName }: ProjectRisksPro
             <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
               Risk Register
             </h3>
-            <p className="text-sm" style={{ color: colors.textSecondary }}>
-              Add each risk with its impact level and mitigation notes.
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
+              Spreadsheet-style risk register. Updates save when you leave a field.
             </p>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
+            className="flex items-center gap-2"
+            style={{ color: colors.primary }}
             onClick={() => setRiskRows((prev) => [...prev, createEmptyRiskRow(prev.length)])}
           >
+            <Plus className="h-4 w-4" />
             Add Risk
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y text-sm">
-            <thead>
-              <tr
-                style={{
-                  backgroundColor: colors.backgroundPrimary,
-                  color: colors.textSecondary,
-                }}
-              >
-                <th className="px-4 py-3 text-left font-medium">Risk Item</th>
-                <th className="px-4 py-3 text-left font-medium">Impact</th>
-                <th className="px-4 py-3 text-left font-medium">Remarks</th>
-                <th className="px-4 py-3 text-left font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: `${colors.borderLight}80` }}>
-              {riskRows.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={4}
-                    className="px-4 py-6 text-center text-sm"
-                    style={{ color: colors.textSecondary }}
+        <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
+          <div className="overflow-x-auto">
+            <table
+              className="min-w-full text-sm"
+              style={{
+                borderCollapse: 'collapse',
+                border: `1px solid ${gridBorderColor}`,
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '4rem',
+                    }}
                   >
-                    No risks recorded. Add the first risk item to begin tracking.
-                  </td>
+                    No
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '280px',
+                    }}
+                  >
+                    Risk Item
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    Impact
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '320px',
+                    }}
+                  >
+                    Remarks
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '3.5rem',
+                    }}
+                  >
+                    Actions
+                  </th>
                 </tr>
-              )}
-              {riskRows.map((row) => (
-                <tr key={row.id}>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Describe the risk"
-                      value={row.riskItem}
-                      onChange={(event) =>
-                        handleRiskFieldChange(row.id, 'riskItem', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Impact level"
-                      list={`risk-impact-options-${projectId}`}
-                      className="max-w-[160px]"
-                      value={row.impact}
-                      onChange={(event) =>
-                        handleRiskFieldChange(row.id, 'impact', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Remarks / mitigation"
-                      className="min-w-[260px]"
-                      value={row.remarks}
-                      onChange={(event) =>
-                        handleRiskFieldChange(row.id, 'remarks', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="Remove risk"
-                      onClick={() => handleRemoveRisk(row.id)}
+              </thead>
+              <tbody>
+                {riskRows.length === 0 ? (
+                  <tr style={{ backgroundColor: spreadsheetBackground }}>
+                    <td
+                      colSpan={5}
+                      style={{
+                        border: `1px solid ${gridBorderColor}`,
+                        padding: '1rem',
+                        color: colors.textSecondary,
+                        textAlign: 'center',
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <datalist id={`risk-impact-options-${projectId}`}>
-            {IMPACT_OPTIONS.map((option) => (
-              <option key={option} value={option} />
-            ))}
-          </datalist>
-        </div>
+                      No risks recorded. Click “Add Risk” to begin.
+                    </td>
+                  </tr>
+                ) : (
+                  riskRows.map((row, index) => {
+                    const rowBackgroundColor =
+                      index % 2 === 0 ? spreadsheetBackground : spreadsheetSecondaryBackground;
+
+                    return (
+                      <tr key={row.id} style={{ backgroundColor: rowBackgroundColor }}>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.55rem 0.5rem',
+                            color: colors.textSecondary,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {index + 1}
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={row.riskItem}
+                            onChange={(event) => handleRiskFieldChange(row.id, 'riskItem', event.target.value)}
+                            onBlur={handleRiskBlur}
+                            placeholder="Describe the risk"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <select
+                            value={row.impact}
+                            onChange={(event) => handleRiskFieldChange(row.id, 'impact', event.target.value)}
+                            onBlur={handleRiskBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none cursor-pointer"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          >
+                            <option value="">Select</option>
+                            {IMPACT_OPTIONS.map((opt) => (
+                              <option key={opt} value={opt}>
+                                {opt}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={row.remarks}
+                            onChange={(event) => handleRiskFieldChange(row.id, 'remarks', event.target.value)}
+                            onBlur={handleRiskBlur}
+                            placeholder="Remarks / mitigation"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.4rem 0.25rem',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveRisk(row.id)}
+                            className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                            style={{
+                              color: colors.textPrimary,
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                            }}
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+
+            <style jsx>{`
+              .sheet-input {
+                cursor: text;
+                transition: background-color 0.15s ease, box-shadow 0.15s ease;
+              }
+              .sheet-input:hover {
+                background-color: ${cellHoverBackground};
+              }
+              .sheet-input:focus {
+                background-color: ${cellHoverBackground};
+                box-shadow: inset 0 0 0 1px ${cellFocusShadowColor};
+                outline: none;
+              }
+              select.sheet-input {
+                cursor: pointer;
+              }
+            `}</style>
+          </div>
+        </Card>
       </Card>
     </div>
   );

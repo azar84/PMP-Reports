@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
-import { parseDateFromInput } from '@/lib/dateUtils';
+import { parseDateFromInput, formatDateForInput } from '@/lib/dateUtils';
 import { Prisma } from '@prisma/client';
 
 // GET - Fetch single project by ID
@@ -64,7 +64,14 @@ export async function GET(
       );
     }
 
-    return NextResponse.json({ success: true, data: project });
+    // Convert DateTime fields to date-only strings (YYYY-MM-DD) to avoid timezone issues
+    const projectData = {
+      ...project,
+      startDate: project.startDate ? formatDateForInput(project.startDate) : null,
+      endDate: project.endDate ? formatDateForInput(project.endDate) : null,
+    };
+
+    return NextResponse.json({ success: true, data: projectData });
   } catch (error) {
     console.error('Error fetching project:', error);
     return NextResponse.json(
@@ -473,7 +480,21 @@ export async function PUT(
       });
     });
 
-    return NextResponse.json({ success: true, data: result });
+    if (!result) {
+      return NextResponse.json(
+        { success: false, error: 'Project not found' },
+        { status: 404 }
+      );
+    }
+
+    // Convert DateTime fields to date-only strings (YYYY-MM-DD) to avoid timezone issues
+    const formattedProject = {
+      ...result,
+      startDate: result.startDate ? formatDateForInput(result.startDate) : null,
+      endDate: result.endDate ? formatDateForInput(result.endDate) : null,
+    };
+
+    return NextResponse.json({ success: true, data: formattedProject });
   } catch (error: any) {
     console.error('Error updating project:', error);
     
