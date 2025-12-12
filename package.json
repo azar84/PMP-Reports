@@ -12,6 +12,7 @@
     "create-admin": "node scripts/create-admin-user.js",
     "demo:data": "node scripts/demo-data.js",
     "migrate:grn-invoices": "node scripts/safe-grn-migration.js",
+    "copy:preview-to-production": "node scripts/copy-preview-to-production.js",
     "postinstall": "prisma generate",
     "vercel-build": "node scripts/vercel-build.js"
   },

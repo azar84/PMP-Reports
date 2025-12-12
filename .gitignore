@@ -8,3 +8,4 @@ node_modules/
 .next/
 prisma/dev.db
 .vercel
+.env.production
