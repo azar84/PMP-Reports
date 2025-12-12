@@ -32,6 +32,8 @@ interface IPCRow {
   contraCharges: string;
   netCertifiedPayable: string;
   vat5Percent: string;
+  // Local-only UI flag: if true, VAT is user-controlled and must not be overwritten by auto-calculation.
+  vatManuallySet?: boolean;
   netPayable: string;
   // Payment Status
   paymentStatus: string; // "Received", "In Process", "Under-Certification"
@@ -137,6 +139,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
     advancePaymentRecovery: string;
     retention: string;
     contraCharges: string;
+    vat5Percent: string;
     receivedPayment: string;
     paymentReceivedDate: string;
     remarks: string;
@@ -147,6 +150,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
     advancePaymentRecovery: '',
     retention: '',
     contraCharges: '',
+    vat5Percent: '',
     receivedPayment: '',
     paymentReceivedDate: '',
     remarks: '',
@@ -194,16 +198,20 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
         ? parseFloat(String(entry.contraCharges)) || 0
         : 0;
       
-      // Always calculate VAT (5% of certified amount) when certified amount exists
-      const vat5Percent = certifiedAmount > 0 ? (certifiedAmount * 5) / 100 : 0;
-      
       // Always calculate Net Certified Payable (Excluding VAT) when certified amount exists
       // Net Certified Payable = Certified Amount - Recovery - Retention - Contra Charges
       const netCertifiedPayable = certifiedAmount > 0 ? certifiedAmount - advanceRecovery - retention - contraCharges : 0;
+
+      // VAT is applied on the net (after deductions), not on the gross certified amount.
+      // If VAT exists in DB, treat it as user-decided and do not overwrite.
+      const vatFromDb =
+        entry.vat5Percent !== null && entry.vat5Percent !== undefined ? (parseFloat(String(entry.vat5Percent)) || 0) : null;
+      const vatManuallySet = vatFromDb !== null;
+      const vat5Percent = vatManuallySet ? vatFromDb! : (netCertifiedPayable > 0 ? (netCertifiedPayable * 5) / 100 : 0);
       
       // Always calculate Net Payable (Including VAT) when certified amount exists
-      // Net Payable = Certified Amount - Recovery - Retention - Contra Charges + VAT
-      const netPayable = certifiedAmount > 0 ? certifiedAmount - advanceRecovery - retention - contraCharges + vat5Percent : 0;
+      // Net Payable = Net Certified Payable + VAT
+      const netPayable = netCertifiedPayable > 0 ? netCertifiedPayable + vat5Percent : 0;
       
       return {
         id: entry.id,
@@ -229,6 +237,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
             : '',
         netCertifiedPayable: netCertifiedPayable > 0 ? netCertifiedPayable.toFixed(2) : '',
         vat5Percent: vat5Percent > 0 ? vat5Percent.toFixed(2) : '',
+        vatManuallySet,
         netPayable: netPayable > 0 ? netPayable.toFixed(2) : '',
         paymentStatus: entry.paymentStatus || '',
         receivedPayment:
@@ -453,11 +462,28 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
     );
   };
 
+  const updateRowMetaAtIndex = (rowIndex: number, patch: Partial<IPCRow>) => {
+    setIpcRows((prev) => prev.map((row, index) => (index === rowIndex ? { ...row, ...patch } : row)));
+  };
+
   const handleFieldChange = (rowIndex: number, field: IPCEditableField, value: string) => {
     const currentRow = ipcRows[rowIndex];
     
     updateRowAtIndex(rowIndex, field, value);
     
+    // If user edits VAT, lock it (manual override). If user clears VAT, return to auto mode.
+    if (field === 'vat5Percent') {
+      const isManual = value.trim() !== '';
+      updateRowMetaAtIndex(rowIndex, { vatManuallySet: isManual });
+    }
+
+    // If a payment is still under certification, keep certified amount aligned with submitted amount
+    // (Certified values should not diverge until status moves to "In Process" / "Received")
+    const isUnderCertification =
+      !currentRow.paymentStatus || currentRow.paymentStatus === 'Under-Certification';
+    let certifiedSyncedFromSubmitted = false;
+    let syncedCertifiedValue = currentRow.grossValueCertified;
+
     // Auto-calculate Payment Due Date when Date Submitted changes
     if (field === 'dateSubmitted' && value) {
       const termsDays = paymentTermsDays ? parseInt(paymentTermsDays) : 30; // Default to 30 days if not set
@@ -471,10 +497,19 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
     }
     
     // Auto-fill Certified Amount with Submitted Amount when Submitted Amount changes
-    if (field === 'grossValueSubmitted' && value) {
-      // Only auto-fill if certified amount is empty
-      if (!currentRow.grossValueCertified || currentRow.grossValueCertified === '') {
+    if (field === 'grossValueSubmitted') {
+      // While still under certification: always mirror submitted → certified
+      if (isUnderCertification) {
         updateRowAtIndex(rowIndex, 'grossValueCertified', value);
+        certifiedSyncedFromSubmitted = true;
+        syncedCertifiedValue = value;
+      } else if (value) {
+        // Legacy behavior: only auto-fill if certified amount is empty
+        if (!currentRow.grossValueCertified || currentRow.grossValueCertified === '') {
+          updateRowAtIndex(rowIndex, 'grossValueCertified', value);
+          certifiedSyncedFromSubmitted = true;
+          syncedCertifiedValue = value;
+        }
       }
     }
     
@@ -483,8 +518,12 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
     let calculatedAdvanceRecovery = parseFloat(currentRow.advancePaymentRecovery) || 0;
     let calculatedRetention = parseFloat(currentRow.retention) || 0;
     
-    if (field === 'grossValueCertified' && currentRow.paymentType === 'Progress') {
-      const certifiedAmount = parseFloat(value) || 0;
+    const certifiedFieldChanged = field === 'grossValueCertified' || certifiedSyncedFromSubmitted;
+    const certifiedValueForCalculations =
+      field === 'grossValueCertified' ? value : syncedCertifiedValue;
+
+    if (certifiedFieldChanged && currentRow.paymentType === 'Progress') {
+      const certifiedAmount = parseFloat(certifiedValueForCalculations) || 0;
       
       // Calculate Advance Payment Recovery
       if (advancePaymentPercentage) {
@@ -501,32 +540,24 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
       }
     }
     
-    // Auto-calculate VAT (5% of certified amount) when Certified Amount changes
-    let calculatedVat = parseFloat(currentRow.vat5Percent) || 0;
-    if (field === 'grossValueCertified' && value) {
-      const certifiedAmount = parseFloat(value) || 0;
-      calculatedVat = (certifiedAmount * 5) / 100;
-      updateRowAtIndex(rowIndex, 'vat5Percent', calculatedVat.toFixed(2));
-    }
-    
     // Auto-calculate Net Certified Payable (Excluding VAT) when any of these fields change:
     // certified amount, advance payment recovery, retention, or contra charges
-    if (field === 'grossValueCertified' || 
+    if (certifiedFieldChanged ||
         field === 'advancePaymentRecovery' || 
         field === 'retention' ||
         field === 'contraCharges') {
       // Get the current values (use the new value for the field that just changed)
       const certifiedAmount = parseFloat(
-        field === 'grossValueCertified' ? value : currentRow.grossValueCertified
+        certifiedFieldChanged ? certifiedValueForCalculations : currentRow.grossValueCertified
       ) || 0;
       const advanceRecovery = field === 'advancePaymentRecovery' 
         ? parseFloat(value) || 0
-        : (field === 'grossValueCertified' && currentRow.paymentType === 'Progress' 
+        : (certifiedFieldChanged && currentRow.paymentType === 'Progress' 
           ? calculatedAdvanceRecovery 
           : parseFloat(currentRow.advancePaymentRecovery) || 0);
       const retention = field === 'retention'
         ? parseFloat(value) || 0
-        : (field === 'grossValueCertified' && currentRow.paymentType === 'Progress'
+        : (certifiedFieldChanged && currentRow.paymentType === 'Progress'
           ? calculatedRetention
           : parseFloat(currentRow.retention) || 0);
       const contraCharges = field === 'contraCharges'
@@ -536,40 +567,50 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
       // Net Certified Payable = Certified Amount - Recovery - Retention - Contra Charges
       const netCertifiedPayable = certifiedAmount - advanceRecovery - retention - contraCharges;
       updateRowAtIndex(rowIndex, 'netCertifiedPayable', netCertifiedPayable.toFixed(2));
+
+      // Auto-calculate VAT (5% of net certified payable) when net changes,
+      // unless VAT has been manually overridden by the user.
+      if (field !== 'vat5Percent' && !currentRow.vatManuallySet) {
+        const calculatedVat = netCertifiedPayable > 0 ? (netCertifiedPayable * 5) / 100 : 0;
+        updateRowAtIndex(rowIndex, 'vat5Percent', calculatedVat.toFixed(2));
+      }
     }
     
     // Auto-calculate Net Payable (Including VAT) when any of these fields change:
-    // certified amount, advance payment recovery, retention, contra charges, or VAT
-    if (field === 'grossValueCertified' || 
+    // net certified payable inputs OR VAT
+    if (certifiedFieldChanged ||
         field === 'advancePaymentRecovery' || 
         field === 'retention' ||
         field === 'contraCharges' ||
         field === 'vat5Percent') {
       // Get the current values (use the new value for the field that just changed)
       const certifiedAmount = parseFloat(
-        field === 'grossValueCertified' ? value : currentRow.grossValueCertified
+        certifiedFieldChanged ? certifiedValueForCalculations : currentRow.grossValueCertified
       ) || 0;
       const advanceRecovery = field === 'advancePaymentRecovery' 
         ? parseFloat(value) || 0
-        : (field === 'grossValueCertified' && currentRow.paymentType === 'Progress' 
+        : (certifiedFieldChanged && currentRow.paymentType === 'Progress' 
           ? calculatedAdvanceRecovery 
           : parseFloat(currentRow.advancePaymentRecovery) || 0);
       const retention = field === 'retention'
         ? parseFloat(value) || 0
-        : (field === 'grossValueCertified' && currentRow.paymentType === 'Progress'
+        : (certifiedFieldChanged && currentRow.paymentType === 'Progress'
           ? calculatedRetention
           : parseFloat(currentRow.retention) || 0);
       const contraCharges = field === 'contraCharges'
         ? parseFloat(value) || 0
         : parseFloat(currentRow.contraCharges) || 0;
-      const vat = field === 'vat5Percent'
-        ? parseFloat(value) || 0
-        : (field === 'grossValueCertified'
-          ? calculatedVat
-          : parseFloat(currentRow.vat5Percent) || 0);
+
+      // Net Certified Payable = Certified Amount - Recovery - Retention - Contra Charges
+      const netCertifiedPayable = certifiedAmount - advanceRecovery - retention - contraCharges;
+
+      const vat =
+        field === 'vat5Percent'
+          ? parseFloat(value) || 0
+          : parseFloat(currentRow.vat5Percent) || 0;
       
-      // Net Payable = Certified Amount - Recovery - Retention - Contra Charges + VAT
-      const netPayable = certifiedAmount - advanceRecovery - retention - contraCharges + vat;
+      // Net Payable = Net Certified Payable + VAT
+      const netPayable = netCertifiedPayable + vat;
       updateRowAtIndex(rowIndex, 'netPayable', netPayable.toFixed(2));
     }
   };
@@ -1896,22 +1937,28 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                                   }
                                 }
                                 
-                                // Auto-calculate VAT (5% of certified amount) when switching payment type
-                                // if certified amount already exists
+                                // Recalculate net + VAT when switching payment type
                                 if (row.grossValueCertified) {
                                   const certifiedAmount = parseFloat(row.grossValueCertified) || 0;
-                                  const vatAmount = (certifiedAmount * 5) / 100;
-                                  updateRowAtIndex(rowIndex, 'vat5Percent', vatAmount.toFixed(2));
-                                  
-                                  // Get contra charges
                                   const contraCharges = parseFloat(row.contraCharges) || 0;
                                   
-                                  // Calculate Net Certified Payable (Excluding VAT) = Certified - Recovery - Retention - Contra Charges
-                                  const netCertifiedPayable = certifiedAmount - calculatedAdvanceRecovery - calculatedRetention - contraCharges;
+                                  // Net Certified Payable (Excl VAT) = Certified - Recovery - Retention - Contra Charges
+                                  const netCertifiedPayable =
+                                    certifiedAmount - calculatedAdvanceRecovery - calculatedRetention - contraCharges;
                                   updateRowAtIndex(rowIndex, 'netCertifiedPayable', netCertifiedPayable.toFixed(2));
+
+                                  // VAT (5%) suggestion is applied on the net amount (after deductions)
+                                  // but should not overwrite if user set VAT manually.
+                                  const vatIsManual = !!row.vatManuallySet && (row.vat5Percent || '').trim() !== '';
+                                  const vatAmount = vatIsManual
+                                    ? (parseFloat(row.vat5Percent) || 0)
+                                    : (netCertifiedPayable > 0 ? (netCertifiedPayable * 5) / 100 : 0);
+                                  if (!vatIsManual) {
+                                    updateRowAtIndex(rowIndex, 'vat5Percent', vatAmount.toFixed(2));
+                                  }
                                   
-                                  // Calculate Net Payable (Including VAT) = Certified - Recovery - Retention - Contra Charges + VAT
-                                  const netPayable = certifiedAmount - calculatedAdvanceRecovery - calculatedRetention - contraCharges + vatAmount;
+                                  // Net Payable (Incl VAT) = Net Certified Payable + VAT
+                                  const netPayable = netCertifiedPayable + vatAmount;
                                   updateRowAtIndex(rowIndex, 'netPayable', netPayable.toFixed(2));
                                 }
                               }}
@@ -2087,8 +2134,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                                   // Calculate default received payment from net payable if status is "Received"
                                   let defaultReceivedPayment = row.receivedPayment || '';
                                   if (newStatus === 'Received' && !row.receivedPayment) {
-                                    // Use net payable as default: (Value of Work Done - Retention) + 5% VAT
-                                    // Net Payable = Certified Amount - Advance Recovery - Retention - Contra Charges + VAT
+                                    // Use net payable as default (incl VAT). VAT is applied on net-after-deductions.
                                     const netPayable = row.netPayable || '';
                                     if (netPayable) {
                                       defaultReceivedPayment = netPayable;
@@ -2098,8 +2144,9 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                                       const advanceRecovery = parseFloat(row.advancePaymentRecovery) || 0;
                                       const retention = parseFloat(row.retention) || 0;
                                       const contraCharges = parseFloat(row.contraCharges) || 0;
-                                      const vat5Percent = parseFloat(row.vat5Percent) || 0;
-                                      const calculatedNetPayable = certifiedAmount - advanceRecovery - retention - contraCharges + vat5Percent;
+                                      const netCertifiedPayable = certifiedAmount - advanceRecovery - retention - contraCharges;
+                                      const vat5Percent = netCertifiedPayable > 0 ? (netCertifiedPayable * 5) / 100 : 0;
+                                      const calculatedNetPayable = netCertifiedPayable + vat5Percent;
                                       if (calculatedNetPayable > 0) {
                                         defaultReceivedPayment = calculatedNetPayable.toFixed(2);
                                       }
@@ -2107,6 +2154,13 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                                   }
                                   
                                   // Initialize modal form with current row values
+                                  // VAT is suggested as 5% of net-after-deductions, but user can override.
+                                  const certifiedAmountForVat = parseFloat(row.grossValueCertified) || 0;
+                                  const advanceForVat = parseFloat(row.advancePaymentRecovery) || 0;
+                                  const retentionForVat = parseFloat(row.retention) || 0;
+                                  const contraForVat = parseFloat(row.contraCharges) || 0;
+                                  const netForVat = certifiedAmountForVat - advanceForVat - retentionForVat - contraForVat;
+                                  const suggestedVat = netForVat > 0 ? ((netForVat * 5) / 100).toFixed(2) : '';
                                   setStatusModalForm({
                                     grossValueCertified: row.grossValueCertified || '',
                                     certifiedDate: row.certifiedDate || '',
@@ -2114,6 +2168,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                                     advancePaymentRecovery: row.advancePaymentRecovery || '',
                                     retention: row.retention || '',
                                     contraCharges: row.contraCharges || '',
+                                    vat5Percent: row.vat5Percent || suggestedVat,
                                     receivedPayment: defaultReceivedPayment,
                                     paymentReceivedDate: row.paymentReceivedDate || '',
                                     remarks: row.remarks || '',
@@ -2616,7 +2671,10 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                       }
 
                       // Check if payment is overdue
-                      const overdueAmount = parseFloat(row.overDueAmount) || 0;
+                      // If user hasn't set an overdue amount, suggest net payable once past due.
+                      const displayOverDueAmount =
+                        row.overDueAmount || (calculatedDueDays < 0 ? (row.netPayable || '') : '');
+                      const overdueAmount = parseFloat(displayOverDueAmount) || 0;
                       const isOverdue = calculatedDueDays < 0 || overdueAmount > 0;
                       const certified = parseFloat(row.grossValueCertified) || 0;
                       const received = parseFloat(row.receivedPayment) || 0;
@@ -2667,7 +2725,8 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                           <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0, ...dataCellStyle }}>
                             {row.paymentStatus === 'Received' ? (
                               <FormattedNumberInput
-                                value={row.receivedPayment}
+                                // Default to net payable (incl VAT) if not explicitly entered
+                                value={row.receivedPayment || row.netPayable || ''}
                                 onChange={(value) => handleFieldChange(rowIndex, 'receivedPayment', value)}
                                 placeholder="-"
                               />
@@ -2698,7 +2757,8 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                           <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0, ...dataCellStyle }}>
                             {row.paymentStatus === 'In Process' ? (
                               <FormattedNumberInput
-                                value={row.inProcess}
+                                // Default to net payable (incl VAT) if not explicitly entered
+                                value={row.inProcess || row.netPayable || ''}
                                 onChange={(value) => handleFieldChange(rowIndex, 'inProcess', value)}
                                 placeholder="-"
                               />
@@ -2768,7 +2828,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                               </div>
                             ) : (
                               <FormattedNumberInput
-                                value={row.overDueAmount}
+                                value={displayOverDueAmount}
                                 onChange={(value) => handleFieldChange(rowIndex, 'overDueAmount', value)}
                                 placeholder="-"
                                 customStyle={{
@@ -3055,6 +3115,42 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                       }}
                     />
                   </div>
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '0.875rem',
+                        fontWeight: 500,
+                        color: colors.textPrimary,
+                        marginBottom: '0.5rem',
+                      }}
+                    >
+                      VAT Amount (Including VAT)
+                    </label>
+                    <input
+                      type="text"
+                      value={statusModalForm.vat5Percent}
+                      onChange={(e) =>
+                        setStatusModalForm((prev) => ({
+                          ...prev,
+                          vat5Percent: e.target.value,
+                        }))
+                      }
+                      placeholder="Auto-calculated (editable)"
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem',
+                        border: `1px solid ${colors.border}`,
+                        borderRadius: '0.375rem',
+                        backgroundColor: colors.backgroundSecondary,
+                        color: colors.textPrimary,
+                        fontSize: '0.875rem',
+                      }}
+                    />
+                    <div style={{ marginTop: '0.35rem', fontSize: '0.75rem', color: colors.textSecondary }}>
+                      Suggested based on net after deductions; you can edit to override.
+                    </div>
+                  </div>
                 </>
               )}
 
@@ -3217,6 +3313,7 @@ export default function ProjectIPC({ projectId, projectName }: ProjectIPCProps) 
                       handleFieldChange(statusModalRowIndex, 'advancePaymentRecovery', statusModalForm.advancePaymentRecovery || '');
                       handleFieldChange(statusModalRowIndex, 'retention', statusModalForm.retention || '');
                       handleFieldChange(statusModalRowIndex, 'contraCharges', statusModalForm.contraCharges || '');
+                      handleFieldChange(statusModalRowIndex, 'vat5Percent', statusModalForm.vat5Percent || '');
                       handleFieldChange(statusModalRowIndex, 'remarks', statusModalForm.remarks || '');
                       
                       // Clear received fields if changing from "Received" to "In Process"

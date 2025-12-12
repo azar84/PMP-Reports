@@ -5568,7 +5568,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Pictures" />
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center" style={{ paddingTop: '5.5rem' }}>
             <div className="text-center">
               <Camera className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
               <p className="text-sm" style={{ color: colors.textSecondary }}>No pictures selected for this report</p>
@@ -5586,7 +5586,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Pictures" />
-        <div className="flex-1 min-h-0 flex items-center justify-center relative">
+        <div className="flex-1 min-h-0 flex items-center justify-center relative p-6" style={{ paddingTop: '5.5rem', paddingBottom: '4rem' }}>
           <div className="w-full h-full flex gap-3">
             {/* Left Side - Main Picture Display */}
             <div className="flex-1 min-w-0 flex flex-col items-center justify-center relative h-full">
@@ -5613,23 +5613,23 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     {/* Caption Centered Above Image */}
                     {caption && (
                       <div 
-                        className="mb-2 px-2 w-full flex-shrink-0"
+                        className="mb-3 px-2 w-full flex-shrink-0"
                         style={{
-                          maxHeight: '40px',
+                          maxHeight: '50px',
                           overflow: 'hidden'
                         }}
                       >
-                        <p className="text-sm font-semibold text-center truncate" style={{ color: colors.textPrimary }}>
+                        <p className="text-sm font-semibold text-center" style={{ color: colors.textPrimary }}>
                           {caption}
                         </p>
                       </div>
                     )}
                     {/* Main Image - Takes available space */}
-                    <div className="flex-1 min-h-0 w-full flex items-center justify-center">
+                    <div className="flex-1 min-h-0 w-full flex items-center justify-center" style={{ maxHeight: caption ? 'calc(100% - 50px)' : '100%' }}>
                       <img
                         src={pictureUrl}
                         alt={caption}
-                        className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+                        className="w-auto h-auto max-w-full max-h-full object-contain rounded-lg shadow-lg"
                         style={{
                           border: `2px solid ${colors.border}`
                         }}

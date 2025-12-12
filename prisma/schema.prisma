@@ -1587,6 +1587,7 @@ model ProjectReport {
   reportMonth Int
   reportYear  Int
   reportData  Json
+  shareToken  String?  @unique
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
   project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
@@ -1596,5 +1597,6 @@ model ProjectReport {
   @@index([projectId])
   @@index([userId])
   @@index([reportYear, reportMonth])
+  @@index([shareToken])
   @@map("project_reports")
 }

@@ -18,7 +18,9 @@ import {
   Search,
   X,
   FileDown,
-  Presentation
+  Presentation,
+  Share2,
+  Check
 } from 'lucide-react';
 import ReportPresentationViewer from './ReportPresentationViewer';
 import { generatePDF, generatePowerPoint } from '@/lib/reportExport';
@@ -30,6 +32,7 @@ interface ProjectReport {
   reportMonth: number;
   reportYear: number;
   reportData: any;
+  shareToken?: string | null;
   createdAt: string;
   updatedAt: string;
   project: {
@@ -64,6 +67,7 @@ export default function ReportsManager() {
   const [expandedProjects, setExpandedProjects] = useState<Set<number>>(new Set());
   const [selectedReport, setSelectedReport] = useState<ProjectReport | null>(null);
   const [showReportViewer, setShowReportViewer] = useState(false);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   useEffect(() => {
     fetchReports();
@@ -166,6 +170,41 @@ export default function ReportsManager() {
 
   const getMonthName = (month: number) => {
     return new Date(2000, month - 1).toLocaleString('default', { month: 'long' });
+  };
+
+  const handleShareReport = async (report: ProjectReport) => {
+    try {
+      // If report doesn't have a shareToken, we need to generate one
+      // For now, we'll assume it exists (it should be generated when report is created/updated)
+      if (!report.shareToken) {
+        alert('This report does not have a share link. Please regenerate the report.');
+        return;
+      }
+
+      const shareUrl = `${window.location.origin}/share/report/${report.shareToken}`;
+      
+      // Try to use the Clipboard API
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(shareUrl);
+        setCopiedToken(report.shareToken);
+        setTimeout(() => setCopiedToken(null), 2000);
+      } else {
+        // Fallback for older browsers
+        const textArea = document.createElement('textarea');
+        textArea.value = shareUrl;
+        textArea.style.position = 'fixed';
+        textArea.style.opacity = '0';
+        document.body.appendChild(textArea);
+        textArea.select();
+        document.execCommand('copy');
+        document.body.removeChild(textArea);
+        setCopiedToken(report.shareToken);
+        setTimeout(() => setCopiedToken(null), 2000);
+      }
+    } catch (error) {
+      console.error('Error copying share link:', error);
+      alert('Failed to copy share link. Please try again.');
+    }
   };
 
   const filteredProjects = projects.filter(project =>
@@ -285,6 +324,21 @@ export default function ReportsManager() {
                             title="View Report"
                           >
                             <Eye className="w-4 h-4" />
+                          </Button>
+                          <Button
+                            onClick={() => handleShareReport(report)}
+                            className="p-2"
+                            style={{ 
+                              backgroundColor: copiedToken === (report as any).shareToken ? colors.success : '#3b82f6',
+                              color: colors.backgroundPrimary
+                            }}
+                            title={copiedToken === (report as any).shareToken ? "Link Copied!" : "Share Report"}
+                          >
+                            {copiedToken === (report as any).shareToken ? (
+                              <Check className="w-4 h-4" />
+                            ) : (
+                              <Share2 className="w-4 h-4" />
+                            )}
                           </Button>
                           <Button
                             onClick={() => handleDownloadPDF(report)}

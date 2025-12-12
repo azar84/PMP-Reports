@@ -1,10 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { Plus, Save, Trash2 } from 'lucide-react';
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
+import { Plus, Trash2 } from 'lucide-react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
 import { formatDateForInput } from '@/lib/dateUtils';
@@ -85,6 +84,10 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
   const [lastSavedAt, setLastSavedAt] = useState<Date | null>(null);
 
   const tempIdRef = useRef<number>(-1);
+  const latestRowsRef = useRef<{ hseItems: HseChecklistRow[]; nocEntries: NocTrackerRow[] }>({
+    hseItems,
+    nocEntries,
+  });
 
   const createEmptyHseRow = useCallback((sortOrder: number): HseChecklistRow => {
     const nextId = tempIdRef.current--;
@@ -180,36 +183,37 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
 
   const handleHseFieldChange = useCallback(
     (id: number, field: keyof HseChecklistRow, value: string) => {
-      setHseItems((prev) =>
-        prev.map((item) => (item.id === id ? { ...item, [field]: value } : item))
-      );
+      setHseItems((prev) => {
+        const updated = prev.map((item) => (item.id === id ? { ...item, [field]: value } : item));
+        latestRowsRef.current = { hseItems: updated, nocEntries: latestRowsRef.current.nocEntries };
+        return updated;
+      });
     },
     []
   );
 
   const handleNocFieldChange = useCallback(
     (id: number, field: keyof NocTrackerRow, value: string) => {
-      setNocEntries((prev) =>
-        prev.map((entry) => (entry.id === id ? { ...entry, [field]: value } : entry))
-      );
+      setNocEntries((prev) => {
+        const updated = prev.map((entry) => (entry.id === id ? { ...entry, [field]: value } : entry));
+        latestRowsRef.current = { hseItems: latestRowsRef.current.hseItems, nocEntries: updated };
+        return updated;
+      });
     },
     []
   );
 
-  const handleRemoveHseItem = useCallback((id: number) => {
-    setHseItems((prev) => prev.filter((item) => item.id !== id));
-  }, []);
+  useEffect(() => {
+    latestRowsRef.current = { hseItems, nocEntries };
+  }, [hseItems, nocEntries]);
 
-  const handleRemoveNocEntry = useCallback((id: number) => {
-    setNocEntries((prev) => prev.filter((entry) => entry.id !== id));
-  }, []);
-
-  const handleSave = useCallback(async () => {
+  const saveHseData = useCallback(async () => {
+    const { hseItems: hseToSave, nocEntries: nocToSave } = latestRowsRef.current;
     setIsSaving(true);
     setSaveError(null);
     try {
       const payload = {
-        hseItems: hseItems.map((item, index) => ({
+        hseItems: hseToSave.map((item, index) => ({
           item: item.item,
           plannedDate: item.plannedDate || null,
           actualDate: item.actualDate || null,
@@ -217,7 +221,7 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
           notes: item.remarks,
           sortOrder: index,
         })),
-        nocEntries: nocEntries.map((entry, index) => ({
+        nocEntries: nocToSave.map((entry, index) => ({
           nocNumber: entry.nocNumber,
           permitType: entry.permitType,
           plannedSubmissionDate: entry.plannedSubmissionDate || null,
@@ -242,6 +246,7 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
       const nextNocEntries = mapNocEntries(response.data.nocEntries ?? []);
       setHseItems(nextHseItems);
       setNocEntries(nextNocEntries);
+      latestRowsRef.current = { hseItems: nextHseItems, nocEntries: nextNocEntries };
       setLastSavedAt(new Date());
     } catch (error: any) {
       console.error('Failed to save project HSE data:', error);
@@ -249,7 +254,52 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
     } finally {
       setIsSaving(false);
     }
-  }, [hseItems, mapHseItems, mapNocEntries, nocEntries, projectId, put]);
+  }, [mapHseItems, mapNocEntries, projectId, put]);
+
+  const handleHseBlur = () => {
+    // Save only when user finishes editing a field
+    saveHseData();
+  };
+
+  const handleRemoveHseItem = useCallback(
+    (id: number) => {
+      setHseItems((prev) => {
+        const updated = prev.filter((item) => item.id !== id);
+        latestRowsRef.current = { hseItems: updated, nocEntries: latestRowsRef.current.nocEntries };
+        return updated;
+      });
+      saveHseData();
+    },
+    [saveHseData]
+  );
+
+  const handleRemoveNocEntry = useCallback(
+    (id: number) => {
+      setNocEntries((prev) => {
+        const updated = prev.filter((entry) => entry.id !== id);
+        latestRowsRef.current = { hseItems: latestRowsRef.current.hseItems, nocEntries: updated };
+        return updated;
+      });
+      saveHseData();
+    },
+    [saveHseData]
+  );
+
+  const gridBorderColor = colors.borderLight || colors.border || '#D1D5DB';
+  const spreadsheetBackground = colors.backgroundPrimary;
+  const spreadsheetSecondaryBackground = colors.backgroundSecondary;
+  const cellInputStyle: CSSProperties = {
+    color: colors.textPrimary,
+    caretColor: colors.primary,
+    border: 'none',
+  };
+  const cellHoverBackground = colors.backgroundSecondary || '#F3F4F6';
+  const cellFocusShadowColor = colors.primary || '#2563EB';
+
+  const lastSavedLabel = useMemo(() => {
+    if (!lastSavedAt) return null;
+    return `Saved ${lastSavedAt.toLocaleTimeString()}`;
+  }, [lastSavedAt]);
 
   if (isLoading) {
     return (
@@ -289,46 +339,34 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
   }
 
   return (
-    <div className="space-y-10">
-      <div className="flex flex-wrap items-center justify-between gap-4">
+    <div className="space-y-6">
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div>
           <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
             Health, Safety & Environment (HSE)
           </h2>
           <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Manage HSE checklist items and NOC/permit tracking for {projectName}.
+            Manage HSE checklist items and NOC/permit tracking for {projectName}. Changes are auto-saved.
           </p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          {lastSavedAt && (
-            <span className="text-xs font-medium" style={{ color: colors.textSecondary }}>
-              Last saved {lastSavedAt.toLocaleString()}
+        <div className="flex flex-col items-start gap-2 md:items-end">
+          {saveError && (
+            <span className="text-xs" style={{ color: colors.error }}>
+              {saveError}
             </span>
           )}
-          <Button
-            variant="primary"
-            leftIcon={<Save className="h-4 w-4" />}
-            onClick={handleSave}
-            disabled={isSaving}
-            isLoading={isSaving}
-          >
-            Save Changes
-          </Button>
+          {isSaving && !saveError && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              Saving...
+            </span>
+          )}
+          {!isSaving && !saveError && lastSavedLabel && (
+            <span className="text-xs" style={{ color: colors.textSecondary }}>
+              {lastSavedLabel}
+            </span>
+          )}
         </div>
       </div>
-
-      {saveError && (
-        <div
-          className="rounded-lg border px-4 py-3 text-sm"
-          style={{
-            backgroundColor: `${colors.error}15`,
-            borderColor: `${colors.error}45`,
-            color: colors.error,
-          }}
-        >
-          {saveError}
-        </div>
-      )}
 
       <Card
         className="space-y-4 p-6"
@@ -343,121 +381,232 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
             <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
               HSE Checklist
             </h3>
-            <p className="text-sm" style={{ color: colors.textSecondary }}>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
               Track planned and actual completion dates for your HSE activities.
             </p>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
+            className="flex items-center gap-2"
+            style={{ color: colors.primary }}
             onClick={() => setHseItems((prev) => [...prev, createEmptyHseRow(prev.length)])}
           >
+            <Plus className="h-4 w-4" />
             Add Checklist Item
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y text-sm">
-            <thead>
-              <tr
-                style={{
-                  backgroundColor: colors.backgroundPrimary,
-                  color: colors.textSecondary,
-                }}
-              >
-                <th className="px-4 py-3 text-left font-medium">Checklist Item</th>
-                <th className="px-4 py-3 text-left font-medium">Planned Date</th>
-                <th className="px-4 py-3 text-left font-medium">Actual Date</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-              <th className="px-4 py-3 text-left font-medium">Remarks</th>
-                <th className="px-4 py-3 text-left font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: `${colors.borderLight}80` }}>
-              {hseItems.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={5}
-                    className="px-4 py-6 text-center text-sm"
-                    style={{ color: colors.textSecondary }}
+        <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
+          <div className="overflow-x-auto">
+            <table
+              className="min-w-full text-sm"
+              style={{
+                borderCollapse: 'collapse',
+                border: `1px solid ${gridBorderColor}`,
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '4rem',
+                    }}
                   >
-                    No checklist items yet. Add the first HSE activity to get started.
-                  </td>
+                    No
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '320px',
+                    }}
+                  >
+                    Checklist Item
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    Planned Date
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    Actual Date
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '180px',
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '280px',
+                    }}
+                  >
+                    Remarks
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '3.5rem',
+                    }}
+                  >
+                    Actions
+                  </th>
                 </tr>
-              )}
-              {hseItems.map((item) => (
-                <tr key={item.id}>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Describe the checklist item"
-                      value={item.item}
-                      onChange={(event) =>
-                        handleHseFieldChange(item.id, 'item', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      className="max-w-[140px]"
-                      value={item.plannedDate}
-                      onChange={(event) =>
-                        handleHseFieldChange(item.id, 'plannedDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      className="max-w-[140px]"
-                      value={item.actualDate}
-                      onChange={(event) =>
-                        handleHseFieldChange(item.id, 'actualDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Status"
-                      list={`hse-status-options-${projectId}`}
-                      className="max-w-[140px]"
-                      value={item.status}
-                      onChange={(event) =>
-                        handleHseFieldChange(item.id, 'status', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Notes / remarks"
-                      className="min-w-[220px]"
-                      value={item.remarks}
-                      onChange={(event) =>
-                        handleHseFieldChange(item.id, 'remarks', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="Remove checklist item"
-                      onClick={() => handleRemoveHseItem(item.id)}
+              </thead>
+              <tbody>
+                {hseItems.length === 0 ? (
+                  <tr style={{ backgroundColor: spreadsheetBackground }}>
+                    <td
+                      colSpan={7}
+                      style={{
+                        border: `1px solid ${gridBorderColor}`,
+                        padding: '1rem',
+                        color: colors.textSecondary,
+                        textAlign: 'center',
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <datalist id={`hse-status-options-${projectId}`}>
-            {STATUS_PLACEHOLDERS.map((status) => (
-              <option key={status} value={status} />
-            ))}
-          </datalist>
-        </div>
+                      No checklist items yet. Add the first HSE activity to get started.
+                    </td>
+                  </tr>
+                ) : (
+                  hseItems.map((item, index) => {
+                    // Header is backgroundSecondary; first row should be backgroundPrimary
+                    const rowBackgroundColor =
+                      index % 2 === 0 ? spreadsheetBackground : spreadsheetSecondaryBackground;
+
+                    return (
+                      <tr key={item.id} style={{ backgroundColor: rowBackgroundColor }}>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.55rem 0.5rem',
+                            color: colors.textSecondary,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {index + 1}
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={item.item}
+                            onChange={(event) => handleHseFieldChange(item.id, 'item', event.target.value)}
+                            onBlur={handleHseBlur}
+                            placeholder="Describe the checklist item"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={item.plannedDate}
+                            onChange={(event) => handleHseFieldChange(item.id, 'plannedDate', event.target.value)}
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={item.actualDate}
+                            onChange={(event) => handleHseFieldChange(item.id, 'actualDate', event.target.value)}
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <select
+                            value={item.status}
+                            onChange={(event) => handleHseFieldChange(item.id, 'status', event.target.value)}
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none cursor-pointer"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          >
+                            <option value="">Select</option>
+                            {STATUS_PLACEHOLDERS.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={item.remarks}
+                            onChange={(event) => handleHseFieldChange(item.id, 'remarks', event.target.value)}
+                            onBlur={handleHseBlur}
+                            placeholder="Notes / remarks"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.4rem 0.25rem',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveHseItem(item.id)}
+                            className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                            style={{
+                              color: colors.textPrimary,
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                            }}
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </Card>
 
       <Card
@@ -473,144 +622,298 @@ export default function ProjectHSE({ projectId, projectName }: ProjectHSEProps) 
             <h3 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
               NOC / Permit Tracker
             </h3>
-            <p className="text-sm" style={{ color: colors.textSecondary }}>
+            <p className="text-xs" style={{ color: colors.textSecondary }}>
               Track submissions, approvals, and expiries for NOC and permit requirements.
             </p>
           </div>
           <Button
-            variant="outline"
+            variant="ghost"
             size="sm"
-            leftIcon={<Plus className="h-4 w-4" />}
+            className="flex items-center gap-2"
+            style={{ color: colors.primary }}
             onClick={() => setNocEntries((prev) => [...prev, createEmptyNocRow(prev.length)])}
           >
+            <Plus className="h-4 w-4" />
             Add NOC Entry
           </Button>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y text-sm">
-            <thead>
-              <tr
-                style={{
-                  backgroundColor: colors.backgroundPrimary,
-                  color: colors.textSecondary,
-                }}
-              >
-                <th className="px-4 py-3 text-left font-medium">NOC Number</th>
-                <th className="px-4 py-3 text-left font-medium">NOC / Permit Type</th>
-                <th className="px-4 py-3 text-left font-medium">Planned Submission</th>
-                <th className="px-4 py-3 text-left font-medium">Actual Submission</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-left font-medium">Expiry Date</th>
-                <th className="px-4 py-3 text-left font-medium">Remarks</th>
-                <th className="px-4 py-3 text-left font-medium text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y" style={{ borderColor: `${colors.borderLight}80` }}>
-              {nocEntries.length === 0 && (
-                <tr>
-                  <td
-                    colSpan={8}
-                    className="px-4 py-6 text-center text-sm"
-                    style={{ color: colors.textSecondary }}
+        <Card className="p-5" style={{ backgroundColor: colors.backgroundPrimary }}>
+          <div className="overflow-x-auto">
+            <table
+              className="min-w-full text-sm"
+              style={{
+                borderCollapse: 'collapse',
+                border: `1px solid ${gridBorderColor}`,
+              }}
+            >
+              <thead>
+                <tr style={{ backgroundColor: colors.backgroundSecondary, color: colors.textPrimary }}>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '4rem',
+                    }}
                   >
-                    No NOC entries recorded. Add the first NOC / permit requirement to begin
-                    tracking.
-                  </td>
+                    No
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    NOC Number
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '240px',
+                    }}
+                  >
+                    NOC / Permit Type
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '170px',
+                    }}
+                  >
+                    Planned Submission
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '170px',
+                    }}
+                  >
+                    Actual Submission
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '180px',
+                    }}
+                  >
+                    Status
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '160px',
+                    }}
+                  >
+                    Expiry Date
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'left',
+                      fontWeight: 600,
+                      minWidth: '280px',
+                    }}
+                  >
+                    Remarks
+                  </th>
+                  <th
+                    style={{
+                      border: `1px solid ${gridBorderColor}`,
+                      padding: '0.65rem 0.5rem',
+                      textAlign: 'center',
+                      fontWeight: 600,
+                      width: '3.5rem',
+                    }}
+                  >
+                    Actions
+                  </th>
                 </tr>
-              )}
-              {nocEntries.map((entry) => (
-                <tr key={entry.id}>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="NOC Number"
-                      value={entry.nocNumber}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'nocNumber', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="NOC / Permit Type"
-                      value={entry.permitType}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'permitType', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      className="max-w-[140px]"
-                      value={entry.plannedSubmissionDate}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'plannedSubmissionDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      className="max-w-[140px]"
-                      value={entry.actualSubmissionDate}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'actualSubmissionDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Status"
-                      list={`noc-status-options-${projectId}`}
-                      className="max-w-[140px]"
-                      value={entry.status}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'status', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      type="date"
-                      className="max-w-[140px]"
-                      value={entry.expiryDate}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'expiryDate', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top">
-                    <Input
-                      placeholder="Notes / remarks"
-                      className="min-w-[220px]"
-                      value={entry.remarks}
-                      onChange={(event) =>
-                        handleNocFieldChange(entry.id, 'remarks', event.target.value)
-                      }
-                    />
-                  </td>
-                  <td className="px-4 py-3 align-top text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      aria-label="Remove NOC entry"
-                      onClick={() => handleRemoveNocEntry(entry.id)}
+              </thead>
+              <tbody>
+                {nocEntries.length === 0 ? (
+                  <tr style={{ backgroundColor: spreadsheetBackground }}>
+                    <td
+                      colSpan={9}
+                      style={{
+                        border: `1px solid ${gridBorderColor}`,
+                        padding: '1rem',
+                        color: colors.textSecondary,
+                        textAlign: 'center',
+                      }}
                     >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <datalist id={`noc-status-options-${projectId}`}>
-            {STATUS_PLACEHOLDERS.map((status) => (
-              <option key={status} value={status} />
-            ))}
-          </datalist>
-        </div>
+                      No NOC entries recorded. Add the first NOC / permit requirement to begin tracking.
+                    </td>
+                  </tr>
+                ) : (
+                  nocEntries.map((entry, index) => {
+                    // Header is backgroundSecondary; first row should be backgroundPrimary
+                    const rowBackgroundColor =
+                      index % 2 === 0 ? spreadsheetBackground : spreadsheetSecondaryBackground;
+
+                    return (
+                      <tr key={entry.id} style={{ backgroundColor: rowBackgroundColor }}>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.55rem 0.5rem',
+                            color: colors.textSecondary,
+                            textAlign: 'center',
+                          }}
+                        >
+                          {index + 1}
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={entry.nocNumber}
+                            onChange={(event) => handleNocFieldChange(entry.id, 'nocNumber', event.target.value)}
+                            onBlur={handleHseBlur}
+                            placeholder="NOC Number"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={entry.permitType}
+                            onChange={(event) => handleNocFieldChange(entry.id, 'permitType', event.target.value)}
+                            onBlur={handleHseBlur}
+                            placeholder="NOC / Permit Type"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={entry.plannedSubmissionDate}
+                            onChange={(event) =>
+                              handleNocFieldChange(entry.id, 'plannedSubmissionDate', event.target.value)
+                            }
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={entry.actualSubmissionDate}
+                            onChange={(event) =>
+                              handleNocFieldChange(entry.id, 'actualSubmissionDate', event.target.value)
+                            }
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <select
+                            value={entry.status}
+                            onChange={(event) => handleNocFieldChange(entry.id, 'status', event.target.value)}
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none cursor-pointer"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          >
+                            <option value="">Select</option>
+                            {STATUS_PLACEHOLDERS.map((status) => (
+                              <option key={status} value={status}>
+                                {status}
+                              </option>
+                            ))}
+                          </select>
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="date"
+                            value={entry.expiryDate}
+                            onChange={(event) => handleNocFieldChange(entry.id, 'expiryDate', event.target.value)}
+                            onBlur={handleHseBlur}
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-center text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'center' }}
+                          />
+                        </td>
+                        <td style={{ border: `1px solid ${gridBorderColor}`, padding: 0 }}>
+                          <input
+                            type="text"
+                            value={entry.remarks}
+                            onChange={(event) => handleNocFieldChange(entry.id, 'remarks', event.target.value)}
+                            onBlur={handleHseBlur}
+                            placeholder="Remarks"
+                            className="sheet-input w-full bg-transparent px-2 py-2 text-sm focus:outline-none"
+                            style={{ ...cellInputStyle, textAlign: 'left' }}
+                          />
+                        </td>
+                        <td
+                          style={{
+                            border: `1px solid ${gridBorderColor}`,
+                            padding: '0.4rem 0.25rem',
+                            textAlign: 'center',
+                          }}
+                        >
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveNocEntry(entry.id)}
+                            className="mx-auto flex h-8 w-8 items-center justify-center rounded transition-colors hover:opacity-60"
+                            style={{
+                              color: colors.textPrimary,
+                              backgroundColor: 'transparent',
+                              border: 'none',
+                            }}
+                            aria-label="Delete row"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })
+                )}
+              </tbody>
+            </table>
+          </div>
+        </Card>
       </Card>
+
+      <style jsx>{`
+        .sheet-input {
+          cursor: text;
+          transition: background-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        .sheet-input:hover {
+          background-color: ${cellHoverBackground};
+        }
+        .sheet-input:focus {
+          background-color: ${cellHoverBackground};
+          box-shadow: inset 0 0 0 1px ${cellFocusShadowColor};
+          outline: none;
+        }
+        select.sheet-input {
+          cursor: pointer;
+        }
+      `}</style>
     </div>
   );
 }

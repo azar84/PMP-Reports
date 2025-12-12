@@ -26,6 +26,12 @@ function verifyToken(token: string) {
 export function middleware(request: NextRequest) {
   console.log('🔒 Middleware executing for:', request.nextUrl.pathname);
   
+  // Allow public access to share routes and public API routes
+  if (request.nextUrl.pathname.startsWith('/share') || 
+      request.nextUrl.pathname.startsWith('/api/public')) {
+    return NextResponse.next();
+  }
+  
   // Handle admin panel authentication
   if (request.nextUrl.pathname.startsWith('/admin-panel')) {
     // Skip auth for login and reset password pages
