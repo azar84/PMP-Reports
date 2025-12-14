@@ -837,25 +837,25 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const monthName = getMonthName(reportMonth);
     
     return (
-      <div className="h-full flex flex-col justify-between items-center p-8 md:p-12 relative overflow-hidden" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
+      <div className="h-full flex flex-col justify-between items-center p-4 md:p-12 relative overflow-hidden" style={{ paddingTop: '1rem', paddingBottom: '1rem' }}>
         {/* Project Title - Top */}
         <div className="text-center relative z-10 flex-shrink-0">
           <h1 
-            className="text-4xl md:text-5xl font-bold mb-3 relative inline-block"
+            className="text-2xl md:text-5xl font-bold mb-2 md:mb-3 relative inline-block"
             style={{ color: colors.textPrimary }}
           >
             {project.projectName}
             <span 
-              className="absolute bottom-0 left-0 right-0 h-1"
+              className="absolute bottom-0 left-0 right-0 h-0.5 md:h-1"
               style={{ 
                 backgroundColor: colors.primary,
-                transform: 'translateY(8px)',
+                transform: 'translateY(4px)',
                 opacity: 0.3
               }}
             />
           </h1>
           <p 
-            className="text-lg md:text-2xl font-medium mt-4"
+            className="text-sm md:text-2xl font-medium mt-2 md:mt-4"
             style={{ color: colors.textSecondary }}
           >
             {project.projectCode}
@@ -863,20 +863,20 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
 
         {/* Report Title and Date - Above Picture with decorative line */}
-        <div className="text-center relative z-10 w-full max-w-2xl flex-shrink-0 my-4">
+        <div className="text-center relative z-10 w-full max-w-2xl flex-shrink-0 my-2 md:my-4">
           <p 
-            className="text-sm md:text-lg font-medium mb-2 uppercase tracking-wider"
+            className="text-xs md:text-lg font-medium mb-1 md:mb-2 uppercase tracking-wider"
             style={{ color: colors.textSecondary }}
           >
             Monthly Report
           </p>
-          <div className="flex items-center justify-center gap-4">
+          <div className="flex items-center justify-center gap-2 md:gap-4">
             <div 
               className="flex-1 h-px"
               style={{ backgroundColor: colors.primary, opacity: 0.3 }}
             />
             <p 
-              className="text-lg md:text-2xl font-semibold px-2 md:px-4"
+              className="text-base md:text-2xl font-semibold px-2 md:px-4"
               style={{ color: colors.primary }}
             >
               {monthName} {reportYear}
@@ -889,24 +889,24 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
 
         {/* Featured Picture - Center */}
-        <div className="flex items-center justify-center w-full max-w-4xl relative z-10 flex-1 min-h-0 my-4">
+        <div className="flex items-center justify-center w-full max-w-4xl relative z-10 flex-1 min-h-0 my-2 md:my-4">
           {featuredPicture && featuredPicture.media?.publicUrl ? (
             <div className="relative w-full h-full flex items-center justify-center">
               {/* Decorative corner accents */}
               <div 
-                className="absolute -top-2 -left-2 w-8 h-8 border-t-2 border-l-2"
+                className="absolute -top-1 -left-1 md:-top-2 md:-left-2 w-4 h-4 md:w-8 md:h-8 border-t-2 border-l-2"
                 style={{ borderColor: colors.primary, opacity: 0.5 }}
               />
               <div 
-                className="absolute -top-2 -right-2 w-8 h-8 border-t-2 border-r-2"
+                className="absolute -top-1 -right-1 md:-top-2 md:-right-2 w-4 h-4 md:w-8 md:h-8 border-t-2 border-r-2"
                 style={{ borderColor: colors.primary, opacity: 0.5 }}
               />
               <div 
-                className="absolute -bottom-2 -left-2 w-8 h-8 border-b-2 border-l-2"
+                className="absolute -bottom-1 -left-1 md:-bottom-2 md:-left-2 w-4 h-4 md:w-8 md:h-8 border-b-2 border-l-2"
                 style={{ borderColor: colors.primary, opacity: 0.5 }}
               />
               <div 
-                className="absolute -bottom-2 -right-2 w-8 h-8 border-b-2 border-r-2"
+                className="absolute -bottom-1 -right-1 md:-bottom-2 md:-right-2 w-4 h-4 md:w-8 md:h-8 border-b-2 border-r-2"
                 style={{ borderColor: colors.primary, opacity: 0.5 }}
               />
               <img
@@ -919,21 +919,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
 
         {/* Manager and Director - Bottom with decorative styling */}
-        <div className="w-full max-w-4xl relative z-10 flex-shrink-0 mt-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12">
+        <div className="w-full max-w-4xl relative z-10 flex-shrink-0 mt-2 md:mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-12">
             <div className="text-center relative">
               <div 
-                className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5"
+                className="absolute top-0 left-1/2 transform -translate-x-1/2 w-8 md:w-12 h-0.5"
                 style={{ backgroundColor: colors.primary }}
               />
               <p 
-                className="text-sm font-medium mb-3 mt-4 uppercase tracking-wider"
+                className="text-xs md:text-sm font-medium mb-2 md:mb-3 mt-3 md:mt-4 uppercase tracking-wider"
                 style={{ color: colors.textSecondary }}
               >
                 Project Manager
               </p>
               <p 
-                className="text-xl font-semibold"
+                className="text-base md:text-xl font-semibold"
                 style={{ color: colors.textPrimary }}
               >
                 {projectManagerName}
@@ -941,17 +941,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
             <div className="text-center relative">
               <div 
-                className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5"
+                className="absolute top-0 left-1/2 transform -translate-x-1/2 w-8 md:w-12 h-0.5"
                 style={{ backgroundColor: colors.primary }}
               />
               <p 
-                className="text-sm font-medium mb-3 mt-4 uppercase tracking-wider"
+                className="text-xs md:text-sm font-medium mb-2 md:mb-3 mt-3 md:mt-4 uppercase tracking-wider"
                 style={{ color: colors.textSecondary }}
               >
                 Project Director
               </p>
               <p 
-                className="text-xl font-semibold"
+                className="text-base md:text-xl font-semibold"
                 style={{ color: colors.textPrimary }}
               >
                 {projectDirectorName}
@@ -1162,55 +1162,55 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Stakeholders" />
-        <div className="flex-1 overflow-y-auto p-2 md:p-4" style={{ paddingTop: '4rem', paddingBottom: '1.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-4" style={{ paddingTop: '4rem', paddingBottom: '1.5rem' }}>
         {/* Contacts Section - Readable Layout */}
           <div className="w-full max-w-6xl mx-auto">
-          <div className="flex flex-col space-y-3">
+          <div className="flex flex-col space-y-4 md:space-y-3">
             {/* Client */}
             {clientContacts.length > 0 && (
               <div className="flex-shrink-0">
                 <div 
-                  className="mb-2 pb-1 border-b"
+                  className="mb-3 md:mb-2 pb-2 md:pb-1 border-b"
                   style={{ borderColor: colors.primary }}
                 >
                   <p 
-                    className="text-xs font-bold mb-1 flex items-center uppercase tracking-wider"
+                    className="text-sm md:text-xs font-bold mb-1.5 md:mb-1 flex items-center uppercase tracking-wider"
                     style={{ color: colors.primary }}
                   >
                     <span 
-                      className="inline-block w-1 h-3 mr-1.5"
+                      className="inline-block w-1.5 md:w-1 h-4 md:h-3 mr-2 md:mr-1.5"
                       style={{ backgroundColor: colors.primary }}
                     />
                     Client
                   </p>
                 </div>
-                <div className="pl-4">
+                <div className="pl-2 md:pl-4">
                   {project?.client?.name && (
                     <p 
-                      className="text-base font-bold mb-1.5"
+                      className="text-lg md:text-base font-bold mb-2 md:mb-1.5"
                       style={{ color: colors.primary }}
                     >
                       {project.client.name}
                     </p>
                   )}
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-2.5 mt-1.5">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2 md:gap-2.5 mt-2 md:mt-1.5">
                   {clientContacts.map((contact: any, idx: number) => (
-                    <div key={idx} className="p-1.5 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
-                      <p className="text-xs font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                    <div key={idx} className="p-2 md:p-1.5 border-l-2 md:border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                      <p className="text-sm md:text-xs font-semibold mb-1 md:mb-0.5" style={{ color: colors.textPrimary }}>
                         {contact.contact?.firstName} {contact.contact?.lastName}
                       </p>
                       {contact.contact?.position && (
-                        <p className="text-[10px] mb-0.5 leading-tight" style={{ color: colors.textSecondary }}>
+                        <p className="text-xs md:text-[10px] mb-1 md:mb-0.5 leading-tight" style={{ color: colors.textSecondary }}>
                           {contact.contact.position}
                         </p>
                       )}
                       {contact.contact?.email && (
-                        <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
+                        <p className="text-xs md:text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                           {contact.contact.email}
                         </p>
                       )}
                       {contact.contact?.phone && (
-                        <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
+                        <p className="text-xs md:text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                           {contact.contact.phone}
                         </p>
                       )}
@@ -1225,73 +1225,73 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             {Object.keys(consultantContacts).length > 0 && (
               <div className="flex-shrink-0">
                 <div 
-                  className="mb-2 pb-1 border-b"
+                  className="mb-3 md:mb-2 pb-2 md:pb-1 border-b"
                   style={{ borderColor: colors.primary }}
                 >
                   <h3 
-                    className="text-xs font-bold mb-1 flex items-center uppercase tracking-wider"
+                    className="text-sm md:text-xs font-bold mb-1.5 md:mb-1 flex items-center uppercase tracking-wider"
                     style={{ color: colors.primary }}
                   >
                     <span 
-                      className="inline-block w-1 h-3 mr-1.5"
+                      className="inline-block w-1.5 md:w-1 h-4 md:h-3 mr-2 md:mr-1.5"
                       style={{ backgroundColor: colors.primary }}
                     />
                     Consultants
                   </h3>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 md:gap-x-6 gap-y-3 md:gap-y-4 auto-rows-min pl-2 md:pl-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 md:gap-x-6 gap-y-4 md:gap-y-4 auto-rows-min pl-2 md:pl-4">
                   {Object.entries(consultantContacts).map(([type, data]) => (
                     <div key={type} className="flex flex-col">
                       <div 
-                        className="mb-2 pb-1 border-b"
+                        className="mb-3 md:mb-2 pb-2 md:pb-1 border-b"
                         style={{ borderColor: colors.primary }}
                       >
                         <p 
-                          className="text-xs font-semibold mb-1 flex items-center"
+                          className="text-sm md:text-xs font-semibold mb-1.5 md:mb-1 flex items-center"
                           style={{ color: colors.textSecondary }}
                         >
                           <span 
-                            className="inline-block w-1 h-3 mr-1.5"
+                            className="inline-block w-1.5 md:w-1 h-4 md:h-3 mr-2 md:mr-1.5"
                             style={{ backgroundColor: colors.primary }}
                           />
                           {data.displayName}
                         </p>
                         {data.company?.name && (
                           <p 
-                            className="text-base font-bold"
+                            className="text-lg md:text-base font-bold"
                             style={{ color: colors.primary }}
                           >
                             {data.company.name}
                           </p>
                         )}
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 md:gap-2 mt-1.5">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-2 mt-2 md:mt-1.5">
                         {data.contacts.length > 0 ? (
                           data.contacts.map((contact: any, idx: number) => (
-                          <div key={idx} className="p-1.5 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
-                            <p className="text-xs font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
+                          <div key={idx} className="p-2 md:p-1.5 border-l-2 md:border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                            <p className="text-sm md:text-xs font-semibold mb-1 md:mb-0.5" style={{ color: colors.textPrimary }}>
                               {contact.contact?.firstName} {contact.contact?.lastName}
                             </p>
                             {contact.contact?.position && (
-                              <p className="text-[10px] mb-0.5 leading-tight" style={{ color: colors.textSecondary }}>
+                              <p className="text-xs md:text-[10px] mb-1 md:mb-0.5 leading-tight" style={{ color: colors.textSecondary }}>
                                 {contact.contact.position}
                               </p>
                             )}
                             {contact.contact?.email && (
-                              <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
+                              <p className="text-xs md:text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                                 {contact.contact.email}
                               </p>
                             )}
                             {contact.contact?.phone && (
-                              <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
+                              <p className="text-xs md:text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                                 {contact.contact.phone}
                               </p>
                             )}
                           </div>
                           ))
                         ) : (
-                          <div className="p-1.5 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
-                            <p className="text-[10px] italic" style={{ color: colors.textMuted }}>
+                          <div className="p-2 md:p-1.5 border-l-2 md:border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                            <p className="text-xs md:text-[10px] italic" style={{ color: colors.textMuted }}>
                               No contacts assigned
                             </p>
                           </div>
@@ -1451,13 +1451,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         <ReportHeader project={project} pageTitle="Planning & Milestones" />
         <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Date Comparison Table */}
-          <div className="mb-3 md:mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+          <div className="mb-4 md:mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
             <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
               <thead>
                 <tr>
                   <th 
-                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
+                    className="text-left py-2.5 md:py-3 px-3 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-sm md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
@@ -1467,7 +1467,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     Date Type
                   </th>
                   <th 
-                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
+                    className="text-left py-2.5 md:py-3 px-3 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-sm md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
@@ -1477,7 +1477,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     Baseline (Project)
                   </th>
                   <th 
-                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
+                    className="text-left py-2.5 md:py-3 px-3 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-sm md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
@@ -1487,7 +1487,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     Target
                   </th>
                   <th 
-                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
+                    className="text-left py-2.5 md:py-3 px-3 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-sm md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
@@ -1507,13 +1507,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     backgroundColor: 'transparent'
                   }}
                 >
-                  <td className="py-2 md:py-3 px-2 md:px-4 font-semibold text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="py-2.5 md:py-3 px-3 md:px-4 font-semibold text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                     Start Date
                   </td>
-                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="py-2.5 md:py-3 px-3 md:px-4 text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(project.startDate)}
                   </td>
-                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="py-2.5 md:py-3 px-3 md:px-4 text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(planning.targetProgramStart)}
                   </td>
                   <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
@@ -1528,13 +1528,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     backgroundColor: `${colors.backgroundSecondary}40`
                   }}
                 >
-                  <td className="py-2 md:py-3 px-2 md:px-4 font-semibold text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="py-2.5 md:py-3 px-3 md:px-4 font-semibold text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                     End Date
                   </td>
-                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="py-2.5 md:py-3 px-3 md:px-4 text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(project.endDate)}
                   </td>
-                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="py-2.5 md:py-3 px-3 md:px-4 text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(planning.targetProgramEnd)}
                   </td>
                   <td className="py-3 px-4" style={{ color: colors.warning, fontSize: '0.75rem', fontWeight: '600' }}>
@@ -1550,7 +1550,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       backgroundColor: 'transparent'
                     }}
                   >
-                    <td className="py-2 md:py-3 px-2 md:px-4 font-semibold text-xs md:text-sm" style={{ color: colors.textPrimary }}>
+                    <td className="py-2.5 md:py-3 px-3 md:px-4 font-semibold text-sm md:text-sm" style={{ color: colors.textPrimary }}>
                       Approved EOT
                     </td>
                     <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
@@ -1684,33 +1684,37 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <button
                       onClick={() => setPlanningMilestonesPage(Math.max(0, planningMilestonesPage - 1))}
                       disabled={planningMilestonesPage === 0}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: planningMilestonesPage === 0 ? colors.textMuted : colors.primary,
-                        backgroundColor: planningMilestonesPage === 0 ? 'transparent' : colors.backgroundSecondary
+                        backgroundColor: planningMilestonesPage === 0 ? 'transparent' : colors.backgroundSecondary,
+                        minWidth: '40px',
+                        minHeight: '40px'
                       }}
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
-                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    <span className="text-sm md:text-xs" style={{ color: colors.textSecondary }}>
                       {planningMilestonesPage + 1} / {totalMilestonePages}
                       </span>
                     <button
                       onClick={() => setPlanningMilestonesPage(Math.min(totalMilestonePages - 1, planningMilestonesPage + 1))}
                       disabled={planningMilestonesPage >= totalMilestonePages - 1}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
-                      style={{ 
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
+                      style={{
                         color: planningMilestonesPage >= totalMilestonePages - 1 ? colors.textMuted : colors.primary,
-                        backgroundColor: planningMilestonesPage >= totalMilestonePages - 1 ? 'transparent' : colors.backgroundSecondary
+                        backgroundColor: planningMilestonesPage >= totalMilestonePages - 1 ? 'transparent' : colors.backgroundSecondary,
+                        minWidth: '40px',
+                        minHeight: '40px'
                       }}
                     >
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                     </div>
                 )}
                   </div>
               <div className="overflow-x-auto -mx-3 md:mx-0">
-                <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+                <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -1952,7 +1956,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2103,7 +2107,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2254,7 +2258,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2471,7 +2475,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2570,7 +2574,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2810,7 +2814,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2938,7 +2942,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -3171,13 +3175,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <button
                   onClick={() => setChecklistPage(Math.max(0, checklistPage - 1))}
                   disabled={checklistPage === 0}
-                  className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                  className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                   style={{ 
                     color: checklistPage === 0 ? colors.textMuted : colors.primary,
-                    backgroundColor: checklistPage === 0 ? 'transparent' : colors.backgroundSecondary
+                    backgroundColor: checklistPage === 0 ? 'transparent' : colors.backgroundSecondary,
+                    minWidth: '40px',
+                    minHeight: '40px'
                   }}
                 >
-                  <ArrowLeft className="w-4 h-4" />
+                  <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                 </button>
                 <span className="text-xs" style={{ color: colors.textSecondary }}>
                   {checklistPage + 1} / {Math.ceil(allChecklistItems.length / 25)}
@@ -3185,13 +3191,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <button
                   onClick={() => setChecklistPage(Math.min(Math.ceil(allChecklistItems.length / 25) - 1, checklistPage + 1))}
                   disabled={checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1}
-                  className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
-                  style={{ 
+                  className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
+                  style={{
                     color: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? colors.textMuted : colors.primary,
-                    backgroundColor: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? 'transparent' : colors.backgroundSecondary
+                    backgroundColor: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? 'transparent' : colors.backgroundSecondary,
+                    minWidth: '40px',
+                    minHeight: '40px'
                   }}
                 >
-                  <ArrowRight className="w-4 h-4" />
+                  <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                 </button>
               </div>
             )}
@@ -3722,13 +3730,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setAssignedStaffPage(Math.max(0, assignedStaffPage - 1))}
                     disabled={assignedStaffPage === 0}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: assignedStaffPage === 0 ? colors.textMuted : colors.primary,
-                      backgroundColor: assignedStaffPage === 0 ? 'transparent' : colors.backgroundSecondary
+                      backgroundColor: assignedStaffPage === 0 ? 'transparent' : colors.backgroundSecondary,
+                      minWidth: '40px',
+                      minHeight: '40px'
                     }}
                   >
-                    <ArrowLeft className="w-4 h-4" />
+                    <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
                   <span className="text-xs" style={{ color: colors.textSecondary }}>
                     {assignedStaffPage + 1} / {Math.ceil(assignedStaffList.length / 8)}
@@ -3736,13 +3746,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                   onClick={() => setAssignedStaffPage(Math.min(Math.ceil(assignedStaffList.length / 8) - 1, assignedStaffPage + 1))}
                   disabled={assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1}
-                  className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                  className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                   style={{ 
                     color: assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1 ? colors.textMuted : colors.primary,
-                    backgroundColor: assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1 ? 'transparent' : colors.backgroundSecondary
+                    backgroundColor: assignedStaffPage >= Math.ceil(assignedStaffList.length / 8) - 1 ? 'transparent' : colors.backgroundSecondary,
+                    minWidth: '40px',
+                    minHeight: '40px'
                   }}
                   >
-                    <ArrowRight className="w-4 h-4" />
+                    <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                   </button>
                 </div>
               )}
@@ -3762,7 +3774,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
                         <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -3950,7 +3962,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setBalanceStaffPage(Math.max(0, balanceStaffPage - 1))}
                     disabled={balanceStaffPage === 0}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: balanceStaffPage === 0 ? colors.textMuted : colors.primary,
                       backgroundColor: balanceStaffPage === 0 ? 'transparent' : colors.backgroundSecondary
@@ -3964,7 +3976,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setBalanceStaffPage(Math.min(Math.ceil(balanceStaffList.length / 8) - 1, balanceStaffPage + 1))}
                     disabled={balanceStaffPage >= Math.ceil(balanceStaffList.length / 8) - 1}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: balanceStaffPage >= Math.ceil(balanceStaffList.length / 8) - 1 ? colors.textMuted : colors.primary,
                       backgroundColor: balanceStaffPage >= Math.ceil(balanceStaffList.length / 8) - 1 ? 'transparent' : colors.backgroundSecondary
@@ -3988,7 +4000,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                       <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4385,7 +4397,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setAssignedLaboursPage(Math.max(0, assignedLaboursPage - 1))}
                     disabled={assignedLaboursPage === 0}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: assignedLaboursPage === 0 ? colors.textMuted : colors.primary,
                       backgroundColor: assignedLaboursPage === 0 ? 'transparent' : colors.backgroundSecondary
@@ -4399,7 +4411,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setAssignedLaboursPage(Math.min(Math.ceil(assignedLaboursList.length / 10) - 1, assignedLaboursPage + 1))}
                     disabled={assignedLaboursPage >= Math.ceil(assignedLaboursList.length / 10) - 1}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: assignedLaboursPage >= Math.ceil(assignedLaboursList.length / 10) - 1 ? colors.textMuted : colors.primary,
                       backgroundColor: assignedLaboursPage >= Math.ceil(assignedLaboursList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
@@ -4425,7 +4437,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
                         <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4609,7 +4621,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setBalanceLaboursPage(Math.max(0, balanceLaboursPage - 1))}
                     disabled={balanceLaboursPage === 0}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: balanceLaboursPage === 0 ? colors.textMuted : colors.primary,
                       backgroundColor: balanceLaboursPage === 0 ? 'transparent' : colors.backgroundSecondary
@@ -4623,7 +4635,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <button
                     onClick={() => setBalanceLaboursPage(Math.min(Math.ceil(balanceLaboursList.length / 10) - 1, balanceLaboursPage + 1))}
                     disabled={balanceLaboursPage >= Math.ceil(balanceLaboursList.length / 10) - 1}
-                    className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                    className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                     style={{ 
                       color: balanceLaboursPage >= Math.ceil(balanceLaboursList.length / 10) - 1 ? colors.textMuted : colors.primary,
                       backgroundColor: balanceLaboursPage >= Math.ceil(balanceLaboursList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
@@ -4647,7 +4659,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                       <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4759,27 +4771,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <button
                       onClick={() => setLabourSupplyPage(Math.max(0, labourSupplyPage - 1))}
                       disabled={labourSupplyPage === 0}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: labourSupplyPage === 0 ? colors.textMuted : colors.primary,
                         backgroundColor: labourSupplyPage === 0 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
-                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    <span className="text-sm md:text-xs" style={{ color: colors.textSecondary }}>
                       {labourSupplyPage + 1} / {Math.ceil(content.labourSupply.length / 10)}
                     </span>
                     <button
                       onClick={() => setLabourSupplyPage(Math.min(Math.ceil(content.labourSupply.length / 10) - 1, labourSupplyPage + 1))}
                       disabled={labourSupplyPage >= Math.ceil(content.labourSupply.length / 10) - 1}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: labourSupplyPage >= Math.ceil(content.labourSupply.length / 10) - 1 ? colors.textMuted : colors.primary,
                         backgroundColor: labourSupplyPage >= Math.ceil(content.labourSupply.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </div>
                 )}
@@ -4797,7 +4809,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                         <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -5099,27 +5111,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <button
                       onClick={() => setAssignedDirectPlantsPage(Math.max(0, assignedDirectPlantsPage - 1))}
                       disabled={assignedDirectPlantsPage === 0}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: assignedDirectPlantsPage === 0 ? colors.textMuted : colors.primary,
                         backgroundColor: assignedDirectPlantsPage === 0 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
-                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    <span className="text-sm md:text-xs" style={{ color: colors.textSecondary }}>
                       {assignedDirectPlantsPage + 1} / {Math.ceil(allAssignedPlants.length / 10)}
                     </span>
                     <button
                       onClick={() => setAssignedDirectPlantsPage(Math.min(Math.ceil(allAssignedPlants.length / 10) - 1, assignedDirectPlantsPage + 1))}
                       disabled={assignedDirectPlantsPage >= Math.ceil(allAssignedPlants.length / 10) - 1}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: assignedDirectPlantsPage >= Math.ceil(allAssignedPlants.length / 10) - 1 ? colors.textMuted : colors.primary,
                         backgroundColor: assignedDirectPlantsPage >= Math.ceil(allAssignedPlants.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </div>
                 )}
@@ -5137,7 +5149,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                         <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                           <thead>
                             <tr>
                               <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plant</th>
@@ -5200,27 +5212,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <button
                       onClick={() => setBalanceDirectPlantsPage(Math.max(0, balanceDirectPlantsPage - 1))}
                       disabled={balanceDirectPlantsPage === 0}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: balanceDirectPlantsPage === 0 ? colors.textMuted : colors.primary,
                         backgroundColor: balanceDirectPlantsPage === 0 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
-                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    <span className="text-sm md:text-xs" style={{ color: colors.textSecondary }}>
                       {balanceDirectPlantsPage + 1} / {Math.ceil(balancePlantsList.length / 10)}
                     </span>
                     <button
                       onClick={() => setBalanceDirectPlantsPage(Math.min(Math.ceil(balancePlantsList.length / 10) - 1, balanceDirectPlantsPage + 1))}
                       disabled={balanceDirectPlantsPage >= Math.ceil(balancePlantsList.length / 10) - 1}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: balanceDirectPlantsPage >= Math.ceil(balancePlantsList.length / 10) - 1 ? colors.textMuted : colors.primary,
                         backgroundColor: balanceDirectPlantsPage >= Math.ceil(balancePlantsList.length / 10) - 1 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </div>
                 )}
@@ -5238,7 +5250,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                         <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                           <thead>
                             <tr>
                               <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Requirement</th>
@@ -5313,27 +5325,27 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     <button
                       onClick={() => setAssetsPage(Math.max(0, assetsPage - 1))}
                       disabled={assetsPage === 0}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: assetsPage === 0 ? colors.textMuted : colors.primary,
                         backgroundColor: assetsPage === 0 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowLeft className="w-4 h-4" />
+                      <ArrowLeft className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
-                    <span className="text-xs" style={{ color: colors.textSecondary }}>
+                    <span className="text-sm md:text-xs" style={{ color: colors.textSecondary }}>
                       {assetsPage + 1} / {totalPagesForAssets}
                     </span>
                     <button
                       onClick={() => setAssetsPage(Math.min(totalPagesForAssets - 1, assetsPage + 1))}
                       disabled={assetsPage >= totalPagesForAssets - 1}
-                      className="p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity"
+                      className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
                       style={{ 
                         color: assetsPage >= totalPagesForAssets - 1 ? colors.textMuted : colors.primary,
                         backgroundColor: assetsPage >= totalPagesForAssets - 1 ? 'transparent' : colors.backgroundSecondary
                       }}
                     >
-                      <ArrowRight className="w-4 h-4" />
+                      <ArrowRight className="w-5 h-5 md:w-4 md:h-4" />
                     </button>
                   </div>
               )}
@@ -5351,7 +5363,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                         <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                           <thead>
                             <tr>
                               <th 
@@ -6301,7 +6313,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
               <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -6779,7 +6791,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
               <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                 <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -7280,7 +7292,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
                 <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
                   <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
                     <thead>
                       <tr>
                       <th 
@@ -7778,7 +7790,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           {/* Close Out Table */}
           <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
             <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
+              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
               <thead>
                 <tr>
                   <th 
