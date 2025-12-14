@@ -324,7 +324,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         }
       });
     }
-    
+
     // Then, process labour assignments and match them to trades
     if (Array.isArray(laboursData)) {
       laboursData.forEach((labourAssignment: any) => {
@@ -348,7 +348,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         }
       });
     }
-    
+
     // Also process assignments from projectTrades if they're included there
     if (Array.isArray(projectTradesData)) {
       projectTradesData.forEach((projectTrade: any) => {
@@ -367,9 +367,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 allAssignedLabours.push({
                   ...labourAssignment,
                   tradeName: tradeName,
-                });
-              }
-              
+      });
+    }
+
               // Add to assignments for this trade
               if (tradesMap.has(tradeName)) {
                 const alreadyInAssignments = tradesMap.get(tradeName)!.assignments.some(
@@ -487,8 +487,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         if (assignments.length > 0 && assignments[0].plant) {
           const plantType = assignments[0].plant.plantType;
           isIndirect = (plantType === 'indirect' || plantType === 'Indirect');
-        }
-        
+    }
+
         // For now, we'll categorize requirements based on assigned plants
         // If no assignments, we can't determine type, so default to direct
         if (isIndirect) {
@@ -528,7 +528,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         allPlants: plantsData,
         plantRequirements: plantRequirementsData,
       }
-    });
+      });
 
     // Slide 7: Assets
     // Always show assets slide, even if empty (to match other slides behavior)
@@ -837,11 +837,11 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const monthName = getMonthName(reportMonth);
     
     return (
-      <div className="h-full flex flex-col justify-center items-center p-12 relative overflow-hidden">
+      <div className="h-full flex flex-col justify-between items-center p-8 md:p-12 relative overflow-hidden" style={{ paddingTop: '2rem', paddingBottom: '2rem' }}>
         {/* Project Title - Top */}
-        <div className="mb-8 text-center relative z-10">
+        <div className="text-center relative z-10 flex-shrink-0">
           <h1 
-            className="text-5xl font-bold mb-3 relative inline-block"
+            className="text-4xl md:text-5xl font-bold mb-3 relative inline-block"
             style={{ color: colors.textPrimary }}
           >
             {project.projectName}
@@ -855,7 +855,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             />
           </h1>
           <p 
-            className="text-2xl font-medium mt-4"
+            className="text-lg md:text-2xl font-medium mt-4"
             style={{ color: colors.textSecondary }}
           >
             {project.projectCode}
@@ -863,9 +863,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
 
         {/* Report Title and Date - Above Picture with decorative line */}
-        <div className="mb-6 text-center relative z-10 w-full max-w-2xl">
+        <div className="text-center relative z-10 w-full max-w-2xl flex-shrink-0 my-4">
           <p 
-            className="text-lg font-medium mb-2 uppercase tracking-wider"
+            className="text-sm md:text-lg font-medium mb-2 uppercase tracking-wider"
             style={{ color: colors.textSecondary }}
           >
             Monthly Report
@@ -876,7 +876,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               style={{ backgroundColor: colors.primary, opacity: 0.3 }}
             />
             <p 
-              className="text-2xl font-semibold px-4"
+              className="text-lg md:text-2xl font-semibold px-2 md:px-4"
               style={{ color: colors.primary }}
             >
               {monthName} {reportYear}
@@ -889,9 +889,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         </div>
 
         {/* Featured Picture - Center */}
-        <div className="flex items-center justify-center my-6 w-full max-w-4xl relative z-10">
+        <div className="flex items-center justify-center w-full max-w-4xl relative z-10 flex-1 min-h-0 my-4">
           {featuredPicture && featuredPicture.media?.publicUrl ? (
-            <div className="relative w-full">
+            <div className="relative w-full h-full flex items-center justify-center">
               {/* Decorative corner accents */}
               <div 
                 className="absolute -top-2 -left-2 w-8 h-8 border-t-2 border-l-2"
@@ -912,15 +912,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               <img
                 src={featuredPicture.media.publicUrl}
                 alt={featuredPicture.caption || 'Project Featured Image'}
-                className="w-full h-auto max-h-[42vh] object-contain relative z-10"
+                className="w-auto h-auto max-w-full max-h-full object-contain relative z-10"
               />
             </div>
           ) : null}
         </div>
 
         {/* Manager and Director - Bottom with decorative styling */}
-        <div className="mt-8 w-full max-w-4xl relative z-10">
-          <div className="grid grid-cols-2 gap-12">
+        <div className="w-full max-w-4xl relative z-10 flex-shrink-0 mt-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-12">
             <div className="text-center relative">
               <div 
                 className="absolute top-0 left-1/2 transform -translate-x-1/2 w-12 h-0.5"
@@ -965,23 +965,21 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
   // Reusable Header Component
   const ReportHeader = ({ project, pageTitle }: { project: any; pageTitle?: string }) => (
-    <div className="flex-shrink-0 py-3 flex items-center justify-between px-6" style={{ backgroundColor: colors.primary, position: 'absolute', top: 0, left: 0, right: 0, width: '100%', zIndex: 10, margin: 0 }}>
-      {/* Left spacer for centering */}
-      <div className="flex-1"></div>
-      
+    <div className="flex-shrink-0 py-1 md:py-1.5 flex flex-col md:flex-row items-center justify-between px-3 md:px-6" style={{ backgroundColor: colors.primary, position: 'absolute', top: 0, left: 0, right: 0, width: '100%', zIndex: 10, margin: 0 }}>
+      {/* Mobile: Stack vertically, Desktop: Horizontal layout */}
       {/* Centered Page Title */}
-      <div className="flex-1 flex items-center justify-center">
-        <h1 className="text-2xl font-bold text-center" style={{ color: colors.backgroundPrimary }}>
+      <div className="flex-1 flex items-center justify-center order-2 md:order-1">
+        <h1 className="text-base md:text-xl font-bold text-center" style={{ color: colors.backgroundPrimary }}>
           {pageTitle || 'Project Report'}
         </h1>
       </div>
       
       {/* Right side - Project Title and Code */}
-      <div className="flex-1 flex flex-col items-end">
-        <h2 className="text-lg font-bold text-right" style={{ color: colors.backgroundPrimary }}>
+      <div className="flex-1 flex flex-col items-end order-1 md:order-2 w-full md:w-auto mb-0.5 md:mb-0">
+        <h2 className="text-xs md:text-base font-bold text-right" style={{ color: colors.backgroundPrimary }}>
           {project?.projectName || 'Project'}
         </h2>
-        <p className="text-sm text-right" style={{ color: colors.backgroundPrimary }}>
+        <p className="text-[10px] md:text-xs text-right" style={{ color: colors.backgroundPrimary }}>
           {project?.projectCode || ''}
         </p>
       </div>
@@ -1164,55 +1162,55 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Stakeholders" />
-        <div className="flex-1 overflow-y-auto p-6" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-2 md:p-4" style={{ paddingTop: '4rem', paddingBottom: '1.5rem' }}>
         {/* Contacts Section - Readable Layout */}
           <div className="w-full max-w-6xl mx-auto">
-          <div className="h-full flex flex-col space-y-6">
+          <div className="flex flex-col space-y-3">
             {/* Client */}
             {clientContacts.length > 0 && (
-              <div>
+              <div className="flex-shrink-0">
                 <div 
-                  className="mb-4 pb-2 border-b"
+                  className="mb-2 pb-1 border-b"
                   style={{ borderColor: colors.primary }}
                 >
                   <p 
-                    className="text-sm font-bold mb-2 flex items-center uppercase tracking-wider"
+                    className="text-xs font-bold mb-1 flex items-center uppercase tracking-wider"
                     style={{ color: colors.primary }}
                   >
                     <span 
-                      className="inline-block w-1.5 h-4 mr-2"
+                      className="inline-block w-1 h-3 mr-1.5"
                       style={{ backgroundColor: colors.primary }}
                     />
                     Client
                   </p>
                 </div>
-                <div className="pl-6">
+                <div className="pl-4">
                   {project?.client?.name && (
                     <p 
-                      className="text-lg font-bold mb-2"
+                      className="text-base font-bold mb-1.5"
                       style={{ color: colors.primary }}
                     >
                       {project.client.name}
                     </p>
                   )}
-                  <div className="grid grid-cols-4 gap-4 mt-2">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-1.5 md:gap-2.5 mt-1.5">
                   {clientContacts.map((contact: any, idx: number) => (
-                    <div key={idx} className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
-                      <p className="text-sm font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                    <div key={idx} className="p-1.5 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                      <p className="text-xs font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
                         {contact.contact?.firstName} {contact.contact?.lastName}
                       </p>
                       {contact.contact?.position && (
-                        <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>
+                        <p className="text-[10px] mb-0.5 leading-tight" style={{ color: colors.textSecondary }}>
                           {contact.contact.position}
                         </p>
                       )}
                       {contact.contact?.email && (
-                        <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                        <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                           {contact.contact.email}
                         </p>
                       )}
                       {contact.contact?.phone && (
-                        <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                        <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                           {contact.contact.phone}
                         </p>
                       )}
@@ -1225,75 +1223,75 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
             {/* Consultants - Grouped by type */}
             {Object.keys(consultantContacts).length > 0 && (
-              <div className="flex-1 flex flex-col min-h-0">
+              <div className="flex-shrink-0">
                 <div 
-                  className="mb-4 pb-2 border-b"
+                  className="mb-2 pb-1 border-b"
                   style={{ borderColor: colors.primary }}
                 >
                   <h3 
-                    className="text-sm font-bold mb-2 flex items-center uppercase tracking-wider"
+                    className="text-xs font-bold mb-1 flex items-center uppercase tracking-wider"
                     style={{ color: colors.primary }}
                   >
                     <span 
-                      className="inline-block w-1.5 h-4 mr-2"
+                      className="inline-block w-1 h-3 mr-1.5"
                       style={{ backgroundColor: colors.primary }}
                     />
                     Consultants
                   </h3>
                 </div>
-                <div className="flex-1 grid grid-cols-2 gap-x-10 gap-y-6 auto-rows-min pl-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-x-4 md:gap-x-6 gap-y-3 md:gap-y-4 auto-rows-min pl-2 md:pl-4">
                   {Object.entries(consultantContacts).map(([type, data]) => (
                     <div key={type} className="flex flex-col">
                       <div 
-                        className="mb-4 pb-2 border-b"
+                        className="mb-2 pb-1 border-b"
                         style={{ borderColor: colors.primary }}
                       >
                         <p 
-                          className="text-sm font-semibold mb-2 flex items-center"
+                          className="text-xs font-semibold mb-1 flex items-center"
                           style={{ color: colors.textSecondary }}
                         >
                           <span 
-                            className="inline-block w-1.5 h-4 mr-2"
+                            className="inline-block w-1 h-3 mr-1.5"
                             style={{ backgroundColor: colors.primary }}
                           />
                           {data.displayName}
                         </p>
                         {data.company?.name && (
                           <p 
-                            className="text-lg font-bold"
+                            className="text-base font-bold"
                             style={{ color: colors.primary }}
                           >
                             {data.company.name}
                           </p>
                         )}
                       </div>
-                      <div className="grid grid-cols-2 gap-3 mt-2">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-1.5 md:gap-2 mt-1.5">
                         {data.contacts.length > 0 ? (
                           data.contacts.map((contact: any, idx: number) => (
-                          <div key={idx} className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
-                            <p className="text-sm font-semibold mb-1" style={{ color: colors.textPrimary }}>
+                          <div key={idx} className="p-1.5 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                            <p className="text-xs font-semibold mb-0.5" style={{ color: colors.textPrimary }}>
                               {contact.contact?.firstName} {contact.contact?.lastName}
                             </p>
                             {contact.contact?.position && (
-                              <p className="text-xs mb-1" style={{ color: colors.textSecondary }}>
+                              <p className="text-[10px] mb-0.5 leading-tight" style={{ color: colors.textSecondary }}>
                                 {contact.contact.position}
                               </p>
                             )}
                             {contact.contact?.email && (
-                              <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                              <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                                 {contact.contact.email}
                               </p>
                             )}
                             {contact.contact?.phone && (
-                              <p className="text-xs truncate" style={{ color: colors.textMuted }}>
+                              <p className="text-[10px] truncate leading-tight" style={{ color: colors.textMuted }}>
                                 {contact.contact.phone}
                               </p>
                             )}
                           </div>
                           ))
                         ) : (
-                          <div className="p-2 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
-                            <p className="text-xs italic" style={{ color: colors.textMuted }}>
+                          <div className="p-1.5 border-l" style={{ borderColor: colors.primary, backgroundColor: colors.backgroundSecondary }}>
+                            <p className="text-[10px] italic" style={{ color: colors.textMuted }}>
                               No contacts assigned
                             </p>
                           </div>
@@ -1451,52 +1449,49 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Planning & Milestones" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Date Comparison Table */}
-          <div className="mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-            <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+          <div className="mb-3 md:mb-4 rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+            <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
               <thead>
                 <tr>
                   <th 
-                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
-                      borderBottom: `2px solid ${colors.primary}`,
-                      fontSize: '0.7rem'
+                      borderBottom: `2px solid ${colors.primary}`
                     }}
                   >
                     Date Type
                   </th>
                   <th 
-                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
-                      borderBottom: `2px solid ${colors.primary}`,
-                      fontSize: '0.7rem'
+                      borderBottom: `2px solid ${colors.primary}`
                     }}
                   >
                     Baseline (Project)
                   </th>
                   <th 
-                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
-                      borderBottom: `2px solid ${colors.primary}`,
-                      fontSize: '0.7rem'
+                      borderBottom: `2px solid ${colors.primary}`
                     }}
                   >
                     Target
                   </th>
                   <th 
-                    className="text-left py-3 px-4 font-bold uppercase tracking-wider whitespace-nowrap"
+                    className="text-left py-2 md:py-3 px-2 md:px-4 font-bold uppercase tracking-wider whitespace-nowrap text-xs md:text-sm"
                     style={{ 
                       color: colors.primary, 
                       backgroundColor: `${colors.primary}10`,
-                      borderBottom: `2px solid ${colors.primary}`,
-                      fontSize: '0.7rem'
+                      borderBottom: `2px solid ${colors.primary}`
                     }}
                   >
                     EOT / Revised
@@ -1512,13 +1507,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     backgroundColor: 'transparent'
                   }}
                 >
-                  <td className="py-3 px-4 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                  <td className="py-2 md:py-3 px-2 md:px-4 font-semibold text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                     Start Date
                   </td>
-                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(project.startDate)}
                   </td>
-                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(planning.targetProgramStart)}
                   </td>
                   <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
@@ -1533,13 +1528,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     backgroundColor: `${colors.backgroundSecondary}40`
                   }}
                 >
-                  <td className="py-3 px-4 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                  <td className="py-2 md:py-3 px-2 md:px-4 font-semibold text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                     End Date
                   </td>
-                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(project.endDate)}
                   </td>
-                  <td className="py-3 px-4" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                  <td className="py-2 md:py-3 px-2 md:px-4 text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                     {formatDate(planning.targetProgramEnd)}
                   </td>
                   <td className="py-3 px-4" style={{ color: colors.warning, fontSize: '0.75rem', fontWeight: '600' }}>
@@ -1555,7 +1550,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       backgroundColor: 'transparent'
                     }}
                   >
-                    <td className="py-3 px-4 font-semibold" style={{ color: colors.textPrimary, fontSize: '0.75rem' }}>
+                    <td className="py-2 md:py-3 px-2 md:px-4 font-semibold text-xs md:text-sm" style={{ color: colors.textPrimary }}>
                       Approved EOT
                     </td>
                     <td className="py-3 px-4" style={{ color: colors.textMuted, fontSize: '0.75rem' }}>
@@ -1572,10 +1567,11 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </tbody>
             </table>
                 </div>
+          </div>
 
           {/* Progress Analysis */}
           {(plannedProgress !== null || actualProgress !== null || variance !== null || (project.startDate && project.endDate)) && (
-            <div className="mb-4 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
+            <div className="mb-3 md:mb-4 p-3 md:p-4 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
               <div className="flex items-center justify-between mb-3">
                 <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>Progress Analysis</h3>
                 {variance !== null && (
@@ -1713,8 +1709,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     </div>
                 )}
                   </div>
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+              <div className="overflow-x-auto -mx-3 md:mx-0">
+                <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -1943,10 +1939,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Quality Management" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* E1 Log Entries Table */}
           {e1Entries.length > 0 && (
-            <div className="mt-8 mb-6">
+            <div className="mb-6">
               <div className="flex items-center mb-1">
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                 <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
@@ -1955,7 +1951,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                       </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2091,6 +2088,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 </table>
                       </div>
                       </div>
+                      </div>
           )}
 
           {/* E2 Log Entries Table */}
@@ -2102,9 +2100,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   E2 Log - Procurement Phase Long Lead Items
                 </h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-                      </div>
+                    </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2238,8 +2237,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
-                    </div>
                   </div>
+              </div>
+            </div>
           )}
 
           {/* Quality Checklist Entries Table */}
@@ -2251,9 +2251,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   Quality Checklist
                 </h3>
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
-              </div>
+        </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2375,6 +2376,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -2456,7 +2458,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Risks & Areas of Concern" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Risks Table */}
           {risks.length > 0 && (
             <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
@@ -2468,7 +2470,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
               </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2551,6 +2554,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   </tbody>
                 </table>
                 </div>
+              </div>
             </div>
           )}
 
@@ -2565,7 +2569,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
               </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2692,6 +2697,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -2714,7 +2720,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Areas of Concern" />
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 max-w-full md:max-w-4xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {content.areaOfConcerns && content.areaOfConcerns.length > 0 ? (
             content.areaOfConcerns.map((concern: any, idx: number) => (
               <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
@@ -2791,7 +2797,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="HSE & NOC Tracker" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* HSE Checklist Table */}
           {hseItems.length > 0 && (
             <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6">
@@ -2803,7 +2809,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
               </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -2916,6 +2923,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 </table>
                   </div>
               </div>
+            </div>
           )}
 
           {/* NOC Tracker Table */}
@@ -2929,7 +2937,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
             </div>
               <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -3070,6 +3079,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </div>
           )}
@@ -3154,7 +3164,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Checklist" />
           
-        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 min-h-0 flex flex-col overflow-hidden p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           <div className="flex items-center justify-end mb-1">
             {allChecklistItems.length > 25 && (
               <div className="flex items-center gap-2">
@@ -3327,71 +3337,71 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   {itemsWithNumbers.map((item: any, idx: number) => {
                     const isHeaderItem = item.isHeaderItem && !item.isSubItem;
                     return (
-                      <tr 
-                        key={item.id || idx}
-                        className="hover:opacity-90 transition-opacity"
-                        style={{ 
-                          borderBottom: `1px solid ${colors.primary}15`,
-                          backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
-                        }}
-                      >
+                        <tr 
+                      key={item.id || idx}
+                          className="hover:opacity-90 transition-opacity"
+                          style={{ 
+                            borderBottom: `1px solid ${colors.primary}15`,
+                            backgroundColor: idx % 2 === 0 ? 'transparent' : `${colors.backgroundSecondary}40`
+                          }}
+                        >
                         <td className={`py-0.5 px-2 ${item.isSubItem ? 'pl-8' : ''}`} style={{ 
                           color: colors.textPrimary, 
                           fontSize: '0.7rem', 
                           height: 'auto',
                           fontWeight: isHeaderItem ? 'bold' : 'normal'
                         }}>
-                          {item.displayNumber || '-'}
-                        </td>
+                        {item.displayNumber || '-'}
+                          </td>
                         <td className="py-0.5 px-2" style={{ 
                           color: colors.textSecondary, 
                           fontSize: '0.7rem', 
                           height: 'auto',
                           fontWeight: isHeaderItem ? 'bold' : 'normal'
                         }}>
-                          {item.phase}
-                        </td>
+                            {item.phase}
+                          </td>
                         <td className="py-0.5 px-2" style={{ 
                           color: colors.textSecondary, 
                           fontSize: '0.65rem', 
                           height: 'auto'
                         }}>
-                          {formatDate(item.plannedDate)}
-                        </td>
+                            {formatDate(item.plannedDate)}
+                          </td>
                         <td className="py-0.5 px-2" style={{ 
                           color: colors.textSecondary, 
                           fontSize: '0.65rem', 
                           height: 'auto'
                         }}>
-                          {formatDate(item.actualDate)}
-                        </td>
-                        <td className="py-0.5 px-2" style={{ height: 'auto' }}>
+                            {formatDate(item.actualDate)}
+                          </td>
+                      <td className="py-0.5 px-2" style={{ height: 'auto' }}>
                           {isHeaderItem ? (
                             <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
                           ) : item.status ? (
-                            <span 
-                              className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
-                              style={{ 
-                                backgroundColor: `${getStatusColor(item.status)}15`,
-                                color: getStatusColor(item.status),
-                                border: `1px solid ${getStatusColor(item.status)}30`,
+                              <span 
+                            className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
+                                style={{ 
+                                  backgroundColor: `${getStatusColor(item.status)}15`,
+                                  color: getStatusColor(item.status),
+                              border: `1px solid ${getStatusColor(item.status)}30`,
                                 fontSize: '0.65rem'
-                              }}
-                            >
-                              {item.status}
-                            </span>
-                          ) : (
+                                }}
+                              >
+                                {item.status}
+                              </span>
+                            ) : (
                             <span style={{ color: colors.textMuted, fontSize: '0.65rem' }}>-</span>
-                          )}
-                        </td>
+                            )}
+                          </td>
                         <td className="py-0.5 px-2" style={{ 
                           color: colors.textSecondary, 
                           fontSize: '0.7rem', 
                           height: 'auto'
                         }}>
-                          {item.notes || '-'}
-                        </td>
-                      </tr>
+                              {item.notes || '-'}
+                          </td>
+                        </tr>
                     );
                   })}
                 </tbody>
@@ -3646,8 +3656,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Staff" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
-          {/* Summary Section */}
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
+        {/* Summary Section */}
           <div className="mb-2 grid grid-cols-4 gap-2 flex-shrink-0">
           <div 
             className="p-2 rounded-lg text-center"
@@ -3751,7 +3761,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     const pageStaff = assignedStaffList.slice(pageIdx * 8, (pageIdx + 1) * 8);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
-                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                        <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -3908,6 +3919,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         ))}
                 </tbody>
               </table>
+                        </div>
             </div>
                     );
                   })}
@@ -3975,7 +3987,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   const pageBalanceStaff = balanceStaffList.slice(pageIdx * 8, (pageIdx + 1) * 8);
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
-                      <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                      <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4064,6 +4077,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   ))}
                 </tbody>
                       </table>
+                      </div>
         </div>
                   );
                 })}
@@ -4305,7 +4319,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Labours" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Summary Section */}
           <div className="mb-2 grid grid-cols-4 gap-2 flex-shrink-0">
           <div 
@@ -4314,7 +4328,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           >
             <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
               Total Needed
-            </p>
+                  </p>
             <p className="text-xl font-bold" style={{ color: colors.primary }}>
               {roundedTotalNeeded.toFixed(2)}
                   </p>
@@ -4410,7 +4424,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     const pageLabours = assignedLaboursList.slice(pageIdx * 10, (pageIdx + 1) * 10);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full h-full overflow-hidden" style={{ minWidth: '100%' }}>
-                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                        <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4564,10 +4579,11 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 </tbody>
               </table>
               </div>
+            </div>
                     );
                   })}
-            </div>
-        </div>
+                </div>
+              </div>
             ) : (
               <div className="text-center py-4">
                 <User className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
@@ -4630,7 +4646,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   const pageBalanceLabours = balanceLaboursList.slice(pageIdx * 10, (pageIdx + 1) * 10);
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
-                      <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                      <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4719,12 +4736,13 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   ))}
                 </tbody>
               </table>
-        </div>
+                      </div>
+                    </div>
                   );
                 })}
-          </div>
-        </div>
+              </div>
             </div>
+          </div>
           )}
 
           {/* Labour Supply Table - Shows labour supply details with Slider */}
@@ -4778,7 +4796,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     const pageLabourSupply = content.labourSupply.slice(pageIdx * 10, (pageIdx + 1) * 10);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
-                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                        <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -4857,6 +4876,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     ))}
                   </tbody>
                 </table>
+                        </div>
                       </div>
                     );
                   })}
@@ -4876,7 +4896,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Labour Supply" />
-        <div className="flex-1 overflow-y-auto p-6 space-y-4 max-w-4xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 space-y-4 max-w-full md:max-w-4xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {content.map((supply: any, idx: number) => (
             <div key={idx} className="p-6 rounded-lg" style={{ backgroundColor: colors.backgroundSecondary }}>
               <p className="text-lg font-medium mb-2" style={{ color: colors.textPrimary }}>{supply.trade || 'N/A'}</p>
@@ -5014,7 +5034,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         <ReportHeader project={project} pageTitle="Plant & Equipment" />
 
         {/* Summary Section - Cards */}
-        <div className="mb-2 grid grid-cols-4 gap-2 max-w-6xl mx-auto flex-shrink-0">
+        <div className="mb-2 grid grid-cols-2 md:grid-cols-4 gap-2 max-w-full md:max-w-6xl mx-auto flex-shrink-0 px-3 md:px-0" style={{ paddingTop: '4rem' }}>
           <div 
             className="p-2 rounded-lg text-center"
             style={{ backgroundColor: colors.backgroundSecondary }}
@@ -5022,7 +5042,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             <p className="text-xs font-medium mb-1" style={{ color: colors.textSecondary }}>
               Total Needed
             </p>
-            <p className="text-xl font-bold" style={{ color: colors.primary }}>
+            <p className="text-base md:text-xl font-bold" style={{ color: colors.primary }}>
               {roundedTotalNeeded.toFixed(2)}
               </p>
             </div>
@@ -5065,7 +5085,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         <div className="flex-1 min-h-0 flex flex-col overflow-hidden">
           {/* Assigned Plants Table - All plants with Direct/Indirect type */}
           {allAssignedPlants.length > 0 && (
-            <div className="flex flex-col overflow-hidden max-w-6xl mx-auto w-full mb-6" style={{ 
+            <div className="flex flex-col overflow-hidden max-w-full md:max-w-6xl mx-auto w-full mb-4 md:mb-6" style={{ 
               marginBottom: balancePlantsList.length > 0 ? '16px' : '0'
             }}>
               <div className="flex items-center mb-1">
@@ -5116,7 +5136,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     const pagePlants = allAssignedPlants.slice(pageIdx * 10, (pageIdx + 1) * 10);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
-                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                        <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                           <thead>
                             <tr>
                               <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Plant</th>
@@ -5156,6 +5177,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                             })}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     );
                   })}
@@ -5215,7 +5237,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     const pageBalance = balancePlantsList.slice(pageIdx * 10, (pageIdx + 1) * 10);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
-                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                        <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                           <thead>
                             <tr>
                               <th className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap" style={{ color: colors.primary, backgroundColor: colors.backgroundSecondary, borderBottom: `2px solid ${colors.primary}`, fontSize: '0.7rem', height: 'auto' }}>Requirement</th>
@@ -5236,6 +5259,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           </tbody>
                         </table>
         </div>
+                      </div>
                     );
                   })}
                 </div>
@@ -5268,7 +5292,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Assets" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {totalItems === 0 ? (
             <div className="text-center py-4">
               <Package className="w-8 h-8 mx-auto mb-2" style={{ color: colors.textMuted }} />
@@ -5278,7 +5302,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             </div>
           ) : (
             <>
-              <div className="flex items-center mt-8 mb-1">
+              <div className="flex items-center mb-1">
                 <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                 <h3 className="px-4 text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                   Project Assets
@@ -5326,7 +5350,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     const pageEntries = entries.slice(pageIdx * itemsPerPage, (pageIdx + 1) * itemsPerPage);
                     return (
                       <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
-                        <table className="w-full border-collapse" style={{ fontSize: '0.75rem' }}>
+                        <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                           <thead>
                             <tr>
                               <th 
@@ -5419,6 +5444,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                             ))}
                           </tbody>
                         </table>
+                        </div>
                       </div>
                     );
                   })}
@@ -5568,10 +5594,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Pictures" />
-          <div className="flex-1 flex items-center justify-center" style={{ paddingTop: '5.5rem' }}>
+          <div className="flex-1 flex items-center justify-center" style={{ paddingTop: '4rem' }}>
             <div className="text-center">
-              <Camera className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
-              <p className="text-sm" style={{ color: colors.textSecondary }}>No pictures selected for this report</p>
+              <Camera className="w-8 md:w-12 h-8 md:h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+              <p className="text-xs md:text-sm" style={{ color: colors.textSecondary }}>No pictures selected for this report</p>
             </div>
           </div>
           {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
@@ -5586,8 +5612,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Pictures" />
-        <div className="flex-1 min-h-0 flex items-center justify-center relative p-6" style={{ paddingTop: '5.5rem', paddingBottom: '4rem' }}>
-          <div className="w-full h-full flex gap-3">
+        <div className="flex-1 min-h-0 flex items-center justify-center relative p-3 md:p-6" style={{ paddingTop: '4rem', paddingBottom: '4rem' }}>
+          <div className="w-full h-full flex flex-col md:flex-row gap-2 md:gap-3">
             {/* Left Side - Main Picture Display */}
             <div className="flex-1 min-w-0 flex flex-col items-center justify-center relative h-full">
               {/* Previous Button */}
@@ -5624,8 +5650,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         </p>
                       </div>
                     )}
-                    {/* Main Image - Takes available space */}
-                    <div className="flex-1 min-h-0 w-full flex items-center justify-center" style={{ maxHeight: caption ? 'calc(100% - 50px)' : '100%' }}>
+                    {/* Main Image - Takes available space with footer clearance */}
+                    <div className="flex-1 min-h-0 w-full flex items-center justify-center" style={{ maxHeight: caption ? 'calc(100% - 60px)' : 'calc(100% - 20px)' }}>
                       <img
                         src={pictureUrl}
                         alt={caption}
@@ -5636,7 +5662,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       />
                     </div>
                   </>
-                ) : (
+              ) : (
                   <div className="flex flex-col items-center justify-center">
                     <Camera className="w-16 h-16 mb-4" style={{ color: colors.textMuted }} />
                     <p className="text-sm" style={{ color: colors.textSecondary }}>Image not available</p>
@@ -5661,9 +5687,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               )}
             </div>
 
-            {/* Right Side - Thumbnail Slider (Vertical) */}
+            {/* Right Side - Thumbnail Slider (Vertical on Desktop, Horizontal on Mobile) */}
             {pictures.length > 1 && (
-              <div className="flex flex-col items-center gap-1.5 w-16 flex-shrink-0 h-full">
+              <div className="flex flex-row md:flex-col items-center gap-1.5 w-full md:w-16 h-auto md:h-full flex-shrink-0 justify-center md:justify-start overflow-x-auto md:overflow-x-visible overflow-y-visible md:overflow-y-auto py-2 md:py-0">
                 {/* Picture Counter at Top */}
                 <div className="mb-1 text-center flex-shrink-0">
                   <p className="text-xs font-semibold" style={{ color: colors.textSecondary }}>
@@ -5773,7 +5799,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Commercial Information" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Financial Summary Cards */}
           <div className="mb-6 grid grid-cols-2 gap-4 flex-shrink-0">
             {/* Contract Value Card */}
@@ -6019,7 +6045,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Suppliers" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Summary Cards */}
           <div className="flex justify-center mb-4">
             <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
@@ -6274,7 +6300,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
 
               <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -6488,6 +6515,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </>
           ) : (
@@ -6516,7 +6544,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Subcontractors" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Summary Cards */}
           <div className="flex justify-center mb-4">
             <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
@@ -6750,7 +6778,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
 
               <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                   <thead>
                     <tr>
                       <th 
@@ -6949,6 +6978,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </>
           ) : (
@@ -7034,7 +7064,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Payment Certificate" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Payment Status Cards */}
           <div className="flex justify-center mb-4">
             <div className="flex flex-wrap justify-center gap-3" style={{ maxWidth: '100%' }}>
@@ -7249,7 +7279,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               </div>
 
                 <div className="rounded-lg overflow-hidden mb-6" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-                  <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+                  <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
                     <thead>
                       <tr>
                       <th 
@@ -7433,6 +7464,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     })}
                   </tbody>
                 </table>
+                </div>
               </div>
             </>
           )}
@@ -7579,7 +7611,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Commercial Checklist" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           <div className="grid grid-cols-2 gap-4">
             {checklist.map((item: any, idx: number) => (
               <div
@@ -7659,10 +7691,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       return (
         <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Close Out" />
-          <div className="flex-1 flex items-center justify-center" style={{ paddingTop: '5.5rem' }}>
+          <div className="flex-1 flex items-center justify-center" style={{ paddingTop: '4rem' }}>
             <div className="text-center">
-              <ClipboardCheck className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
-              <p className="text-sm" style={{ color: colors.textSecondary }}>No close out information recorded</p>
+              <ClipboardCheck className="w-8 md:w-12 h-8 md:h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+              <p className="text-xs md:text-sm" style={{ color: colors.textSecondary }}>No close out information recorded</p>
                 </div>
                 </div>
           {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
@@ -7673,7 +7705,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Project Close Out" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Summary Section */}
           <div className="mb-2 grid grid-cols-5 gap-2 flex-shrink-0">
           <div 
@@ -7745,7 +7777,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
 
           {/* Close Out Table */}
           <div className="rounded-lg overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary, border: `1px solid ${colors.border}` }}>
-            <table className="w-full border-collapse" style={{ fontSize: '0.7rem' }}>
+            <div className="overflow-x-auto -mx-3 md:mx-0">
+              <table className="w-full border-collapse min-w-[600px] md:min-w-0 text-xs md:text-sm">
               <thead>
                 <tr>
                   <th 
@@ -7848,6 +7881,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
         {pageNumber && totalPages && <ReportFooter pageNumber={pageNumber} totalPages={totalPages} />}
@@ -7883,7 +7917,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     return (
       <div className="h-full flex flex-col overflow-hidden relative">
         <ReportHeader project={project} pageTitle="Client Feedback" />
-        <div className="flex-1 overflow-y-auto p-6 max-w-6xl mx-auto w-full" style={{ paddingTop: '5.5rem' }}>
+        <div className="flex-1 overflow-y-auto p-3 md:p-6 max-w-full md:max-w-6xl mx-auto w-full" style={{ paddingTop: '4rem', paddingBottom: '2rem' }}>
           {/* Rating Section */}
           {rating && (
             <div className="mb-6">
@@ -8014,12 +8048,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
   return (
     <div className="fixed inset-0 bg-black z-50 flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between p-4" style={{ backgroundColor: colors.backgroundDark }}>
-        <div className="flex items-center space-x-4">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between py-2 md:py-1 px-3 md:px-3 gap-2 md:gap-0" style={{ backgroundColor: colors.backgroundDark }}>
+        {/* Mobile: Top row with close button and title */}
+        {/* Desktop: Left side with close button and title */}
+        <div className="flex items-center space-x-2 md:space-x-2 flex-1 min-w-0">
           <button
             onClick={onClose}
-            className="p-2 rounded-lg transition-colors"
-            style={{ color: colors.textSecondary }}
+            className="p-1.5 md:p-1 rounded transition-colors touch-manipulation flex-shrink-0"
+            style={{ color: colors.textSecondary, minWidth: '36px', minHeight: '36px' }}
             onMouseEnter={(e) => {
               e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
             }}
@@ -8027,23 +8063,26 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               e.currentTarget.style.backgroundColor = 'transparent';
             }}
           >
-            <X className="w-5 h-5" />
+            <X className="w-5 h-5 md:w-4 md:h-4" />
           </button>
-          <div>
-            <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+          <div className="min-w-0 flex-1">
+            <p className="text-xs md:text-xs font-medium truncate leading-tight" style={{ color: colors.textPrimary }}>
               {report.project.projectName}
             </p>
-            <p className="text-xs" style={{ color: colors.textSecondary }}>
+            <p className="text-[11px] md:text-[10px] truncate leading-tight" style={{ color: colors.textSecondary }}>
               {getMonthName(report.reportMonth)} {report.reportYear}
             </p>
           </div>
         </div>
-        <div className="flex items-center space-x-4">
-          <p className="text-sm" style={{ color: colors.textSecondary }}>
-            Slide {currentSlide + 1} of {slides.length}
+        
+        {/* Mobile: Bottom row with navigation controls */}
+        {/* Desktop: Right side with navigation controls */}
+        <div className="flex items-center justify-between md:justify-end space-x-2 md:space-x-1 md:space-x-1.5">
+            <p className="text-xs md:text-xs whitespace-nowrap" style={{ color: colors.textSecondary }}>
+            {currentSlide + 1}/{slides.length}
           </p>
-          <form onSubmit={handlePageJumpSubmit} className="flex items-center space-x-2">
-            <span className="text-xs" style={{ color: colors.textSecondary }}>Go to:</span>
+          <form onSubmit={handlePageJumpSubmit} className="flex items-center space-x-1 md:space-x-0.5">
+            <span className="text-xs md:text-[10px] hidden md:inline" style={{ color: colors.textSecondary }}>Go:</span>
             <input
               type="number"
               min="1"
@@ -8051,7 +8090,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               value={pageJumpValue}
               onChange={(e) => setPageJumpValue(e.target.value)}
               placeholder={`1-${slides.length}`}
-              className="w-16 px-2 py-1 text-sm rounded border text-center"
+              className="w-12 md:w-10 px-1.5 md:px-0.5 py-1 md:py-0.5 text-xs md:text-[10px] rounded border text-center"
               style={{
                 backgroundColor: colors.backgroundPrimary,
                 color: colors.textPrimary,
@@ -8061,7 +8100,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
             <button
               type="submit"
               disabled={!pageJumpValue || isNaN(parseInt(pageJumpValue, 10)) || parseInt(pageJumpValue, 10) < 1 || parseInt(pageJumpValue, 10) > slides.length}
-              className="px-3 py-1 text-xs rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+              className="px-2.5 md:px-1.5 py-1 md:py-0.5 text-xs md:text-[10px] rounded transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               style={{
                 backgroundColor: colors.primary,
                 color: '#FFFFFF'
@@ -8080,44 +8119,47 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               Go
             </button>
           </form>
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-1 md:space-x-0.5">
             <button
               onClick={prevSlide}
               disabled={currentSlide === 0}
-              className="p-2 rounded-lg transition-colors disabled:opacity-50"
+              className="p-2 md:p-1 rounded transition-colors disabled:opacity-50 touch-manipulation"
               style={{ 
                 color: colors.textSecondary,
-                backgroundColor: currentSlide === 0 ? 'transparent' : colors.backgroundSecondary
+                backgroundColor: currentSlide === 0 ? 'transparent' : colors.backgroundSecondary,
+                minWidth: '40px',
+                minHeight: '40px'
               }}
             >
-              <ChevronLeft className="w-5 h-5" />
+              <ChevronLeft className="w-5 h-5 md:w-3.5 md:h-3.5" />
             </button>
             <button
               onClick={nextSlide}
               disabled={currentSlide === slides.length - 1}
-              className="p-2 rounded-lg transition-colors disabled:opacity-50"
+              className="p-2 md:p-1 rounded transition-colors disabled:opacity-50 touch-manipulation"
               style={{ 
                 color: colors.textSecondary,
-                backgroundColor: currentSlide === slides.length - 1 ? 'transparent' : colors.backgroundSecondary
+                backgroundColor: currentSlide === slides.length - 1 ? 'transparent' : colors.backgroundSecondary,
+                minWidth: '40px',
+                minHeight: '40px'
               }}
             >
-              <ChevronRight className="w-5 h-5" />
+              <ChevronRight className="w-5 h-5 md:w-3.5 md:h-3.5" />
             </button>
           </div>
         </div>
       </div>
 
-      {/* Slide Content - A3 Landscape Container */}
-      <div className="flex-1 overflow-hidden flex items-center justify-center p-4" style={{ backgroundColor: '#0f0f0f' }}>
-        {/* A3 Landscape: 420mm x 297mm (aspect ratio ~1.414:1) */}
+      {/* Slide Content - A3 Landscape Container (Desktop) / Responsive (Mobile) */}
+      <div className="flex-1 overflow-hidden flex items-center justify-center p-2 md:p-4" style={{ backgroundColor: '#0f0f0f' }}>
+        {/* Desktop: A3 Landscape: 420mm x 297mm (aspect ratio ~1.414:1) */}
+        {/* Mobile: Full width, scrollable */}
         <div 
-          className="relative overflow-hidden shadow-2xl"
+          className="relative overflow-y-auto md:overflow-hidden shadow-2xl
+            w-full h-full
+            md:max-w-[calc(100vh*1.414)] md:max-h-[calc(100vw/1.414)] md:aspect-[420/297]
+            max-w-full max-h-full aspect-auto"
           style={{
-            width: '100%',
-            maxWidth: 'calc(100vh * 1.414)', // Height-based width for A3 landscape
-            height: '100%',
-            maxHeight: 'calc(100vw / 1.414)', // Width-based height for A3 landscape
-            aspectRatio: '420 / 297', // A3 landscape aspect ratio
             backgroundColor: colors.backgroundPrimary
           }}
         >
@@ -8126,16 +8168,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       </div>
 
       {/* Slide Indicator */}
-      <div className="p-4 flex items-center justify-center space-x-2" style={{ backgroundColor: colors.backgroundDark }}>
+      <div className="py-0.5 px-2 md:px-3 flex items-center justify-center space-x-1 overflow-x-auto" style={{ backgroundColor: colors.backgroundDark }}>
         {slides.map((_, idx) => (
           <button
             key={idx}
             onClick={() => setCurrentSlide(idx)}
-            className={`h-2 rounded-full transition-all ${
-              idx === currentSlide ? 'w-8' : 'w-2'
+            className={`h-1 rounded-full transition-all touch-manipulation ${
+              idx === currentSlide ? 'w-4 md:w-5' : 'w-1'
             }`}
             style={{
-              backgroundColor: idx === currentSlide ? colors.primary : colors.border
+              backgroundColor: idx === currentSlide ? colors.primary : colors.border,
+              minWidth: '4px',
+              minHeight: '4px'
             }}
           />
         ))}

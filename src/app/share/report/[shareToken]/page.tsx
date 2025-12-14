@@ -89,8 +89,13 @@ export default function SharedReportPage() {
       <ReportPresentationViewer
         report={report}
         onClose={() => {
-          // For public view, we can't close, but we can show a message
-          window.history.back();
+          // For public view, navigate back or show a message
+          if (window.history.length > 1) {
+            window.history.back();
+          } else {
+            // If no history, just stay on the page
+            console.log('Cannot navigate back');
+          }
         }}
       />
     </div>
