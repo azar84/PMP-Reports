@@ -1,8 +1,12 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAdminApi } from '@/hooks/useApi';
+import { useAuth } from '@/hooks/useAuth';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
+import { useUserPermissions } from '@/hooks/useUserPermissions';
+import { hasDashboardTabPermission, getAccessibleDashboardTabs, type DashboardTabId } from '@/lib/dashboardTabPermissions';
 import { Card } from '@/components/ui/Card';
 import { 
   FileText, 
@@ -112,11 +116,33 @@ interface Subcontractor {
 }
 
 export default function MainDashboard() {
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get } = useAdminApi();
+  const { permissions } = useUserPermissions();
 
-  const [activeTab, setActiveTab] = useState<'projects' | 'commercial'>('projects');
+  // Get accessible dashboard tabs
+  const accessibleTabs = useMemo(() => getAccessibleDashboardTabs(permissions), [permissions]);
+  
+  // Determine initial tab - use first accessible tab, or 'projects' if none accessible
+  const initialTab = useMemo(() => {
+    if (accessibleTabs.length > 0) {
+      return accessibleTabs[0];
+    }
+    return 'projects' as DashboardTabId; // Fallback
+  }, [accessibleTabs]);
+
+  // All hooks must be called before any conditional returns (Rules of Hooks)
+  const [activeTab, setActiveTab] = useState<DashboardTabId>(initialTab);
+
+  // Update active tab if current tab is not accessible
+  useEffect(() => {
+    if (accessibleTabs.length > 0 && !accessibleTabs.includes(activeTab)) {
+      setActiveTab(accessibleTabs[0]);
+    }
+  }, [accessibleTabs, activeTab]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [ipcEntries, setIpcEntries] = useState<IPC[]>([]);
   const [suppliers, setSuppliers] = useState<Supplier[]>([]);
@@ -124,11 +150,18 @@ export default function MainDashboard() {
   const [loading, setLoading] = useState(true);
   const [dateFilter, setDateFilter] = useState<'overall' | 'this-year' | 'last-year'>('overall');
 
+  // Auth guard - redirect if not authenticated
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (!authLoading && !user) {
+      router.replace('/admin-panel/login');
+    }
+  }, [user, authLoading, router]);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
+    // Don't fetch if not authenticated
+    if (!user) {
+      return;
+    }
     try {
       setLoading(true);
       const projectsRes = await get<{ success: boolean; data: Project[] }>('/api/admin/projects');
@@ -226,7 +259,14 @@ export default function MainDashboard() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, get]);
+
+  useEffect(() => {
+    // Only fetch data if authenticated
+    if (!authLoading && user) {
+      fetchData();
+    }
+  }, [authLoading, user, fetchData]);
 
   // Filter projects based on date filter
   const filteredProjects = useMemo(() => {
@@ -385,6 +425,28 @@ export default function MainDashboard() {
     return new Date(Math.min(...dates.map(d => d.getTime())));
   }, [projects]);
 
+  // Don't render content if not authenticated (after all hooks are called)
+  if (authLoading || !user) {
+    return null;
+  }
+
+  // If user has no accessible dashboard tabs, show access denied message
+  if (accessibleTabs.length === 0) {
+    return (
+      <div className="space-y-6">
+        <Card className="p-8 text-center" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+          <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: colors.error }} />
+          <h3 className="text-xl font-semibold mb-2" style={{ color: colors.textPrimary }}>
+            Access Denied
+          </h3>
+          <p className="text-sm" style={{ color: colors.textSecondary }}>
+            You don't have permission to view any dashboard tabs. Please contact your administrator.
+          </p>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header with Date Filter */}
@@ -425,7 +487,9 @@ export default function MainDashboard() {
       </div>
 
       {/* Tabs */}
+      {accessibleTabs.length > 0 && (
       <div className="flex space-x-2 border-b" style={{ borderColor: colors.border }}>
+          {hasDashboardTabPermission(permissions, 'projects') && (
         <button
           onClick={() => setActiveTab('projects')}
           className="px-6 py-3 font-medium transition-colors"
@@ -436,6 +500,8 @@ export default function MainDashboard() {
         >
           Projects Summary
         </button>
+          )}
+          {hasDashboardTabPermission(permissions, 'commercial') && (
         <button
           onClick={() => setActiveTab('commercial')}
           className="px-6 py-3 font-medium transition-colors"
@@ -446,10 +512,12 @@ export default function MainDashboard() {
         >
           Commercial
         </button>
+          )}
       </div>
+      )}
 
       {/* Projects Summary Tab */}
-      {activeTab === 'projects' && (
+      {activeTab === 'projects' && hasDashboardTabPermission(permissions, 'projects') && (
         <div className="space-y-6">
           {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
@@ -628,7 +696,7 @@ export default function MainDashboard() {
       )}
 
       {/* Commercial Tab */}
-      {activeTab === 'commercial' && (
+      {activeTab === 'commercial' && hasDashboardTabPermission(permissions, 'commercial') && (
         <div className="space-y-6">
           {/* Commercial Stats */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

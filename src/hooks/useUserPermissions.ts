@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { PermissionKey } from '@/lib/permissionsCatalog';
 import { PERMISSIONS } from '@/lib/permissionsCatalog';
 
@@ -10,19 +11,11 @@ interface UseUserPermissionsResult {
   error: Error | null;
 }
 
-const FALLBACK_PERMISSIONS: PermissionKey[] = [
-  'projects.view',
-  'clients.view',
-  'consultants.view',
-  'staff.view',
-  'labours.view',
-  'contacts.view',
-] as PermissionKey[];
-
 export function useUserPermissions(): UseUserPermissionsResult {
   const [permissions, setPermissions] = useState<PermissionKey[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     let isMounted = true;
@@ -33,18 +26,11 @@ export function useUserPermissions(): UseUserPermissionsResult {
         setIsLoading(true);
         setError(null);
 
-        const token = typeof window !== 'undefined' ? localStorage.getItem('adminToken') : null;
-
-        if (!token) {
-          if (isMounted) {
-            setPermissions([]);
-          }
-          return;
-        }
-
+        // Tokens are now in HTTP-only cookies, sent automatically
         const response = await fetch('/api/admin/auth/me/permissions', {
+          method: 'GET',
+          credentials: 'include', // Important: include cookies
           headers: {
-            Authorization: `Bearer ${token}`,
             'Content-Type': 'application/json',
           },
           signal: controller.signal,
@@ -52,10 +38,10 @@ export function useUserPermissions(): UseUserPermissionsResult {
 
         if (!response.ok) {
           if (response.status === 401) {
-            // Token is invalid or expired - clear it and let user re-login
-            localStorage.removeItem('adminToken');
+            // Session expired - redirect immediately to login
             localStorage.removeItem('adminUser');
-            throw new Error('Session expired. Please log in again.');
+            router.replace('/admin-panel/login');
+            return;
           }
           throw new Error(`Failed to load permissions (${response.status})`);
         }
@@ -72,9 +58,17 @@ export function useUserPermissions(): UseUserPermissionsResult {
         if (!isMounted || controller.signal.aborted) {
           return;
         }
+        
+        // If it's a 401 error, redirect to login (handled above, but catch just in case)
+        if (err instanceof Error && err.message.includes('Session expired')) {
+          router.replace('/admin-panel/login');
+          return;
+        }
+        
         console.error('Failed to load user permissions:', err);
         setError(err instanceof Error ? err : new Error('Failed to load user permissions'));
-        setPermissions(FALLBACK_PERMISSIONS);
+        // Don't set fallback permissions - if we can't load, user should be redirected
+        setPermissions([]);
       } finally {
         if (isMounted) {
           setIsLoading(false);
@@ -88,7 +82,7 @@ export function useUserPermissions(): UseUserPermissionsResult {
       isMounted = false;
       controller.abort();
     };
-  }, []);
+  }, [router]);
 
   return { permissions, isLoading, error };
 }

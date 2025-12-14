@@ -2,20 +2,57 @@ import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput, formatDateForInput } from '@/lib/dateUtils';
 import { Prisma } from '@prisma/client';
+import { withRBAC } from '@/middleware/rbac';
+import { PERMISSIONS } from '@/lib/permissionsCatalog';
+
+// Helper function to check if user has access to a project
+async function hasProjectAccess(userId: number, projectId: number): Promise<boolean> {
+  const user = await prisma.adminUser.findUnique({
+    where: { id: userId },
+    select: { hasAllProjectsAccess: true },
+  });
+
+  if (!user) return false;
+  
+  // If user has all projects access, allow
+  if (user.hasAllProjectsAccess) return true;
+
+  // Otherwise check if user is a member of this project
+  const membership = await prisma.projectMembership.findUnique({
+    where: {
+      userId_projectId: {
+        userId,
+        projectId,
+      },
+    },
+  });
+
+  return !!membership;
+}
 
 // GET - Fetch single project by ID
-export async function GET(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const GET = withRBAC(PERMISSIONS.PROJECTS_VIEW, async (
+  _request: NextRequest,
+  context,
+  routeContext: { params: Promise<{ id: string }> }
+) => {
   try {
-    const { id } = await params;
+    const { id } = await routeContext.params;
     const projectId = parseInt(id);
     
     if (isNaN(projectId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid project ID' },
         { status: 400 }
+      );
+    }
+
+    // Check if user has access to this project
+    const userHasAccess = await hasProjectAccess(context.userId, projectId);
+    if (!userHasAccess) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied to this project' },
+        { status: 403 }
       );
     }
 
@@ -79,21 +116,31 @@ export async function GET(
       { status: 500 }
     );
   }
-}
+});
 
 // PUT - Update project
-export async function PUT(
+export const PUT = withRBAC(PERMISSIONS.PROJECTS_UPDATE, async (
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+  context,
+  routeContext: { params: Promise<{ id: string }> }
+) => {
   try {
-    const { id } = await params;
+    const { id } = await routeContext.params;
     const projectId = parseInt(id);
     
     if (isNaN(projectId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid project ID' },
         { status: 400 }
+      );
+    }
+
+    // Check if user has access to this project
+    const userHasAccess = await hasProjectAccess(context.userId, projectId);
+    if (!userHasAccess) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied to this project' },
+        { status: 403 }
       );
     }
 
@@ -513,21 +560,31 @@ export async function PUT(
       { status: 500 }
     );
   }
-}
+});
 
 // DELETE - Delete project
-export async function DELETE(
-  request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
-) {
+export const DELETE = withRBAC(PERMISSIONS.PROJECTS_DELETE, async (
+  _request: NextRequest,
+  context,
+  routeContext: { params: Promise<{ id: string }> }
+) => {
   try {
-    const { id } = await params;
+    const { id } = await routeContext.params;
     const projectId = parseInt(id);
     
     if (isNaN(projectId)) {
       return NextResponse.json(
         { success: false, error: 'Invalid project ID' },
         { status: 400 }
+      );
+    }
+
+    // Check if user has access to this project
+    const userHasAccess = await hasProjectAccess(context.userId, projectId);
+    if (!userHasAccess) {
+      return NextResponse.json(
+        { success: false, error: 'Access denied to this project' },
+        { status: 403 }
       );
     }
 
@@ -543,4 +600,4 @@ export async function DELETE(
       { status: 500 }
     );
   }
-}
+});

@@ -55,14 +55,31 @@ All resource models include `tenantId` for tenant isolation:
 
 ### Permission Evaluation Flow
 
-1. User authenticates → JWT token issued (includes `userId` and `tenantId`)
-2. Request arrives → Extract user ID and tenant ID from token
-3. Get user's role → Load role for user in tenant
-4. Get role permissions → Load all permissions for the role
-5. Check `admin.all` → If present, grant all permissions (bypass checks)
-6. Check permission → Verify user has required permission (allow vs deny)
-7. Check context → Apply constraints (project membership, tenant match, etc.)
-8. Allow/deny → Grant or deny access, log decision
+1. User authenticates → JWT access and refresh tokens issued (stored in HTTP-only cookies)
+   - Access token includes: `userId`, `tenantId`, `role`, `username`, `hasAllProjectsAccess`
+   - Access token expires in 15 minutes, refresh token in 7 days
+2. Request arrives → Middleware extracts and verifies access token
+   - If expired, automatically refreshes using refresh token
+   - Checks token blacklist (for logged-out tokens)
+3. Extract user ID and tenant ID from verified token
+4. Get user's role → Load role for user in tenant
+5. Get role permissions → Load all permissions for the role
+6. Check `admin.all` → If present, grant all permissions (bypass checks)
+7. Check permission → Verify user has required permission (allow vs deny)
+8. Check context → Apply constraints (project membership, tenant match, etc.)
+9. Allow/deny → Grant or deny access, log decision
+
+### Authentication Security
+
+The system now includes enhanced security features:
+
+- **HTTP-only cookies**: Tokens stored securely, protected from XSS attacks
+- **Token refresh**: Short-lived access tokens automatically refreshed
+- **Token blacklisting**: Immediate invalidation on logout
+- **Rate limiting**: Login endpoint protected against brute force
+- **CSRF protection**: SameSite cookie attribute prevents CSRF attacks
+
+For more details, see `AUTHENTICATION_IMPROVEMENTS.md` in the project root.
 
 ### Core Services
 

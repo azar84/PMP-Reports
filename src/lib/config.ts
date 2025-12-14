@@ -7,6 +7,7 @@ const envSchema = z.object({
   
   // Authentication
   JWT_SECRET: z.string().min(32, 'JWT secret must be at least 32 characters'),
+  JWT_REFRESH_SECRET: z.string().min(32, 'JWT refresh secret must be at least 32 characters').optional(),
   
   // Email (optional)
   SMTP_HOST: z.string().optional(),

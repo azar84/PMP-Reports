@@ -51,8 +51,26 @@ export function createApiHandler<T = any>(
           );
         }
 
-        // Token validation would go here
-        // For now, we'll assume the middleware handles this
+        // Verify token and check blacklist
+        const { verifyAccessToken, isTokenBlacklisted } = await import('@/lib/auth');
+        
+        if (isTokenBlacklisted(token)) {
+          return NextResponse.json(
+            { success: false, error: 'Token has been revoked' },
+            { status: 401 }
+          );
+        }
+
+        const decoded = verifyAccessToken(token);
+        if (!decoded) {
+          return NextResponse.json(
+            { success: false, error: 'Invalid or expired token' },
+            { status: 401 }
+          );
+        }
+
+        // Add user info to request for handler access
+        (request as any).user = decoded;
       }
 
       // Data validation

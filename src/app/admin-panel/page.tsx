@@ -94,7 +94,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
   
   return [
     { id: 'dashboard', name: 'Dashboard', icon: Home, color: colors.primary, permission: null },
-    { id: 'reports', name: 'Reports', icon: FileBarChart, color: colors.primary, permission: 'projects.view' },
+    { id: 'reports', name: 'Reports', icon: FileBarChart, color: colors.primary, permission: 'reports.view' },
     { id: 'projects', name: 'Projects', icon: FileText, color: colors.primary, permission: 'projects.view' },
     { 
       id: 'people', 
@@ -164,6 +164,13 @@ export default function AdminPanel() {
   const { designSystem } = useDesignSystem();
   const { get } = useAdminApi();
   const { permissions: grantedPermissions, isLoading: userPermissionsLoading } = useUserPermissions();
+
+  // Immediate redirect if not authenticated - don't render anything
+  useEffect(() => {
+    if (!isLoading && !user) {
+      router.replace('/admin-panel/login');
+    }
+  }, [user, isLoading, router]);
   
   const [activeSection, setActiveSection] = useState<Section>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(true); // Default to open on desktop
@@ -293,25 +300,20 @@ export default function AdminPanel() {
   }, [allNavigationItems, activeSection, navigationItems]);
 
   useEffect(() => {
-    console.log('🔍 Admin Panel: Checking user authentication...');
-    console.log('🔍 Admin Panel: User:', user);
-    console.log('🔍 Admin Panel: isLoading:', isLoading);
-    
-    // Don't redirect while still loading
-    if (isLoading) {
-      console.log('⏳ Admin Panel: Still loading authentication...');
+    // Don't fetch data while still loading or if no user
+    if (isLoading || !user) {
+      if (!isLoading && !user) {
+        router.replace('/admin-panel/login');
+      }
       return;
     }
     
-    if (!user) {
-      console.log('❌ Admin Panel: No user, redirecting to login...');
-      router.push('/admin-panel/login');
-      return;
-    }
-
-    console.log('✅ Admin Panel: User authenticated, fetching data...');
-
     const fetchData = async () => {
+      // Double-check user exists before making API calls
+    if (!user) {
+      return;
+    }
+
       try {
         console.log('🔍 Admin Panel: Fetching site settings...');
         // Fetch site settings
@@ -351,23 +353,38 @@ export default function AdminPanel() {
           });
         }
         setLoadingStats(false);
-      } catch (error) {
+      } catch (error: any) {
+        // Silently handle 401 errors - redirect will happen via auth guards
+        if (error?.status === 401) {
+          setLoadingStats(false);
+          return;
+        }
         console.error('❌ Admin Panel: Error fetching data:', error);
         setLoadingStats(false);
       }
     };
 
+    // Only fetch data if user is authenticated
     fetchData();
 
     // Set up polling for updates
     const checkForUpdates = () => {
+      // Don't poll if user is not authenticated
+      if (!user) {
+        return;
+      }
+
       const refreshSettings = async () => {
         try {
           const settingsResponse = await get<{ success: boolean; data: SiteSettings }>('/api/admin/site-settings');
           if (settingsResponse.success) {
             setSiteSettings(settingsResponse.data);
           }
-        } catch (error) {
+        } catch (error: any) {
+          // Silently handle 401 errors
+          if (error?.status === 401) {
+            return;
+          }
           console.error('Error refreshing settings:', error);
         }
       };
@@ -406,28 +423,10 @@ export default function AdminPanel() {
     logout();
   };
 
-  // Show loading state while authentication is being checked
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Loading admin panel...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Show loading state if no user (will redirect)
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
-          <p className="text-gray-600">Redirecting to login...</p>
-        </div>
-      </div>
-    );
+  // Block ALL rendering until authenticated - simple and effective
+  // If session expired, redirect happens in useEffect above
+  if (isLoading || !user) {
+    return null; // Don't render anything - redirect will happen
   }
 
   const renderContent = () => {

@@ -1,26 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
-import jwt from 'jsonwebtoken';
-
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+import {
+  verifyAccessToken,
+  verifyRefreshToken,
+  generateAccessToken,
+  isTokenBlacklisted,
+  type DecodedToken,
+} from '@/lib/auth';
 
 export interface AuthenticatedRequest extends NextRequest {
-  user?: {
-    userId: number;
-    username: string;
-    role: string;
-  };
-}
-
-function verifyToken(token: string) {
-  try {
-    return jwt.verify(token, JWT_SECRET) as {
-      userId: number;
-      username: string;
-      role: string;
-    };
-  } catch (error) {
-    return null;
-  }
+  user?: DecodedToken;
 }
 
 export function middleware(request: NextRequest) {
@@ -32,7 +20,12 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
   
-  // Handle admin panel authentication
+  // Allow refresh endpoint without auth
+  if (request.nextUrl.pathname === '/api/admin/auth/refresh') {
+    return NextResponse.next();
+  }
+  
+  // Handle admin panel page authentication (not API routes - they handle their own auth)
   if (request.nextUrl.pathname.startsWith('/admin-panel')) {
     // Skip auth for login and reset password pages
     if (request.nextUrl.pathname === '/admin-panel/login' || 
@@ -40,23 +33,81 @@ export function middleware(request: NextRequest) {
       return NextResponse.next();
     }
 
-    // Check for JWT token in cookies or headers
-    const token = request.cookies.get('adminToken')?.value || 
+    // Check for access token in cookies or headers
+    let accessToken = request.cookies.get('adminToken')?.value || 
                   request.headers.get('authorization')?.replace('Bearer ', '');
 
-    if (!token) {
-      console.log('🔐 No token found - redirecting to login');
-      return NextResponse.redirect(new URL('/admin-panel/login', request.url));
+    let decoded: DecodedToken | null = null;
+
+    // If access token exists, verify it
+    if (accessToken) {
+      // Check if token is blacklisted
+      if (isTokenBlacklisted(accessToken)) {
+        console.log('🔐 Token is blacklisted - redirecting to login');
+        const response = NextResponse.redirect(new URL('/admin-panel/login', request.url));
+        response.cookies.delete('adminToken');
+        response.cookies.delete('adminRefreshToken');
+        return response;
+      }
+
+      decoded = verifyAccessToken(accessToken);
     }
 
-    const decoded = verifyToken(token);
+    // If access token is invalid/expired, try to refresh using refresh token
     if (!decoded) {
-      console.log('🔐 Invalid token - redirecting to login');
-      return NextResponse.redirect(new URL('/admin-panel/login', request.url));
+      const refreshToken = request.cookies.get('adminRefreshToken')?.value;
+      
+      if (refreshToken && !isTokenBlacklisted(refreshToken)) {
+        const refreshDecoded = verifyRefreshToken(refreshToken);
+        
+        if (refreshDecoded) {
+          // Generate new access token
+          const newAccessToken = generateAccessToken({
+            userId: refreshDecoded.userId,
+            username: refreshDecoded.username,
+            role: refreshDecoded.role,
+            tenantId: refreshDecoded.tenantId,
+            hasAllProjectsAccess: refreshDecoded.hasAllProjectsAccess,
+          });
+
+          decoded = refreshDecoded;
+
+          // Create response and set new access token
+          const response = NextResponse.next();
+          const isProduction = process.env.NODE_ENV === 'production';
+          
+          response.cookies.set('adminToken', newAccessToken, {
+            httpOnly: true,
+            secure: isProduction,
+            sameSite: 'lax',
+            maxAge: 15 * 60, // 15 minutes
+            path: '/',
+          });
+
+          // Add user info to request
+          (request as AuthenticatedRequest).user = decoded;
+
+          // Set cache headers
+          response.headers.set('Cache-Control', 'no-store, no-cache, must-revalidate, proxy-revalidate');
+          response.headers.set('Pragma', 'no-cache');
+          response.headers.set('Expires', '0');
+          response.headers.set('X-SSR-Enforced', 'true');
+          
+          return response;
+        }
+      }
+
+      // No valid token found - redirect to login
+      console.log('🔐 No valid token found - redirecting to login');
+      const response = NextResponse.redirect(new URL('/admin-panel/login', request.url));
+      response.cookies.delete('adminToken');
+      response.cookies.delete('adminRefreshToken');
+      return response;
     }
 
-    // Add user info to request for API routes
-    (request as AuthenticatedRequest).user = decoded;
+    // Valid access token found - continue with request
+    // Note: For API routes, authentication is handled in route handlers
+    // For server components, user info can be extracted from cookies in the component
   }
 
   // Get the response for all routes

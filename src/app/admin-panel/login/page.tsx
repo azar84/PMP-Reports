@@ -56,12 +56,12 @@ export default function AdminLogin() {
     setSuccess('');
 
     try {
-      const success = await login(credentials.username, credentials.password);
+      const result = await login(credentials.username, credentials.password);
       
-      if (success) {
+      if (result.success) {
         router.push('/admin-panel');
       } else {
-        setError('Login failed. Please check your credentials.');
+        setError(result.error || 'Login failed. Please check your credentials.');
       }
     } catch (err) {
       setError('Network error. Please try again.');

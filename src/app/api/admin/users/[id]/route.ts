@@ -27,6 +27,7 @@ export async function GET(
         name: true,
         role: true,
         isActive: true,
+        hasAllProjectsAccess: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true
@@ -66,7 +67,7 @@ export async function PUT(
       );
     }
 
-    const { username, email, name, role, isActive, password } = await request.json();
+    const { username, email, name, role, isActive, password, hasAllProjectsAccess } = await request.json();
 
     // Check if user exists
     const existingUser = await prisma.adminUser.findUnique({
@@ -111,23 +112,62 @@ export async function PUT(
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
 
-    const user = await prisma.adminUser.update({
+    // Update user and handle role assignment to UserRole table
+    const user = await prisma.$transaction(async (tx) => {
+      // Update user basic info
+      const updatedUser = await tx.adminUser.update({
       where: { id: userId },
       data: updateData,
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true
+      });
+
+      // If role is being updated, update the UserRole relationship
+      if (role !== undefined) {
+        // Find the role by name
+        const roleRecord = await tx.role.findFirst({
+          where: {
+            name: role,
+            tenantId: existingUser.tenantId,
+          },
+        });
+
+        if (roleRecord) {
+          // Delete existing user roles for this user
+          await tx.userRole.deleteMany({
+            where: { userId: userId },
+          });
+
+          // Create new UserRole relationship
+          await tx.userRole.create({
+            data: {
+              userId: userId,
+              roleId: roleRecord.id,
+            },
+          });
+        }
       }
+
+      // If hasAllProjectsAccess is being set to true, remove all individual project memberships
+      if (hasAllProjectsAccess === true) {
+        await tx.projectMembership.deleteMany({
+          where: { userId: userId },
+        });
+      }
+
+      return updatedUser;
     });
 
-    return NextResponse.json(user);
+    return NextResponse.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+      hasAllProjectsAccess: user.hasAllProjectsAccess,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    });
   } catch (error) {
     console.error('Error updating user:', error);
     return NextResponse.json(

@@ -13,6 +13,7 @@ export async function GET(request: NextRequest) {
         name: true,
         role: true,
         isActive: true,
+        hasAllProjectsAccess: true,
         lastLoginAt: true,
         createdAt: true,
         updatedAt: true
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
 // POST - Create new user
 export async function POST(request: NextRequest) {
   try {
-    const { username, email, password, name, role } = await request.json();
+    const { username, email, password, name, role, hasAllProjectsAccess } = await request.json();
 
     // Validate required fields
     if (!username || !email || !password) {
@@ -63,30 +64,59 @@ export async function POST(request: NextRequest) {
     // Hash password
     const passwordHash = await bcrypt.hash(password, 12);
 
-    // Create user
-    const user = await prisma.adminUser.create({
-      data: {
-        username,
-        email,
-        passwordHash,
-        name: name || null,
-        role: role || 'admin',
-        isActive: true
-      },
-      select: {
-        id: true,
-        username: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        lastLoginAt: true,
-        createdAt: true,
-        updatedAt: true
+    // Get tenant ID (default to 1 as per schema)
+    // In a multi-tenant system, this should come from context/authentication
+    const tenantId = 1;
+
+    // Create user and assign role
+    const user = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.adminUser.create({
+        data: {
+          username,
+          email,
+          passwordHash,
+          name: name || null,
+          role: role || 'admin',
+          isActive: true,
+          tenantId: tenantId,
+          hasAllProjectsAccess: hasAllProjectsAccess === true,
+        },
+      });
+
+      // If role is provided, create UserRole relationship
+      if (role) {
+        const roleRecord = await tx.role.findFirst({
+          where: {
+            name: role,
+            tenantId: tenantId,
+          },
+        });
+
+        if (roleRecord) {
+          await tx.userRole.create({
+            data: {
+              userId: createdUser.id,
+              roleId: roleRecord.id,
+            },
+          });
+        }
       }
+
+      return createdUser;
     });
 
-    return NextResponse.json(user, { status: 201 });
+    return NextResponse.json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      isActive: user.isActive,
+      hasAllProjectsAccess: user.hasAllProjectsAccess,
+      lastLoginAt: user.lastLoginAt,
+      createdAt: user.createdAt,
+      updatedAt: user.updatedAt
+    }, { status: 201 });
   } catch (error) {
     console.error('Error creating user:', error);
     return NextResponse.json(

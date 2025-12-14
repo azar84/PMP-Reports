@@ -16,7 +16,7 @@ const updateRolePermissionsSchema = z.object({
 });
 
 export const PUT = withRBAC(PERMISSIONS.ROLES_UPDATE, async (request, context, routeContext) => {
-  const params = (routeContext as { params: { id: string } }).params;
+  const params = await (routeContext as { params: Promise<{ id: string }> }).params;
   const roleId = parseInt(params.id, 10);
 
   if (Number.isNaN(roleId)) {
@@ -45,6 +45,7 @@ export const PUT = withRBAC(PERMISSIONS.ROLES_UPDATE, async (request, context, r
     return NextResponse.json({ success: false, error: 'No valid permissions provided' }, { status: 400 });
   }
 
+  // Get existing permissions and create missing ones
   const permissionRecords = await prisma.permission.findMany({
     where: {
       tenantId: context.tenantId,
@@ -55,15 +56,68 @@ export const PUT = withRBAC(PERMISSIONS.ROLES_UPDATE, async (request, context, r
     select: {
       id: true,
       key: true,
+      resource: true,
+      description: true,
     },
   });
 
   const permissionMap = new Map(permissionRecords.map((permission) => [permission.key, permission.id]));
 
+  // Get permission definitions to create missing permissions
+  const { getPermissionDefinitions } = await import('@/lib/permissionsCatalog');
+  const permissionDefinitions = getPermissionDefinitions();
+  const permissionDefMap = new Map(permissionDefinitions.map((def) => [def.key, def]));
+
+  // Create missing permissions
+  const missingPermissions = normalizedPermissions.filter(({ key }) => !permissionMap.has(key));
+  if (missingPermissions.length > 0) {
+    const permissionsToCreate = missingPermissions
+      .map(({ key }) => {
+        const def = permissionDefMap.get(key);
+        if (!def) return null;
+        return {
+          tenantId: context.tenantId,
+          key,
+          resource: def.resource,
+          description: def.description || def.label || key,
+          isSystem: true,
+        };
+      })
+      .filter((p): p is NonNullable<typeof p> => p !== null);
+
+    if (permissionsToCreate.length > 0) {
+      await prisma.permission.createMany({
+        data: permissionsToCreate,
+        skipDuplicates: true,
+      });
+
+      // Refresh permission records
+      const newPermissionRecords = await prisma.permission.findMany({
+        where: {
+          tenantId: context.tenantId,
+          key: {
+            in: normalizedPermissions.map(({ key }) => key),
+          },
+        },
+        select: {
+          id: true,
+          key: true,
+        },
+      });
+
+      newPermissionRecords.forEach((permission) => {
+        permissionMap.set(permission.key, permission.id);
+      });
+    }
+  }
+
   const rolePermissionData = normalizedPermissions
     .map(({ key, action }) => {
       const permissionId = permissionMap.get(key);
-      if (!permissionId) return null;
+      if (!permissionId) {
+        console.warn(`Permission "${key}" not found in database and could not be created`);
+        return null;
+      }
       return {
         roleId: role.id,
         permissionId,

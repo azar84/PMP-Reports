@@ -1,10 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAdminApi } from '@/hooks/useApi';
+import { useAuth } from '@/hooks/useAuth';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
+import { hasTabPermission, getAccessibleTabs, type ProjectTabId } from '@/lib/projectTabPermissions';
 import { formatCurrency } from '@/lib/currency';
 import { formatDateForInput, formatDateForDisplay } from '@/lib/dateUtils';
 import { Card } from '@/components/ui/Card';
@@ -177,11 +180,20 @@ interface Contact {
 }
 
 export default function ProjectManager() {
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
   const { siteSettings } = useSiteSettings();
   const { permissions } = useUserPermissions();
+
+  // Auth guard - redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/admin-panel/login');
+    }
+  }, [user, authLoading, router]);
 
   // Permission checks
   const canCreateClients = hasPermission(permissions, 'clients.create');
@@ -189,6 +201,9 @@ export default function ProjectManager() {
   const canCreateStaff = hasPermission(permissions, 'staff.create');
   const canCreateLabours = hasPermission(permissions, 'labours.create');
   const canCreateContacts = hasPermission(permissions, 'contacts.create');
+
+  // Project tab permissions
+  const accessibleTabs = getAccessibleTabs(permissions);
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
@@ -222,6 +237,14 @@ export default function ProjectManager() {
     | 'subcontractors'
     | 'ipc'
   >('overview');
+  
+  // Ensure activeTab is accessible, if not redirect to first accessible tab
+  useEffect(() => {
+    if (accessibleTabs.length > 0 && !accessibleTabs.includes(activeTab as ProjectTabId)) {
+      setActiveTab(accessibleTabs[0] as typeof activeTab);
+    }
+  }, [accessibleTabs, activeTab]);
+  
   const [selectedSupplierId, setSelectedSupplierId] = useState<number | null>(null);
   const [selectedSubcontractorId, setSelectedSubcontractorId] = useState<number | null>(null);
   const [selectedContacts, setSelectedContacts] = useState<number[]>([]);
@@ -2498,6 +2521,11 @@ export default function ProjectManager() {
     project.client?.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
+  // Don't render anything if not authenticated - redirect will happen (after all hooks)
+  if (authLoading || !user) {
+    return null;
+  }
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
@@ -2594,6 +2622,7 @@ export default function ProjectManager() {
 
           {/* Tab Navigation */}
           <div className="flex flex-wrap gap-1 mb-6" style={{ borderBottom: `1px solid ${colors.border}` }}>
+            {hasTabPermission(permissions, 'overview') && (
             <button
               onClick={() => setActiveTab('overview')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2632,6 +2661,8 @@ export default function ProjectManager() {
                 <span>Project Overview</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'checklist') && (
             <button
               onClick={() => setActiveTab('checklist')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2670,6 +2701,8 @@ export default function ProjectManager() {
                 <span>Checklist</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'staff') && (
             <button
               onClick={() => setActiveTab('staff')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2708,6 +2741,8 @@ export default function ProjectManager() {
                 <span>Staff</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'labours') && (
             <button
               onClick={() => setActiveTab('labours')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2746,6 +2781,8 @@ export default function ProjectManager() {
                 <span>Labours</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'labourSupply') && (
             <button
               onClick={() => setActiveTab('labourSupply')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2784,6 +2821,8 @@ export default function ProjectManager() {
                 <span>Labour Supply</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'plants') && (
             <button
               onClick={() => setActiveTab('plants')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2822,6 +2861,8 @@ export default function ProjectManager() {
                 <span>Plant</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'assets') && (
             <button
               onClick={() => setActiveTab('assets')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2860,6 +2901,8 @@ export default function ProjectManager() {
                 <span>Assets</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'planning') && (
             <button
               onClick={() => setActiveTab('planning')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2898,6 +2941,8 @@ export default function ProjectManager() {
                 <span>Planning</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'quality') && (
             <button
               onClick={() => setActiveTab('quality')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2936,6 +2981,8 @@ export default function ProjectManager() {
                 <span>Quality</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'risks') && (
             <button
               onClick={() => setActiveTab('risks')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -2974,6 +3021,8 @@ export default function ProjectManager() {
                 <span>Risks</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'hse') && (
             <button
               onClick={() => setActiveTab('hse')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3012,6 +3061,8 @@ export default function ProjectManager() {
                 <span>HSE</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'pictures') && (
             <button
               onClick={() => setActiveTab('pictures')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3050,6 +3101,8 @@ export default function ProjectManager() {
                 <span>Pictures</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'commercial') && (
             <button
               onClick={() => setActiveTab('commercial')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3088,6 +3141,8 @@ export default function ProjectManager() {
                 <span>Commercial</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'ipc') && (
             <button
               onClick={() => setActiveTab('ipc')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3126,6 +3181,8 @@ export default function ProjectManager() {
                 <span>IPC</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'suppliers') && (
             <button
               onClick={() => setActiveTab('suppliers')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3164,6 +3221,8 @@ export default function ProjectManager() {
                 <span>Suppliers</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'subcontractors') && (
             <button
               onClick={() => setActiveTab('subcontractors')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3202,6 +3261,8 @@ export default function ProjectManager() {
                 <span>Subcontractors</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'closeOut') && (
             <button
               onClick={() => setActiveTab('closeOut')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3240,6 +3301,8 @@ export default function ProjectManager() {
                 <span>Close Out</span>
               </div>
             </button>
+            )}
+            {hasTabPermission(permissions, 'clientFeedback') && (
             <button
               onClick={() => setActiveTab('clientFeedback')}
               className={`px-4 py-2 text-sm font-medium border-2 rounded-t-lg transition-colors tab-with-extended-border ${
@@ -3278,6 +3341,7 @@ export default function ProjectManager() {
                 <span>Client Feedback</span>
               </div>
             </button>
+            )}
           </div>
 
           {/* Tab Content */}

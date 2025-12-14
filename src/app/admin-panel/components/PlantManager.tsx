@@ -1,7 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import { useAdminApi } from '@/hooks/useApi';
+import { useAuth } from '@/hooks/useAuth';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
@@ -34,11 +36,21 @@ interface Plant {
 }
 
 export default function PlantManager() {
+  const { user, isLoading: authLoading } = useAuth();
+  const router = useRouter();
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
   const { siteSettings } = useSiteSettings();
 
+  // Auth guard - redirect if not authenticated
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace('/admin-panel/login');
+    }
+  }, [user, authLoading, router]);
+
+  // All hooks must be called before any conditional returns (Rules of Hooks)
   const [plants, setPlants] = useState<Plant[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -55,18 +67,23 @@ export default function PlantManager() {
   });
   const [errorMessage, setErrorMessage] = useState('');
 
-  useEffect(() => {
-    fetchPlants();
-  }, []);
-
   const fetchPlants = async () => {
+    // Don't fetch if not authenticated
+    if (!user) {
+      return;
+    }
+    
     try {
       setLoading(true);
       const response = await get<{ success: boolean; data: Plant[] }>('/api/admin/plants');
       if (response.success) {
         setPlants(response.data);
       }
-    } catch (error) {
+    } catch (error: any) {
+      // Silently handle 401 errors
+      if (error?.status === 401) {
+        return;
+      }
       console.error('Error fetching plants:', error);
       setErrorMessage('Failed to fetch plants');
     } finally {
@@ -156,6 +173,19 @@ export default function PlantManager() {
       alert('Failed to delete plant');
     }
   };
+
+  useEffect(() => {
+    // Only fetch if authenticated
+    if (!authLoading && user) {
+      fetchPlants();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [authLoading, user]);
+
+  // Don't render anything if not authenticated - redirect will happen (after all hooks)
+  if (authLoading || !user) {
+    return null;
+  }
 
   const resetForm = () => {
     setFormData({

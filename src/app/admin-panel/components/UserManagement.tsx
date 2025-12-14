@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { 
   Users, 
@@ -32,6 +33,7 @@ interface AdminUser {
   name?: string;
   role: string;
   isActive: boolean;
+  hasAllProjectsAccess?: boolean;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
@@ -43,10 +45,19 @@ interface UserFormData {
   password: string;
   name: string;
   role: string;
+  hasAllProjectsAccess?: boolean;
+}
+
+interface Role {
+  id: number;
+  name: string;
+  description: string | null;
+  isSystem: boolean;
 }
 
 export default function UserManagement() {
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [roles, setRoles] = useState<Role[]>([]);
   const [loading, setLoading] = useState(true);
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
@@ -58,13 +69,17 @@ export default function UserManagement() {
   const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [userProjects, setUserProjects] = useState<Array<{ id: number; projectName: string; projectCode: string }>>([]);
+  const [allProjects, setAllProjects] = useState<Array<{ id: number; projectName: string; projectCode: string; createdAt?: string }>>([]);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
-  const [formData, setFormData] = useState<UserFormData>({
+  const [formData, setFormData] = useState<UserFormData & { hasAllProjectsAccess?: boolean }>({
     username: '',
     email: '',
     password: '',
     name: '',
-    role: 'admin'
+    role: '',
+    hasAllProjectsAccess: false
   });
 
   // Fetch users
@@ -85,8 +100,36 @@ export default function UserManagement() {
     }
   };
 
+  // Fetch roles
+  const fetchRoles = async () => {
+    try {
+      const response = await fetch('/api/admin/roles');
+      if (response.ok) {
+        const data = await response.json();
+        if (data.success && Array.isArray(data.data)) {
+          setRoles(data.data);
+          // Set default role to first role if formData.role is empty
+          if (!formData.role && data.data.length > 0) {
+            setFormData(prev => ({ ...prev, role: data.data[0].name }));
+          }
+        }
+      } else {
+        throw new Error('Failed to fetch roles');
+      }
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      setMessage({ type: 'error', text: 'Failed to fetch roles' });
+    }
+  };
+
   useEffect(() => {
-    fetchUsers();
+    const loadData = async () => {
+      setLoading(true);
+      await Promise.all([fetchUsers(), fetchRoles()]);
+      setLoading(false);
+    };
+    loadData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Handle form input changes
@@ -108,7 +151,10 @@ export default function UserManagement() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          ...formData,
+          hasAllProjectsAccess: formData.hasAllProjectsAccess || false,
+        }),
       });
 
       const data = await response.json();
@@ -116,12 +162,13 @@ export default function UserManagement() {
       if (response.ok) {
         setMessage({ type: 'success', text: 'User created successfully' });
         setShowCreateForm(false);
+        const defaultRole = roles.length > 0 ? roles[0].name : '';
         setFormData({
           username: '',
           email: '',
           password: '',
           name: '',
-          role: 'admin'
+          role: defaultRole
         });
         fetchUsers();
       } else {
@@ -148,6 +195,7 @@ export default function UserManagement() {
         email: formData.email,
         name: formData.name,
         role: formData.role,
+        hasAllProjectsAccess: formData.hasAllProjectsAccess || false,
         ...(formData.password && { password: formData.password })
       };
 
@@ -277,27 +325,69 @@ export default function UserManagement() {
   };
 
   // Edit user
-  const handleEditUser = (user: AdminUser) => {
+  const handleEditUser = async (user: AdminUser) => {
     setEditingUser(user);
     setFormData({
       username: user.username,
       email: user.email,
       password: '',
       name: user.name || '',
-      role: user.role
+      role: user.role,
+      hasAllProjectsAccess: user.hasAllProjectsAccess || false
     });
+    
+    // Load user's project memberships
+    setLoadingProjects(true);
+    try {
+      const membershipsRes = await fetch(`/api/admin/users/${user.id}/project-memberships`);
+      if (membershipsRes.ok) {
+        const membershipsData = await membershipsRes.json();
+        if (membershipsData.success) {
+          setUserProjects(membershipsData.data.projects || []);
+        }
+      }
+
+      // Load all projects and sort by createdAt (recent to oldest)
+      const projectsRes = await fetch('/api/admin/projects');
+      if (projectsRes.ok) {
+        const projectsData = await projectsRes.json();
+        if (projectsData.success && Array.isArray(projectsData.data)) {
+          const sortedProjects = projectsData.data
+            .map((p: any) => ({
+              id: p.id,
+              projectName: p.projectName,
+              projectCode: p.projectCode,
+              createdAt: p.createdAt,
+            }))
+            .sort((a: any, b: any) => {
+              const dateA = new Date(a.createdAt).getTime();
+              const dateB = new Date(b.createdAt).getTime();
+              return dateB - dateA; // Recent to oldest
+            });
+          setAllProjects(sortedProjects);
+        }
+      }
+    } catch (error) {
+      console.error('Error loading projects:', error);
+    } finally {
+      setLoadingProjects(false);
+    }
   };
 
   // Cancel edit
   const handleCancelEdit = () => {
     setEditingUser(null);
+    const defaultRole = roles.length > 0 ? roles[0].name : '';
     setFormData({
       username: '',
       email: '',
       password: '',
       name: '',
-      role: 'admin'
+      role: defaultRole,
+      hasAllProjectsAccess: false
     });
+    setUserProjects([]);
+    setAllProjects([]);
   };
 
   // Format date
@@ -309,6 +399,105 @@ export default function UserManagement() {
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Handle toggle for all projects access
+  const handleToggleAllProjectsAccess = async (enabled: boolean) => {
+    if (!editingUser) return;
+    
+    setFormData(prev => ({ ...prev, hasAllProjectsAccess: enabled }));
+    
+    // Update immediately via API
+    try {
+      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          name: formData.name,
+          role: formData.role,
+          hasAllProjectsAccess: enabled,
+        }),
+      });
+
+      if (response.ok) {
+        // Refresh user list
+        await fetchUsers();
+        
+        if (enabled) {
+          // Clear project memberships display when enabling all access
+          setUserProjects([]);
+        } else {
+          // Reload project memberships if disabling all access
+          const membershipsRes = await fetch(`/api/admin/users/${editingUser.id}/project-memberships`);
+          if (membershipsRes.ok) {
+            const membershipsData = await membershipsRes.json();
+            if (membershipsData.success) {
+              setUserProjects(membershipsData.data.projects || []);
+            }
+          }
+        }
+      } else {
+        // Revert toggle on error
+        const data = await response.json();
+        setFormData(prev => ({ ...prev, hasAllProjectsAccess: !enabled }));
+        setMessage({ type: 'error', text: data.error || 'Failed to update all projects access' });
+      }
+    } catch (error) {
+      console.error('Error updating all projects access:', error);
+      // Revert toggle on error
+      setFormData(prev => ({ ...prev, hasAllProjectsAccess: !enabled }));
+      setMessage({ type: 'error', text: 'Failed to update all projects access' });
+    }
+  };
+
+  // Assign project to user
+  const handleAssignProject = async (projectId: number) => {
+    if (!editingUser) return;
+
+    try {
+      const response = await fetch(`/api/admin/users/${editingUser.id}/project-memberships`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ projectId }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setUserProjects([...userProjects, data.data]);
+        setMessage({ type: 'success', text: 'Project assigned successfully' });
+      } else {
+        throw new Error(data.error || 'Failed to assign project');
+      }
+    } catch (error) {
+      console.error('Error assigning project:', error);
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to assign project' });
+    }
+  };
+
+  // Unassign project from user
+  const handleUnassignProject = async (projectId: number) => {
+    if (!editingUser) return;
+
+    try {
+      const response = await fetch(`/api/admin/users/${editingUser.id}/project-memberships?projectId=${projectId}`, {
+        method: 'DELETE',
+      });
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setUserProjects(userProjects.filter(p => p.id !== projectId));
+        setMessage({ type: 'success', text: 'Project unassigned successfully' });
+      } else {
+        throw new Error(data.error || 'Failed to unassign project');
+      }
+    } catch (error) {
+      console.error('Error unassigning project:', error);
+      setMessage({ type: 'error', text: error instanceof Error ? error.message : 'Failed to unassign project' });
+    }
   };
 
   return (
@@ -447,11 +636,21 @@ export default function UserManagement() {
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: colors.borderLight }}
+                  style={{ 
+                    borderColor: colors.borderLight,
+                    backgroundColor: colors.backgroundPrimary,
+                    color: colors.textPrimary
+                  }}
+                  required
                 >
-                  <option value="admin">Admin</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
+                  {!formData.role && (
+                    <option value="">Select a role</option>
+                  )}
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.name}>
+                      {role.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -564,15 +763,122 @@ export default function UserManagement() {
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
                   className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
-                  style={{ borderColor: colors.borderLight }}
+                  style={{ 
+                    borderColor: colors.borderLight,
+                    backgroundColor: colors.backgroundPrimary,
+                    color: colors.textPrimary
+                  }}
+                  required
                 >
-                  <option value="admin">Admin</option>
-                  <option value="editor">Editor</option>
-                  <option value="viewer">Viewer</option>
+                  {!formData.role && (
+                    <option value="">Select a role</option>
+                  )}
+                  {roles.map((role) => (
+                    <option key={role.id} value={role.name}>
+                      {role.name}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
-            <div className="flex justify-end space-x-3">
+
+            {/* Project Assignments Section */}
+            <div className="mt-6 border-t pt-6" style={{ borderColor: colors.borderLight }}>
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="text-lg font-medium" style={{ color: colors.textPrimary }}>
+                  Project Assignments
+                </h4>
+              </div>
+              
+              <div className="mb-4">
+                <Checkbox
+                  checked={formData.hasAllProjectsAccess || false}
+                  onChange={(e) => handleToggleAllProjectsAccess(e.target.checked)}
+                  variant="primary"
+                  size="md"
+                  label="All Projects Access"
+                  description="When enabled, user has access to all projects (including newly created ones)"
+                />
+              </div>
+
+              {!formData.hasAllProjectsAccess && (
+                <>
+                {loadingProjects ? (
+                  <p className="text-sm" style={{ color: colors.textSecondary }}>Loading projects...</p>
+                ) : (
+                  <div className="overflow-x-auto border rounded-lg" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                    <table className="w-full">
+                      <thead>
+                        <tr className="border-b" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
+                          <th className="text-left py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                            Project Name
+                          </th>
+                          <th className="text-left py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                            Project Code
+                          </th>
+                          <th className="text-center py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                            Assigned
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {allProjects.length === 0 ? (
+                          <tr>
+                            <td colSpan={3} className="py-8 text-center" style={{ color: colors.textSecondary }}>
+                              <p className="text-sm">No projects available</p>
+                            </td>
+                          </tr>
+                        ) : (
+                          allProjects.map((project) => {
+                            const isAssigned = userProjects.some(up => up.id === project.id);
+                            return (
+                              <tr
+                                key={project.id}
+                                className="border-b transition-colors"
+                                style={{
+                                  borderColor: colors.borderLight,
+                                  backgroundColor: colors.backgroundSecondary,
+                                }}
+                              >
+                                <td className="py-3 px-4">
+                                  <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                    {project.projectName}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4">
+                                  <span className="text-sm" style={{ color: colors.textSecondary }}>
+                                    {project.projectCode}
+                                  </span>
+                                </td>
+                                <td className="py-3 px-4 text-center">
+                                  <div className="flex justify-center">
+                                    <Checkbox
+                                      checked={isAssigned}
+                                      onChange={(e) => {
+                                        if (e.target.checked) {
+                                          handleAssignProject(project.id);
+                                        } else {
+                                          handleUnassignProject(project.id);
+                                        }
+                                      }}
+                                      variant="primary"
+                                      size="md"
+                                    />
+                                  </div>
+                                </td>
+                              </tr>
+                            );
+                          })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                )}
+                </>
+              )}
+            </div>
+
+            <div className="flex justify-end space-x-3 mt-6">
               <Button
                 type="button"
                 onClick={handleCancelEdit}

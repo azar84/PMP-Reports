@@ -12,7 +12,8 @@ This is a Next.js 15 application with a comprehensive admin panel for managing p
 
 **Overall Assessment:** ⭐⭐⭐⭐ (4/5)
 - **Strengths:** Well-structured, modern stack, good separation of concerns
-- **Areas for Improvement:** Security hardening, API authentication consistency, error handling standardization
+- **Recent Improvements:** ✅ Authentication system enhanced with HTTP-only cookies, token refresh, blacklisting, and rate limiting (see `AUTHENTICATION_IMPROVEMENTS.md`)
+- **Areas for Improvement:** Error handling standardization, test coverage
 
 ---
 
@@ -37,11 +38,18 @@ This is a Next.js 15 application with a comprehensive admin panel for managing p
   - Document migration path
 
 #### 1.2 Code Duplication
-- **Issue:** Duplicate authentication logic in:
-  - `middleware.ts` (root level)
-  - `src/middleware/adminAuth.ts`
-- **Impact:** Maintenance burden, potential inconsistencies
-- **Recommendation:** Consolidate into single middleware utility
+✅ **IMPROVED** - Authentication logic consolidated
+
+**Previous Issue:**
+- Duplicate authentication logic in multiple files
+
+**Current Implementation:**
+- Core auth utilities centralized in `src/lib/auth.ts`
+- Token verification, generation, and blacklisting in one place
+- Middleware uses centralized utilities
+- Rate limiting utilities in `src/lib/rateLimit.ts`
+
+**Status:** ✅ Improved (centralized utilities, middleware uses them)
 
 ---
 
@@ -50,45 +58,37 @@ This is a Next.js 15 application with a comprehensive admin panel for managing p
 ### Critical Issues
 
 #### 2.1 Hardcoded JWT Secret (CRITICAL)
-```typescript
-// middleware.ts:4, src/app/api/admin/auth/login/route.ts:6
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
-```
+✅ **FIXED** - Now using environment variable with validation
 
-**Problem:**
+**Previous Issue:**
 - Fallback to insecure default secret if env var missing
-- Weak secret exposed in code
 
-**Risk:** High - Token forgery, unauthorized access
+**Current Implementation:**
+- JWT_SECRET validated in `src/lib/config.ts` using Zod
+- Must be at least 32 characters
+- No insecure fallback
+- Separate refresh token secret supported (JWT_REFRESH_SECRET)
 
-**Fix:**
-```typescript
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET || JWT_SECRET.length < 32) {
-  throw new Error('JWT_SECRET must be set and at least 32 characters');
-}
-```
+**Status:** ✅ Resolved
 
 #### 2.2 Missing Authentication in API Routes
-**Problem:** Many API routes don't verify authentication tokens
-- Routes under `/api/admin/*` should require authentication
-- `apiHandler.ts` has `requireAuth` option but it's not consistently used
+✅ **IMPROVED** - Enhanced authentication and protection
 
-**Example:**
-```typescript
-// src/app/api/admin/projects/route.ts
-export async function GET() {
-  // No authentication check!
-  const projects = await prisma.project.findMany(...);
-}
-```
+**Previous Issue:**
+- Many API routes didn't verify authentication tokens
 
-**Risk:** High - Unauthorized data access
+**Current Implementation:**
+- Middleware now protects all `/admin-panel` and `/api/admin` routes
+- Token verification and blacklist checking in middleware
+- `createApiHandler` enhanced with explicit token validation
+- Automatic token refresh for expired access tokens
+- RBAC system already implemented (see RBAC_COMPLETE_GUIDE.md)
 
 **Recommendation:**
-- Create middleware wrapper for API routes
-- Use `createApiHandler` with `requireAuth: true` consistently
-- Add role-based access control (RBAC)
+- Continue using `createApiHandler` with `requireAuth: true` for explicit protection
+- Routes protected by middleware automatically, but explicit checks recommended
+
+**Status:** ✅ Significantly Improved
 
 #### 2.3 Insecure Admin User Creation
 ```javascript
@@ -106,11 +106,16 @@ const password = 'admin123';
 - Require password change on first login
 
 #### 2.4 Missing CSRF Protection
-**Problem:** No CSRF tokens for state-changing operations
+✅ **PARTIALLY ADDRESSED** - SameSite cookies implemented
 
-**Recommendation:**
-- Implement CSRF tokens for POST/PUT/DELETE requests
-- Use `SameSite` cookie attributes
+**Current Implementation:**
+- HTTP-only cookies use `SameSite=Lax` attribute
+- Provides basic CSRF protection for cookie-based authentication
+- Cookies are secure (HttpOnly) and include SameSite protection
+
+**Note:** For additional protection in high-security environments, explicit CSRF tokens can still be added for state-changing operations.
+
+**Status:** ✅ Improved (basic protection in place)
 
 #### 2.5 Password Hashing Configuration
 ```typescript
@@ -124,12 +129,17 @@ const passwordHash = await bcrypt.hash(password, 12);
 **Status:** ✅ Protected - Using Prisma ORM prevents SQL injection
 
 #### 2.7 Missing Rate Limiting
-**Problem:** No rate limiting on authentication endpoints
+✅ **FIXED** - Rate limiting implemented
 
-**Recommendation:**
-- Add rate limiting to `/api/admin/auth/login`
-- Implement exponential backoff
-- Log failed attempts
+**Current Implementation:**
+- Login endpoint limited to 5 attempts per 15 minutes (per username+IP)
+- Rate limit utilities in `src/lib/rateLimit.ts`
+- Proper HTTP rate limit headers included (`Retry-After`, `X-RateLimit-*`)
+- In-memory storage (consider Redis for multi-instance deployments)
+
+**Status:** ✅ Implemented
+
+**Note:** For production with multiple server instances, consider migrating rate limiting to Redis for shared state.
 
 ---
 
@@ -380,13 +390,18 @@ sitemapSubmissionLog uses String @id @default(cuid())
 - Config validation throws errors but may crash on startup
 - Missing validation in some files (direct `process.env` access)
 
-**Example:**
+**Previous Example:**
 ```typescript
-// middleware.ts:4
-const JWT_SECRET = process.env.JWT_SECRET || '...'; // Bypasses config.ts
+// middleware.ts:4 (OLD)
+const JWT_SECRET = process.env.JWT_SECRET || '...'; // Bypassed config.ts
 ```
 
-**Recommendation:** Always use `config` from `lib/config.ts`
+**Current Implementation:**
+- Middleware now uses `src/lib/auth.ts` which can access validated config
+- Config validation enforced via Zod schema
+- JWT_SECRET must be at least 32 characters
+
+**Status:** ✅ Improved (uses centralized auth utilities)
 
 ### 8.2 Secrets Management
 - No secrets rotation strategy
@@ -469,10 +484,10 @@ Review and update:
 ## Priority Recommendations
 
 ### 🔴 Critical (Fix Immediately)
-1. **Remove hardcoded JWT secret fallback**
-2. **Add authentication to all API routes**
-3. **Enforce strong password policy**
-4. **Add rate limiting to auth endpoints**
+1. ✅ **Remove hardcoded JWT secret fallback** - FIXED (now validated via config)
+2. ✅ **Add authentication to all API routes** - IMPROVED (middleware protection + explicit checks)
+3. **Enforce strong password policy** - Still recommended
+4. ✅ **Add rate limiting to auth endpoints** - FIXED (5 attempts per 15 minutes)
 
 ### 🟠 High Priority (Fix Soon)
 1. **Add pagination to list endpoints**
@@ -500,7 +515,7 @@ Review and update:
 
 This is a well-structured Next.js application with good separation of concerns and modern development practices. The main areas requiring attention are:
 
-1. **Security:** Authentication hardening and removal of insecure defaults
+1. **Security:** ✅ Authentication hardening completed - HTTP-only cookies, token refresh, blacklisting, and rate limiting implemented (see AUTHENTICATION_IMPROVEMENTS.md)
 2. **Performance:** Pagination, caching, and query optimization
 3. **Code Quality:** Consistency in error handling and removal of technical debt
 4. **Scalability:** Database choice and architecture for production workloads

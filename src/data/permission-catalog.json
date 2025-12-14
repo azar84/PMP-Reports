@@ -1,6 +1,7 @@
 {
   "menuItems": [
     { "key": "projects", "label": "Projects" },
+    { "key": "reports", "label": "Reports" },
     { "key": "clients", "label": "Clients" },
     { "key": "consultants", "label": "Consultants" },
     { "key": "staff", "label": "Staff" },
@@ -24,7 +25,128 @@
     {
       "key": "admin.all",
       "label": "Superuser Access",
-      "description": "Full administrative access across all modules"
+      "description": "Full administrative access across all modules",
+      "resource": "admin"
+    },
+    {
+      "key": "projects.tab.overview",
+      "label": "Project Overview Tab",
+      "description": "Access to the Project Overview tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.checklist",
+      "label": "Project Checklist Tab",
+      "description": "Access to the Project Checklist tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.staff",
+      "label": "Project Staff Tab",
+      "description": "Access to the Project Staff tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.labours",
+      "label": "Project Labours Tab",
+      "description": "Access to the Project Labours tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.labourSupply",
+      "label": "Project Labour Supply Tab",
+      "description": "Access to the Project Labour Supply tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.plants",
+      "label": "Project Plants Tab",
+      "description": "Access to the Project Plants tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.assets",
+      "label": "Project Assets Tab",
+      "description": "Access to the Project Assets tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.planning",
+      "label": "Project Planning Tab",
+      "description": "Access to the Project Planning tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.quality",
+      "label": "Project Quality Tab",
+      "description": "Access to the Project Quality tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.risks",
+      "label": "Project Risks Tab",
+      "description": "Access to the Project Risks tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.hse",
+      "label": "Project HSE Tab",
+      "description": "Access to the Project HSE (Health, Safety, Environment) tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.pictures",
+      "label": "Project Pictures Tab",
+      "description": "Access to the Project Pictures tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.closeOut",
+      "label": "Project Close Out Tab",
+      "description": "Access to the Project Close Out tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.clientFeedback",
+      "label": "Project Client Feedback Tab",
+      "description": "Access to the Project Client Feedback tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.commercial",
+      "label": "Project Commercial Tab",
+      "description": "Access to the Project Commercial tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.ipc",
+      "label": "Project IPC Tab",
+      "description": "Access to the IPC (Interim Payment Certificates) tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.suppliers",
+      "label": "Project Suppliers Tab",
+      "description": "Access to the Project Suppliers tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "projects.tab.subcontractors",
+      "label": "Project Subcontractors Tab",
+      "description": "Access to the Project Subcontractors tab in Project Manager",
+      "resource": "projects"
+    },
+    {
+      "key": "dashboard.tab.projects",
+      "label": "Dashboard Projects Tab",
+      "description": "Access to the Projects tab in Dashboard",
+      "resource": "dashboard"
+    },
+    {
+      "key": "dashboard.tab.commercial",
+      "label": "Dashboard Commercial Tab",
+      "description": "Access to the Commercial tab in Dashboard",
+      "resource": "dashboard"
     }
   ]
 }

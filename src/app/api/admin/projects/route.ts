@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { Prisma } from '@prisma/client';
 import { prisma } from '@/lib/db';
 import { parseDateFromInput, formatDateForInput } from '@/lib/dateUtils';
+import { withRBAC } from '@/middleware/rbac';
+import { PERMISSIONS } from '@/lib/permissionsCatalog';
 
 // Default checklist template
 const defaultChecklistTemplate = [
@@ -72,10 +74,38 @@ const projectSchema = z.object({
   })).optional().default([]),
 });
 
-// GET - Fetch all projects
-export async function GET() {
+// GET - Fetch all projects (filtered by user project membership)
+export const GET = withRBAC(PERMISSIONS.PROJECTS_VIEW, async (_request, context) => {
   try {
+    // Get user to check if they have access to all projects
+    const user = await prisma.adminUser.findUnique({
+      where: { id: context.userId },
+      select: { hasAllProjectsAccess: true },
+    });
+
+    if (!user) {
+      return NextResponse.json(
+        { success: false, error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
+    // Build where clause based on user access
+    let whereClause: Prisma.ProjectWhereInput = {};
+    
+    // If user doesn't have all projects access, filter by project memberships
+    if (!user.hasAllProjectsAccess) {
+      whereClause = {
+        projectMemberships: {
+          some: {
+            userId: context.userId,
+          },
+        },
+      };
+    }
+
     const projects = await prisma.project.findMany({
+      where: whereClause,
       include: {
         client: true,
         projectManagementConsultant: true,
@@ -128,10 +158,10 @@ export async function GET() {
       { status: 500 }
     );
   }
-}
+});
 
 // POST - Create new project
-export async function POST(request: NextRequest) {
+export const POST = withRBAC(PERMISSIONS.PROJECTS_CREATE, async (request: NextRequest, context) => {
   try {
     const body = await request.json();
     const validatedData = projectSchema.parse(body);
@@ -160,6 +190,12 @@ export async function POST(request: NextRequest) {
     if (projectManagerId !== undefined) {
       projectDataWithDates.projectManagerId = projectManagerId || null;
     }
+
+    // Get user to check if they have all projects access
+    const user = await prisma.adminUser.findUnique({
+      where: { id: context.userId },
+      select: { hasAllProjectsAccess: true },
+    });
 
     // Use transaction to create project and contacts atomically
     const result = await prisma.$transaction(async (tx) => {
@@ -320,6 +356,23 @@ export async function POST(request: NextRequest) {
         });
       }
 
+      // Auto-assign creator as project member (unless they have all projects access)
+      if (!user?.hasAllProjectsAccess) {
+        await tx.projectMembership.upsert({
+          where: {
+            userId_projectId: {
+              userId: context.userId,
+              projectId: project.id,
+            },
+          },
+          update: {},
+          create: {
+            userId: context.userId,
+            projectId: project.id,
+          },
+        });
+      }
+
       // Return updated project with fresh staff data
       return await tx.project.findUnique({
         where: { id: project.id },
@@ -372,4 +425,4 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
