@@ -62,7 +62,8 @@ export async function getUserEffectivePermissions(userId: number): Promise<Effec
   }
 
   const effective = createEmptyPermissions();
-  effective.hasAdminAll = user.hasAllProjectsAccess;
+  // hasAdminAll should ONLY be set if user has admin.all permission from their role
+  // DO NOT confuse with hasAllProjectsAccess (that's for project access only)
 
   user.userRoles.forEach(({ role }) => {
     role.rolePermissions.forEach(({ action, permission }) => {

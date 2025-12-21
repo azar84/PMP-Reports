@@ -6,12 +6,10 @@
     { "key": "consultants", "label": "Consultants" },
     { "key": "staff", "label": "Staff" },
     { "key": "labours", "label": "Labours" },
-    { "key": "suppliers", "label": "Vendors" },
+    { "key": "vendors", "label": "Vendors" },
     { "key": "contacts", "label": "Contacts" },
-    { "key": "media", "label": "Media Library" },
     { "key": "users", "label": "Users" },
     { "key": "roles", "label": "Roles & Permissions" },
-    { "key": "scheduler", "label": "Scheduler" },
     { "key": "design-system", "label": "Design System" },
     { "key": "settings", "label": "Settings" }
   ],
@@ -125,9 +123,9 @@
       "resource": "projects"
     },
     {
-      "key": "projects.tab.suppliers",
-      "label": "Project Suppliers Tab",
-      "description": "Access to the Project Suppliers tab in Project Manager",
+      "key": "projects.tab.vendors",
+      "label": "Project Vendors Tab",
+      "description": "Access to the Project Vendors tab in Project Manager",
       "resource": "projects"
     },
     {

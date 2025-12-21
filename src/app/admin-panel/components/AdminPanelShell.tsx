@@ -78,7 +78,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
     { id: 'consultants', name: 'Consultants', icon: Users, color: colors.success, permission: 'consultants.view' },
     { id: 'company-staff', name: 'Staff', icon: User, color: colors.warning, permission: 'staff.view' },
     { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
-    { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'suppliers.view' },
+    { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'vendors.view' },
     { id: 'plants', name: 'Plants', icon: Factory, color: colors.success, permission: 'projects.view' },
     { id: 'contacts', name: 'Contacts', icon: Users, color: colors.info, permission: 'contacts.view' },
     { id: 'media-library', name: 'Media Library', icon: FolderOpen, color: colors.primary, permission: 'media-library.view' },

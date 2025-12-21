@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useEffect, useMemo, useState, useRef } from 'react';
-import { Plus, ShieldCheck, Trash2, Check, X, Layout, Lock } from 'lucide-react';
+import { Plus, ShieldCheck, Trash2, Check, X, Layout, Lock, CheckSquare, Square } from 'lucide-react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
@@ -150,9 +150,9 @@ export default function RolesManager() {
     return permissionDefinitions.filter((def) => def.key.startsWith('dashboard.tab.'));
   }, [permissionDefinitions]);
 
-  // Settings submenu items: Users, Roles, Design System, Site Settings
-  // Note: Scheduler is only accessible to superusers (admin.all)
-  const settingsSubmenuResources = ['users', 'roles', 'design-system', 'settings'];
+  // Settings submenu items: Users, Roles
+  // Note: Scheduler, Design System, and Site Settings are only accessible to superusers (admin.all) and not shown in permissions
+  const settingsSubmenuResources = ['users', 'roles'];
   
   const settingsPermissions = useMemo(() => {
     return permissionDefinitions.filter((def) => 
@@ -161,14 +161,17 @@ export default function RolesManager() {
   }, [permissionDefinitions]);
 
   const otherPermissions = useMemo(() => {
+    // Resources that should not appear in general permissions (superuser-only or handled separately)
+    const excludedResources = ['design-system', 'settings', 'scheduler', ...settingsSubmenuResources];
+    
     return permissionDefinitions.filter(
       (def) => 
         !def.key.startsWith('projects.tab.') && 
         !def.key.startsWith('dashboard.tab.') &&
-        !settingsSubmenuResources.includes(def.resource) &&
+        !excludedResources.includes(def.resource) &&
         def.key !== 'admin.all'
     );
-  }, [permissionDefinitions]);
+  }, [permissionDefinitions, settingsSubmenuResources]);
 
   const permissionGroups = useMemo<PermissionGroup[]>(() => {
     const grouped = new Map<string, PermissionGroup>();
@@ -414,6 +417,86 @@ export default function RolesManager() {
     setError(null);
   };
 
+  const handleSelectAllPermissions = () => {
+    if (!selectedRole || !canUpdateRoles) {
+      return;
+    }
+
+    // Collect all permission keys from all groups
+    const allPermissionKeys = [
+      ...tabPermissions.map((perm) => perm.key),
+      ...dashboardTabPermissions.map((perm) => perm.key),
+      ...settingsPermissions.map((perm) => perm.key),
+      ...otherPermissions.map((perm) => perm.key),
+    ];
+
+    const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
+    const updatedPermissions = new Set(currentPermissions);
+    allPermissionKeys.forEach((key) => updatedPermissions.add(key));
+
+    // Optimistic update only (no auto-save)
+    setOptimisticPermissions(new Set(updatedPermissions));
+    latestOptimisticPermissionsRef.current = new Set(updatedPermissions);
+    setError(null);
+  };
+
+  const handleDeselectAllPermissions = () => {
+    if (!selectedRole || !canUpdateRoles) {
+      return;
+    }
+
+    // Collect all permission keys from all groups
+    const allPermissionKeys = [
+      ...tabPermissions.map((perm) => perm.key),
+      ...dashboardTabPermissions.map((perm) => perm.key),
+      ...settingsPermissions.map((perm) => perm.key),
+      ...otherPermissions.map((perm) => perm.key),
+    ];
+
+    const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
+    const updatedPermissions = new Set(currentPermissions);
+    allPermissionKeys.forEach((key) => updatedPermissions.delete(key));
+
+    // Optimistic update only (no auto-save)
+    setOptimisticPermissions(new Set(updatedPermissions));
+    latestOptimisticPermissionsRef.current = new Set(updatedPermissions);
+    setError(null);
+  };
+
+  const handleSelectAllGeneralPermissions = () => {
+    if (!selectedRole || !canUpdateRoles) {
+      return;
+    }
+
+    // Get all permission keys from otherPermissions
+    const allPermissionKeys = otherPermissions.map((perm) => perm.key);
+    const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
+    const updatedPermissions = new Set(currentPermissions);
+    allPermissionKeys.forEach((key) => updatedPermissions.add(key));
+
+    // Optimistic update only (no auto-save)
+    setOptimisticPermissions(new Set(updatedPermissions));
+    latestOptimisticPermissionsRef.current = new Set(updatedPermissions);
+    setError(null);
+  };
+
+  const handleDeselectAllGeneralPermissions = () => {
+    if (!selectedRole || !canUpdateRoles) {
+      return;
+    }
+
+    // Get all permission keys from otherPermissions
+    const allPermissionKeys = otherPermissions.map((perm) => perm.key);
+    const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
+    const updatedPermissions = new Set(currentPermissions);
+    allPermissionKeys.forEach((key) => updatedPermissions.delete(key));
+
+    // Optimistic update only (no auto-save)
+    setOptimisticPermissions(new Set(updatedPermissions));
+    latestOptimisticPermissionsRef.current = new Set(updatedPermissions);
+    setError(null);
+  };
+
   const handleDeselectAllTabs = () => {
     if (!selectedRole || !canUpdateRoles) {
       return;
@@ -455,6 +538,38 @@ export default function RolesManager() {
     const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
     const updatedPermissions = new Set(currentPermissions);
     allTabKeys.forEach((key) => updatedPermissions.delete(key));
+
+    // Optimistic update only (no auto-save)
+    setOptimisticPermissions(new Set(updatedPermissions));
+    latestOptimisticPermissionsRef.current = new Set(updatedPermissions);
+    setError(null);
+  };
+
+  const handleSelectAllSettings = () => {
+    if (!selectedRole || !canUpdateRoles) {
+      return;
+    }
+
+    const allSettingsKeys = settingsPermissions.map((perm) => perm.key);
+    const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
+    const updatedPermissions = new Set(currentPermissions);
+    allSettingsKeys.forEach((key) => updatedPermissions.add(key));
+
+    // Optimistic update only (no auto-save)
+    setOptimisticPermissions(new Set(updatedPermissions));
+    latestOptimisticPermissionsRef.current = new Set(updatedPermissions);
+    setError(null);
+  };
+
+  const handleDeselectAllSettings = () => {
+    if (!selectedRole || !canUpdateRoles) {
+      return;
+    }
+
+    const allSettingsKeys = settingsPermissions.map((perm) => perm.key);
+    const currentPermissions = optimisticPermissions !== null ? optimisticPermissions : activePermissionKeys;
+    const updatedPermissions = new Set(currentPermissions);
+    allSettingsKeys.forEach((key) => updatedPermissions.delete(key));
 
     // Optimistic update only (no auto-save)
     setOptimisticPermissions(new Set(updatedPermissions));
@@ -774,6 +889,30 @@ export default function RolesManager() {
                     </p>
                   </Card>
                 )}
+
+                {/* Global Select All/Deselect All */}
+                <div className="flex items-center justify-end space-x-2">
+                  <Button
+                    variant="ghost"
+                    onClick={handleSelectAllPermissions}
+                    disabled={!canUpdateRoles || selectedRole.isSystem}
+                    className="flex items-center space-x-2"
+                    style={{ color: colors.primary }}
+                  >
+                    <CheckSquare className="w-4 h-4" />
+                    <span>Select All Permissions</span>
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    onClick={handleDeselectAllPermissions}
+                    disabled={!canUpdateRoles || selectedRole.isSystem}
+                    className="flex items-center space-x-2"
+                    style={{ color: colors.textSecondary }}
+                  >
+                    <Square className="w-4 h-4" />
+                    <span>Deselect All Permissions</span>
+                  </Button>
+                </div>
                 {/* Superuser Access */}
                 {permissionDefinitions.find((p) => p.key === 'admin.all') && (
                   <Card
@@ -1031,16 +1170,38 @@ export default function RolesManager() {
                       backgroundColor: colors.backgroundSecondary,
                     }}
                   >
-                    <div className="mb-6">
-                      <div className="flex items-center space-x-3 mb-2">
+                    <div className="flex items-center justify-between mb-6">
+                      <div className="flex items-center space-x-3">
                         <ShieldCheck className="w-5 h-5" style={{ color: colors.primary }} />
-                        <h4 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
-                          Settings Submenu Access
-                        </h4>
+                        <div>
+                          <h4 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                            Settings
+                          </h4>
+                          <p className="text-sm" style={{ color: colors.textSecondary }}>
+                            Control access to Settings (Users, Roles)
+                          </p>
+                        </div>
                       </div>
-                      <p className="text-sm" style={{ color: colors.textSecondary }}>
-                        Control access to submenu items under Settings (Users, Roles, Scheduler, Design System, Site Settings)
-                      </p>
+                      <div className="flex space-x-2">
+                        <Button
+                          variant="ghost"
+                          onClick={handleSelectAllSettings}
+                          disabled={!canUpdateRoles || selectedRole.isSystem}
+                          className="text-xs px-3 py-1"
+                          style={{ color: colors.primary }}
+                        >
+                          Select All
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          onClick={handleDeselectAllSettings}
+                          disabled={!canUpdateRoles || selectedRole.isSystem}
+                          className="text-xs px-3 py-1"
+                          style={{ color: colors.textSecondary }}
+                        >
+                          Clear All
+                        </Button>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto">
@@ -1192,12 +1353,36 @@ export default function RolesManager() {
                     }}
                   >
                     <div className="mb-6">
-                      <h4 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
-                        General Permissions
-                      </h4>
-                      <p className="text-sm" style={{ color: colors.textSecondary }}>
-                        Manage access to different modules and operations across the system
-                      </p>
+                      <div className="flex items-center justify-between mb-2">
+                        <div>
+                          <h4 className="text-lg font-semibold" style={{ color: colors.textPrimary }}>
+                            General Permissions
+                          </h4>
+                          <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                            Manage access to different modules and operations across the system
+                          </p>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                          <Button
+                            variant="ghost"
+                            onClick={handleSelectAllGeneralPermissions}
+                            disabled={!canUpdateRoles || selectedRole.isSystem}
+                            className="flex items-center space-x-2"
+                            style={{ color: colors.primary }}
+                          >
+                            Select All
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            onClick={handleDeselectAllGeneralPermissions}
+                            disabled={!canUpdateRoles || selectedRole.isSystem}
+                            className="flex items-center space-x-2"
+                            style={{ color: colors.textSecondary }}
+                          >
+                            Deselect All
+                          </Button>
+                        </div>
+                      </div>
                     </div>
 
                     <div className="overflow-x-auto">

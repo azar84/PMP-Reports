@@ -43,7 +43,7 @@ export const TAB_PERMISSION_MAP: Record<ProjectTabId, string> = {
   clientFeedback: 'projects.tab.clientFeedback',
   commercial: 'projects.tab.commercial',
   ipc: 'projects.tab.ipc',
-  suppliers: 'projects.tab.suppliers',
+  suppliers: 'projects.tab.vendors',
   subcontractors: 'projects.tab.subcontractors',
 };
 

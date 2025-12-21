@@ -11,17 +11,37 @@ export async function GET(request: NextRequest) {
         username: true,
         email: true,
         name: true,
-        role: true,
+        role: true, // Legacy field, kept for backward compatibility
         isActive: true,
         hasAllProjectsAccess: true,
         lastLoginAt: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                isSystem: true,
+              }
+            }
+          }
+        }
       },
       orderBy: { createdAt: 'desc' }
     });
 
-    return NextResponse.json(users);
+    // Map users to include primary role from RBAC system (first role, or fallback to legacy role field)
+    const usersWithRoles = users.map(user => ({
+      ...user,
+      roles: user.userRoles.map(ur => ur.role),
+      primaryRole: user.userRoles.length > 0 
+        ? user.userRoles[0].role.name 
+        : user.role // Fallback to legacy role field if no RBAC roles assigned
+    }));
+
+    return NextResponse.json(usersWithRoles);
   } catch (error) {
     console.error('Error fetching users:', error);
     return NextResponse.json(

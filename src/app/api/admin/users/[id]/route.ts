@@ -25,12 +25,23 @@ export async function GET(
         username: true,
         email: true,
         name: true,
-        role: true,
+        role: true, // Legacy field
         isActive: true,
         hasAllProjectsAccess: true,
         lastLoginAt: true,
         createdAt: true,
-        updatedAt: true
+        updatedAt: true,
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                isSystem: true,
+              }
+            }
+          }
+        }
       }
     });
 
@@ -41,7 +52,16 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(user);
+    // Include primary role from RBAC system
+    const userWithRole = {
+      ...user,
+      roles: user.userRoles.map(ur => ur.role),
+      primaryRole: user.userRoles.length > 0 
+        ? user.userRoles[0].role.name 
+        : user.role // Fallback to legacy role field
+    };
+
+    return NextResponse.json(userWithRole);
   } catch (error) {
     console.error('Error fetching user:', error);
     return NextResponse.json(
@@ -108,6 +128,7 @@ export async function PUT(
     if (name !== undefined) updateData.name = name;
     if (role !== undefined) updateData.role = role;
     if (isActive !== undefined) updateData.isActive = isActive;
+    if (hasAllProjectsAccess !== undefined) updateData.hasAllProjectsAccess = hasAllProjectsAccess;
     if (password) {
       updateData.passwordHash = await bcrypt.hash(password, 12);
     }
@@ -156,17 +177,56 @@ export async function PUT(
       return updatedUser;
     });
 
+    // Fetch user with roles to return complete data
+    const userWithRoles = await prisma.adminUser.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        email: true,
+        name: true,
+        role: true,
+        isActive: true,
+        hasAllProjectsAccess: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true,
+        userRoles: {
+          select: {
+            role: {
+              select: {
+                id: true,
+                name: true,
+                isSystem: true,
+              }
+            }
+          }
+        }
+      }
+    });
+
+    if (!userWithRoles) {
+      return NextResponse.json(
+        { error: 'User not found' },
+        { status: 404 }
+      );
+    }
+
     return NextResponse.json({
-      id: user.id,
-      username: user.username,
-      email: user.email,
-      name: user.name,
-      role: user.role,
-      isActive: user.isActive,
-      hasAllProjectsAccess: user.hasAllProjectsAccess,
-      lastLoginAt: user.lastLoginAt,
-      createdAt: user.createdAt,
-      updatedAt: user.updatedAt
+      id: userWithRoles.id,
+      username: userWithRoles.username,
+      email: userWithRoles.email,
+      name: userWithRoles.name,
+      role: userWithRoles.role,
+      isActive: userWithRoles.isActive,
+      hasAllProjectsAccess: userWithRoles.hasAllProjectsAccess,
+      lastLoginAt: userWithRoles.lastLoginAt,
+      createdAt: userWithRoles.createdAt,
+      updatedAt: userWithRoles.updatedAt,
+      roles: userWithRoles.userRoles.map(ur => ur.role),
+      primaryRole: userWithRoles.userRoles.length > 0 
+        ? userWithRoles.userRoles[0].role.name 
+        : userWithRoles.role
     });
   } catch (error) {
     console.error('Error updating user:', error);

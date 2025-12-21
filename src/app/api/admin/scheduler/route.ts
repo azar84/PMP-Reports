@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import scheduler from '@/lib/scheduler';
+import { withRBAC } from '@/middleware/rbac';
+import { PERMISSIONS } from '@/lib/permissionsCatalog';
 
-// GET - Get scheduler status and tasks
-export async function GET(request: NextRequest) {
+// GET - Get scheduler status and tasks (Superuser only)
+export const GET = withRBAC(PERMISSIONS.ADMIN_ALL, async (_request: NextRequest) => {
   try {
     const status = scheduler.getStatus();
     const tasks = scheduler.getTasks();
@@ -26,10 +28,10 @@ export async function GET(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-// POST - Start scheduler or trigger task
-export async function POST(request: NextRequest) {
+// POST - Start scheduler or trigger task (Superuser only)
+export const POST = withRBAC(PERMISSIONS.ADMIN_ALL, async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { action, taskId } = body;
@@ -74,10 +76,10 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
-}
+});
 
-// PUT - Update task settings
-export async function PUT(request: NextRequest) {
+// PUT - Update task settings (Superuser only)
+export const PUT = withRBAC(PERMISSIONS.ADMIN_ALL, async (request: NextRequest) => {
   try {
     const body = await request.json();
     const { taskId, updates } = body;
@@ -115,4 +117,4 @@ export async function PUT(request: NextRequest) {
       { status: 500 }
     );
   }
-} 
+}); 

@@ -128,22 +128,72 @@ async function main() {
     return role;
   };
 
-  // Create SuperUser role with all permissions
+  // Create SuperUser role with all permissions (only system role)
   const allPermissionIds = allPermissions.map((permission) => permission.id);
   const superUserRole = await createRoleWithPermissions(
     'SuperUser',
     'Super user with full access to everything - bypasses all restrictions',
     allPermissionIds,
-    true
+    true // isSystem: true - this is the only system role, non-modifiable
   );
 
-  // Create Admin role with all permissions (legacy compatibility)
-  await createRoleWithPermissions(
-    'Admin',
-    'Full system administrator with all permissions',
-    allPermissionIds,
-    true
-  );
+  // Remove Admin role if it exists (cleanup - Admin should not be a system role)
+  const existingAdminRole = await prisma.role.findFirst({
+    where: {
+      tenantId: defaultTenant.id,
+      name: 'Admin',
+    },
+    include: {
+      userRoles: true,
+    },
+  });
+
+  if (existingAdminRole) {
+    console.log('🧹 Removing Admin role (should not be a system role)...');
+    
+    // Reassign users with Admin role to SuperUser role
+    if (existingAdminRole.userRoles.length > 0) {
+      console.log(`   Reassigning ${existingAdminRole.userRoles.length} user(s) from Admin to SuperUser role...`);
+      for (const userRole of existingAdminRole.userRoles) {
+        // Delete Admin role assignment
+        await prisma.userRole.delete({
+          where: {
+            userId_roleId: {
+              userId: userRole.userId,
+              roleId: existingAdminRole.id,
+            },
+          },
+        });
+        
+        // Assign SuperUser role (use upsert to avoid duplicates)
+        await prisma.userRole.upsert({
+          where: {
+            userId_roleId: {
+              userId: userRole.userId,
+              roleId: superUserRole.id,
+            },
+          },
+          update: {},
+          create: {
+            userId: userRole.userId,
+            roleId: superUserRole.id,
+          },
+        });
+      }
+      console.log('   ✅ Users reassigned to SuperUser role');
+    }
+    
+    // Remove RolePermission relationships
+    await prisma.rolePermission.deleteMany({
+      where: { roleId: existingAdminRole.id },
+    });
+    
+    // Delete the Admin role
+    await prisma.role.delete({
+      where: { id: existingAdminRole.id },
+    });
+    console.log('✅ Admin role removed');
+  }
 
   // Create Project Manager role with targeted permissions
   const projectManagerPermissionKeys = [
@@ -158,7 +208,6 @@ async function main() {
     'labours.update',
     'contacts.view',
     'contacts.update',
-    'media.view',
     'scheduler.view',
   ];
 

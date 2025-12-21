@@ -56,6 +56,7 @@ import ContactManager from './components/ContactManager';
 import SupplierManager from './components/SupplierManager';
 import RolesManager from './components/RolesManager';
 import MainDashboard from './components/MainDashboard';
+import ProfileManager from './components/ProfileManager';
 import type { PermissionKey } from '@/lib/permissionsCatalog';
 import { PERMISSIONS } from '@/lib/permissionsCatalog';
 
@@ -73,6 +74,7 @@ type Section =
   | 'suppliers'
   | 'plants'
   | 'contacts'
+  | 'profile'
   | 'users'
   | 'roles'
   | 'scheduler'
@@ -80,7 +82,7 @@ type Section =
   | 'design-system';
 
 interface NavigationItem {
-  id: Section | 'settings' | 'people' | 'contacts';
+  id: Section | 'settings' | 'people' | 'contacts' | 'profile';
   name: string;
   icon: React.ComponentType<{ className?: string }>;
   color: string;
@@ -107,7 +109,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
         { id: 'labours', name: 'Labours', icon: HardHat, color: colors.accent, permission: 'labours.view' },
       ]
     },
-    { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'suppliers.view' },
+    { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'vendors.view' },
     { id: 'plants', name: 'Plant', icon: Truck, color: colors.success, permission: 'projects.view' },
     { 
       id: 'contacts', 
@@ -128,11 +130,12 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
       color: colors.textSecondary, 
       permission: null,
       children: [
+        { id: 'profile', name: 'Profile', icon: User, color: colors.info, permission: null }, // No permission required - users can always edit their own profile
         { id: 'users', name: 'Users', icon: Users, color: colors.error, permission: 'users.view' },
         { id: 'roles', name: 'Roles', icon: Shield, color: colors.success, permission: 'roles.view' },
-        { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning, permission: 'scheduler.view' },
-        { id: 'design-system', name: 'Design System', icon: Layers, color: colors.primary, permission: 'design-system.view' },
-        { id: 'site-settings', name: 'Site Settings', icon: Settings, color: colors.textSecondary, permission: 'settings.view' },
+        { id: 'scheduler', name: 'Scheduler', icon: Clock, color: colors.warning, permission: 'admin.all' }, // Only visible to superusers
+        { id: 'design-system', name: 'Design System', icon: Layers, color: colors.primary, permission: 'admin.all' }, // Only visible to superusers
+        { id: 'site-settings', name: 'Site Settings', icon: Settings, color: colors.textSecondary, permission: 'admin.all' }, // Only visible to superusers
       ]
     },
   ];
@@ -248,13 +251,31 @@ export default function AdminPanel() {
     if (userPermissionsLoading) {
       return navigationItems;
     }
-    return navigationItems.filter((item) => {
+    // Check if user has superuser access (admin.all) - ONLY superusers can see admin.all items
+    const isSuperuser = grantedPermissions && grantedPermissions.includes('admin.all');
+    
+    return navigationItems.map((item) => {
       if (item.children) {
-        // For parent items with children, check if any child has permission
-        return item.children.some(child => !child.permission || hasPermission(grantedPermissions, child.permission));
+        // Filter children based on permissions
+        const visibleChildren = item.children.filter(child => {
+          // If child requires admin.all, ONLY show if user is superuser
+          if (child.permission === 'admin.all') {
+            return isSuperuser;
+          }
+          // For other permissions, check normally
+          return !child.permission || hasPermission(grantedPermissions, child.permission);
+        });
+        // Return item with filtered children, or null if no children visible
+        return visibleChildren.length > 0 ? { ...item, children: visibleChildren } : null;
       }
-      return !item.permission || hasPermission(grantedPermissions, item.permission);
-    });
+      // For items without children
+      // If item requires admin.all, ONLY show if user is superuser
+      if (item.permission === 'admin.all') {
+        return isSuperuser ? item : null;
+      }
+      // For other permissions, check normally
+      return !item.permission || hasPermission(grantedPermissions, item.permission) ? item : null;
+    }).filter((item): item is NavigationItem => item !== null);
   }, [navigationItems, grantedPermissions, userPermissionsLoading]);
   
   // Flatten navigation items for active section checking
@@ -521,6 +542,15 @@ export default function AdminPanel() {
             <RolesManager />
           </div>
         );
+      case 'profile':
+        return (
+          <div 
+            className="p-8 space-y-8"
+            style={{ backgroundColor: colors.backgroundPrimary }}
+          >
+            <ProfileManager />
+          </div>
+        );
       case 'users':
         return (
           <div 
@@ -531,6 +561,22 @@ export default function AdminPanel() {
           </div>
         );
       case 'scheduler':
+        // Only allow access if user has admin.all permission (superuser)
+        if (!hasPermission(grantedPermissions, PERMISSIONS.ADMIN_ALL)) {
+          return (
+            <div className="p-8 space-y-8" style={{ backgroundColor: colors.backgroundPrimary }}>
+              <Card className="p-8 text-center" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: colors.error }} />
+                <h3 className="text-xl font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                  Access Denied
+                </h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Scheduler is only available to superusers.
+                </p>
+              </Card>
+            </div>
+          );
+        }
         return (
           <div 
             className="p-8 space-y-8"
@@ -540,6 +586,22 @@ export default function AdminPanel() {
           </div>
         );
       case 'site-settings':
+        // Only allow access if user has admin.all permission (superuser)
+        if (!hasPermission(grantedPermissions, PERMISSIONS.ADMIN_ALL)) {
+          return (
+            <div className="p-8 space-y-8" style={{ backgroundColor: colors.backgroundPrimary }}>
+              <Card className="p-8 text-center" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: colors.error }} />
+                <h3 className="text-xl font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                  Access Denied
+                </h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Site Settings is only available to superusers.
+                </p>
+              </Card>
+            </div>
+          );
+        }
         return (
           <div 
             className="p-8 space-y-8"
@@ -549,6 +611,22 @@ export default function AdminPanel() {
           </div>
         );
       case 'design-system':
+        // Only allow access if user has admin.all permission (superuser)
+        if (!hasPermission(grantedPermissions, PERMISSIONS.ADMIN_ALL)) {
+          return (
+            <div className="p-8 space-y-8" style={{ backgroundColor: colors.backgroundPrimary }}>
+              <Card className="p-8 text-center" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                <AlertCircle className="w-12 h-12 mx-auto mb-4" style={{ color: colors.error }} />
+                <h3 className="text-xl font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                  Access Denied
+                </h3>
+                <p className="text-sm" style={{ color: colors.textSecondary }}>
+                  Design System is only available to superusers.
+                </p>
+              </Card>
+            </div>
+          );
+        }
         return (
           <div 
             className="p-8 space-y-8"
@@ -823,7 +901,14 @@ export default function AdminPanel() {
           >
             {sidebarOpen ? (
             <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
+              <button
+                onClick={() => {
+                  setActiveSection('profile');
+                  // Open settings menu if collapsed to show profile
+                  setSettingsMenuOpen(true);
+                }}
+                className="flex items-center space-x-3 flex-1 min-w-0 hover:opacity-80 transition-opacity"
+              >
                 <div 
                     className="w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0"
                   style={{ backgroundColor: colors.secondary }}
@@ -849,10 +934,10 @@ export default function AdminPanel() {
                     Administrator
                   </p>
                 </div>
-              </div>
+              </button>
               <button
                 onClick={handleLogout}
-                  className="p-2 rounded-lg transition-colors flex-shrink-0"
+                  className="p-2 rounded-lg transition-colors flex-shrink-0 ml-2"
                 style={{ color: colors.textSecondary }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor = 'rgba(0, 0, 0, 0.1)';
@@ -867,9 +952,14 @@ export default function AdminPanel() {
             </div>
             ) : (
               <div className="flex flex-col items-center space-y-2">
-                <div 
-                  className="w-8 h-8 rounded-full flex items-center justify-center"
+                <button
+                  onClick={() => {
+                    setActiveSection('profile');
+                    setSettingsMenuOpen(true);
+                  }}
+                  className="w-8 h-8 rounded-full flex items-center justify-center hover:opacity-80 transition-opacity"
                   style={{ backgroundColor: colors.secondary }}
+                  title="Profile"
                 >
                   <span 
                     className="font-medium text-sm"
@@ -877,7 +967,7 @@ export default function AdminPanel() {
                   >
                     {user.email?.charAt(0).toUpperCase()}
                   </span>
-          </div>
+                </button>
                 <button
                   onClick={handleLogout}
                   className="p-2 rounded-lg transition-colors"
@@ -1016,8 +1106,12 @@ export default function AdminPanel() {
                 />
               )}
             </div>
-            <div 
-              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+            <button
+              onClick={() => {
+                setActiveSection('profile');
+                setSettingsMenuOpen(true);
+              }}
+              className="w-8 h-8 rounded-full flex items-center justify-center transition-colors cursor-pointer hover:opacity-80"
               style={{ 
                 backgroundColor: colors.secondary,
                 color: 'var(--color-text-primary)'
@@ -1028,6 +1122,7 @@ export default function AdminPanel() {
               onMouseLeave={(e) => {
                 e.currentTarget.style.backgroundColor = colors.secondary;
               }}
+              title="Profile"
             >
               <span 
                 className="font-medium text-sm"
@@ -1035,7 +1130,7 @@ export default function AdminPanel() {
               >
                 {user.email?.charAt(0).toUpperCase()}
               </span>
-            </div>
+            </button>
           </div>
         </header>
 

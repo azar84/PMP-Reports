@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/Input';
 import { Card } from '@/components/ui/Card';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
+import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { 
   Users, 
   UserPlus, 
@@ -31,12 +32,14 @@ interface AdminUser {
   username: string;
   email: string;
   name?: string;
-  role: string;
+  role: string; // Legacy field
   isActive: boolean;
   hasAllProjectsAccess?: boolean;
   lastLoginAt?: string;
   createdAt: string;
   updatedAt: string;
+  roles?: Array<{ id: number; name: string; isSystem: boolean }>;
+  primaryRole?: string; // Primary role name from RBAC system
 }
 
 interface UserFormData {
@@ -61,6 +64,12 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
+  const { permissions } = useUserPermissions();
+  
+  // Permission checks
+  const canCreateUsers = hasPermission(permissions, 'users.create');
+  const canUpdateUsers = hasPermission(permissions, 'users.update');
+  const canDeleteUsers = hasPermission(permissions, 'users.delete');
   const [showCreateForm, setShowCreateForm] = useState(false);
   const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
   const [showPasswordReset, setShowPasswordReset] = useState(false);
@@ -332,7 +341,7 @@ export default function UserManagement() {
       email: user.email,
       password: '',
       name: user.name || '',
-      role: user.role,
+      role: user.primaryRole || user.role, // Use primaryRole from RBAC system, fallback to legacy role
       hasAllProjectsAccess: user.hasAllProjectsAccess || false
     });
     
@@ -508,17 +517,7 @@ export default function UserManagement() {
           <h2 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>User Management</h2>
           <p style={{ color: colors.textSecondary }}>Manage admin users and their permissions</p>
         </div>
-        <div className="flex space-x-3">
-          <Button
-            onClick={() => setShowPasswordReset(true)}
-            className="flex items-center space-x-2"
-            style={{
-              backgroundColor: designSystem?.primaryColor || '#3B82F6'
-            }}
-          >
-            <Lock className="w-4 h-4" />
-            <span>Password Reset</span>
-          </Button>
+        {canCreateUsers && (
           <Button
             onClick={() => setShowCreateForm(true)}
             className="flex items-center space-x-2"
@@ -529,7 +528,7 @@ export default function UserManagement() {
             <UserPlus className="w-4 h-4" />
             <span>Add User</span>
           </Button>
-        </div>
+        )}
       </div>
 
       {/* Message */}
@@ -1050,9 +1049,11 @@ export default function UserManagement() {
                   <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
                     Created
                   </th>
-                  <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
-                    Actions
-                  </th>
+                  {(canUpdateUsers || canDeleteUsers) && (
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                      Actions
+                    </th>
+                  )}
                 </tr>
               </thead>
               <tbody style={{ backgroundColor: colors.backgroundPrimary }}>
@@ -1078,12 +1079,15 @@ export default function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <Shield className="w-4 h-4 mr-2" style={{ 
-                          color: user.role === 'admin' ? colors.error : 
-                          user.role === 'editor' ? colors.primary : colors.textSecondary
+                          color: (user.primaryRole || user.role) === 'SuperUser' ? colors.error : 
+                          (user.primaryRole || user.role) === 'editor' ? colors.primary : colors.textSecondary
                         }} />
                         <span className="text-sm capitalize" style={{ color: colors.textPrimary }}>
-                          {user.role}
+                          {user.primaryRole || user.role}
                         </span>
+                        {user.roles && user.roles.some(r => r.isSystem) && (
+                          <Lock className="w-3 h-3 ml-1" style={{ color: colors.textSecondary }} />
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
@@ -1110,24 +1114,30 @@ export default function UserManagement() {
                         {formatDate(user.createdAt)}
                       </div>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                      <div className="flex items-center justify-end space-x-2">
-                        <button
-                          onClick={() => handleEditUser(user)}
-                          style={{ color: colors.primary }}
-                          title="Edit user"
-                        >
-                          <Edit className="w-4 h-4" />
-                        </button>
-                        <button
-                          onClick={() => handleDeleteUser(user.id)}
-                          style={{ color: colors.error }}
-                          title="Delete user"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
-                    </td>
+                    {(canUpdateUsers || canDeleteUsers) && (
+                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                        <div className="flex items-center justify-end space-x-2">
+                          {canUpdateUsers && (
+                            <button
+                              onClick={() => handleEditUser(user)}
+                              style={{ color: colors.primary }}
+                              title="Edit user"
+                            >
+                              <Edit className="w-4 h-4" />
+                            </button>
+                          )}
+                          {canDeleteUsers && (
+                            <button
+                              onClick={() => handleDeleteUser(user.id)}
+                              style={{ color: colors.error }}
+                              title="Delete user"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
