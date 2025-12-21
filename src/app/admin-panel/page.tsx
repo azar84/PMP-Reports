@@ -110,7 +110,7 @@ const getNavigationItems = (designSystem: any): NavigationItem[] => {
       ]
     },
     { id: 'suppliers', name: 'Vendors', icon: Briefcase, color: colors.info, permission: 'vendors.view' },
-    { id: 'plants', name: 'Plant', icon: Truck, color: colors.success, permission: 'projects.view' },
+    { id: 'plants', name: 'Plant', icon: Truck, color: colors.success, permission: 'plants.view' },
     { 
       id: 'contacts', 
       name: 'Contacts', 

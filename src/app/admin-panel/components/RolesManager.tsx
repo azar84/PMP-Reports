@@ -199,7 +199,24 @@ export default function RolesManager() {
       }
     });
 
-    return Array.from(grouped.values()).sort((a, b) => a.label.localeCompare(b.label));
+    // Custom sort order: Staff should appear before Labours
+    const customOrder: Record<string, number> = {
+      'Staff': 1,
+      'Labours': 2,
+    };
+    
+    return Array.from(grouped.values()).sort((a, b) => {
+      const orderA = customOrder[a.label] ?? 999;
+      const orderB = customOrder[b.label] ?? 999;
+      
+      // If both have custom order, sort by order
+      if (orderA !== 999 || orderB !== 999) {
+        return orderA - orderB;
+      }
+      
+      // Otherwise sort alphabetically
+      return a.label.localeCompare(b.label);
+    });
   }, [otherPermissions]);
 
   const fetchRoles = async () => {
@@ -1361,7 +1378,7 @@ export default function RolesManager() {
                           <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
                             Manage access to different modules and operations across the system
                           </p>
-                        </div>
+                    </div>
                         <div className="flex items-center space-x-2">
                           <Button
                             variant="ghost"

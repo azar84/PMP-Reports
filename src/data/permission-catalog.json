@@ -6,6 +6,7 @@
     { "key": "consultants", "label": "Consultants" },
     { "key": "staff", "label": "Staff" },
     { "key": "labours", "label": "Labours" },
+    { "key": "plants", "label": "Plants" },
     { "key": "vendors", "label": "Vendors" },
     { "key": "contacts", "label": "Contacts" },
     { "key": "users", "label": "Users" },

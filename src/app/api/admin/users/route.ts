@@ -91,12 +91,12 @@ export async function POST(request: NextRequest) {
     // Create user and assign role
     const user = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.adminUser.create({
-        data: {
-          username,
-          email,
-          passwordHash,
-          name: name || null,
-          role: role || 'admin',
+      data: {
+        username,
+        email,
+        passwordHash,
+        name: name || null,
+        role: role || 'admin',
           isActive: true,
           tenantId: tenantId,
           hasAllProjectsAccess: hasAllProjectsAccess === true,

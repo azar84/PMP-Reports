@@ -514,15 +514,16 @@ export default function UserManagement() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold" style={{ color: colors.textPrimary }}>User Management</h2>
-          <p style={{ color: colors.textSecondary }}>Manage admin users and their permissions</p>
+          <h2 className="text-2xl font-bold" style={{ color: 'var(--color-text-primary)' }}>User Management</h2>
+          <p style={{ color: 'var(--color-text-secondary)' }}>Manage admin users and their permissions</p>
         </div>
         {canCreateUsers && (
           <Button
             onClick={() => setShowCreateForm(true)}
             className="flex items-center space-x-2"
             style={{
-              backgroundColor: designSystem?.primaryColor || '#3B82F6'
+              backgroundColor: 'var(--color-primary)',
+              color: 'var(--color-bg-primary)'
             }}
           >
             <UserPlus className="w-4 h-4" />
@@ -533,20 +534,21 @@ export default function UserManagement() {
 
       {/* Message */}
       {message && (
-        <div className={`p-4 rounded-lg flex items-center space-x-2 ${
-          message.type === 'success' 
-            ? 'bg-green-50 text-green-800 border border-green-200' 
-            : 'bg-red-50 text-red-800 border border-red-200'
-        }`}>
+        <div className="p-4 rounded-lg flex items-center space-x-2" style={{
+          backgroundColor: message.type === 'success' ? 'var(--color-success-light)' : 'var(--color-error-light)',
+          color: message.type === 'success' ? 'var(--color-success-dark)' : 'var(--color-error-dark)',
+          border: `1px solid ${message.type === 'success' ? 'var(--color-success)' : 'var(--color-error)'}`
+        }}>
           {message.type === 'success' ? (
-            <CheckCircle className="w-5 h-5" />
+            <CheckCircle className="w-5 h-5" style={{ color: 'var(--color-success-dark)' }} />
           ) : (
-            <AlertCircle className="w-5 h-5" />
+            <AlertCircle className="w-5 h-5" style={{ color: 'var(--color-error-dark)' }} />
           )}
           <span>{message.text}</span>
           <button
             onClick={() => setMessage(null)}
             className="ml-auto"
+            style={{ color: message.type === 'success' ? 'var(--color-success-dark)' : 'var(--color-error-dark)' }}
           >
             <X className="w-4 h-4" />
           </button>
@@ -560,7 +562,7 @@ export default function UserManagement() {
             <h3 className="text-lg font-semibold">Create New User</h3>
             <button
               onClick={() => setShowCreateForm(false)}
-              style={{ color: colors.textMuted }}
+              style={{ color: 'var(--color-text-muted)' }}
             >
               <X className="w-5 h-5" />
             </button>
@@ -568,7 +570,7 @@ export default function UserManagement() {
           <form onSubmit={handleCreateUser} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Username *
                 </label>
                 <Input
@@ -580,7 +582,7 @@ export default function UserManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Email *
                 </label>
                 <Input
@@ -592,7 +594,7 @@ export default function UserManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Password *
                 </label>
                 <div className="relative">
@@ -609,15 +611,15 @@ export default function UserManagement() {
                     className="absolute right-3 top-1/2 transform -translate-y-1/2"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" style={{ color: colors.textMuted }} />
+                      <EyeOff className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
                     ) : (
-                      <Eye className="w-4 h-4" style={{ color: colors.textMuted }} />
+                      <Eye className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
                     )}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Full Name
                 </label>
                 <Input
@@ -628,17 +630,26 @@ export default function UserManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Role
                 </label>
                 <select
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
+                  className="w-full px-3 py-2 rounded-md focus:outline-none focus:ring-2"
                   style={{ 
-                    borderColor: colors.borderLight,
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    border: '1px solid var(--color-border-light)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    color: 'var(--color-text-primary)',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = 'var(--color-border-strong)';
+                    e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'var(--color-border-light)';
+                    e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
                   }}
                   required
                 >
@@ -688,7 +699,7 @@ export default function UserManagement() {
             <h3 className="text-lg font-semibold">Edit User: {editingUser.username}</h3>
             <button
               onClick={handleCancelEdit}
-              style={{ color: colors.textMuted }}
+              style={{ color: 'var(--color-text-muted)' }}
             >
               <X className="w-5 h-5" />
             </button>
@@ -696,7 +707,7 @@ export default function UserManagement() {
           <form onSubmit={handleUpdateUser} className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Username *
                 </label>
                 <Input
@@ -708,7 +719,7 @@ export default function UserManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Email *
                 </label>
                 <Input
@@ -720,7 +731,7 @@ export default function UserManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   New Password (leave blank to keep current)
                 </label>
                 <div className="relative">
@@ -736,15 +747,15 @@ export default function UserManagement() {
                     className="absolute right-3 top-1/2 transform -translate-y-1/2"
                   >
                     {showPassword ? (
-                      <EyeOff className="w-4 h-4" style={{ color: colors.textMuted }} />
+                      <EyeOff className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
                     ) : (
-                      <Eye className="w-4 h-4" style={{ color: colors.textMuted }} />
+                      <Eye className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
                     )}
                   </button>
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Full Name
                 </label>
                 <Input
@@ -755,17 +766,26 @@ export default function UserManagement() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                   Role
                 </label>
                 <select
                   value={formData.role}
                   onChange={(e) => handleInputChange('role', e.target.value)}
-                  className="w-full px-3 py-2 border border-gray-200/10 rounded-md focus:outline-none focus:ring-2"
+                  className="w-full px-3 py-2 rounded-md focus:outline-none focus:ring-2"
                   style={{ 
-                    borderColor: colors.borderLight,
-                    backgroundColor: colors.backgroundPrimary,
-                    color: colors.textPrimary
+                    border: '1px solid var(--color-border-light)',
+                    backgroundColor: 'var(--color-bg-primary)',
+                    color: 'var(--color-text-primary)',
+                    boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)'
+                  }}
+                  onFocus={(e) => {
+                    e.target.style.borderColor = 'var(--color-border-strong)';
+                    e.target.style.boxShadow = '0 0 0 2px rgba(59, 130, 246, 0.1)';
+                  }}
+                  onBlur={(e) => {
+                    e.target.style.borderColor = 'var(--color-border-light)';
+                    e.target.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
                   }}
                   required
                 >
@@ -782,9 +802,9 @@ export default function UserManagement() {
             </div>
 
             {/* Project Assignments Section */}
-            <div className="mt-6 border-t pt-6" style={{ borderColor: colors.borderLight }}>
+            <div className="mt-6 border-t pt-6" style={{ borderColor: 'var(--color-border-light)' }}>
               <div className="flex items-center justify-between mb-4">
-                <h4 className="text-lg font-medium" style={{ color: colors.textPrimary }}>
+                <h4 className="text-lg font-medium" style={{ color: 'var(--color-text-primary)' }}>
                   Project Assignments
                 </h4>
               </div>
@@ -803,19 +823,19 @@ export default function UserManagement() {
               {!formData.hasAllProjectsAccess && (
                 <>
                 {loadingProjects ? (
-                  <p className="text-sm" style={{ color: colors.textSecondary }}>Loading projects...</p>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>Loading projects...</p>
                 ) : (
-                  <div className="overflow-x-auto border rounded-lg" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundSecondary }}>
+                  <div className="overflow-x-auto border rounded-lg" style={{ borderColor: 'var(--color-border-light)', backgroundColor: 'var(--color-bg-secondary)' }}>
                     <table className="w-full">
                       <thead>
-                        <tr className="border-b" style={{ borderColor: colors.borderLight, backgroundColor: colors.backgroundPrimary }}>
-                          <th className="text-left py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                        <tr style={{ borderBottom: '1px solid var(--color-border-light)', backgroundColor: 'var(--color-bg-secondary)' }}>
+                          <th className="text-left py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                             Project Name
                           </th>
-                          <th className="text-left py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                          <th className="text-left py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                             Project Code
                           </th>
-                          <th className="text-center py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                          <th className="text-center py-3 px-4 text-sm font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                             Assigned
                           </th>
                         </tr>
@@ -823,7 +843,7 @@ export default function UserManagement() {
                       <tbody>
                         {allProjects.length === 0 ? (
                           <tr>
-                            <td colSpan={3} className="py-8 text-center" style={{ color: colors.textSecondary }}>
+                            <td colSpan={3} className="py-8 text-center" style={{ color: 'var(--color-text-secondary)' }}>
                               <p className="text-sm">No projects available</p>
                             </td>
                           </tr>
@@ -833,19 +853,25 @@ export default function UserManagement() {
                             return (
                               <tr
                                 key={project.id}
-                                className="border-b transition-colors"
+                                className="border-b hover:bg-opacity-50 transition-colors"
                                 style={{
-                                  borderColor: colors.borderLight,
-                                  backgroundColor: colors.backgroundSecondary,
+                                  borderBottom: '1px solid var(--color-border-light)',
+                                  backgroundColor: 'var(--color-bg-primary)',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
                                 }}
                               >
                                 <td className="py-3 px-4">
-                                  <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                                  <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                                     {project.projectName}
                                   </span>
                                 </td>
                                 <td className="py-3 px-4">
-                                  <span className="text-sm" style={{ color: colors.textSecondary }}>
+                                  <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                                     {project.projectCode}
                                   </span>
                                 </td>
@@ -912,14 +938,14 @@ export default function UserManagement() {
             <h3 className="text-lg font-semibold">Password Reset</h3>
             <button
               onClick={() => setShowPasswordReset(false)}
-              style={{ color: colors.textMuted }}
+              style={{ color: 'var(--color-text-muted)' }}
             >
               <X className="w-5 h-5" />
             </button>
           </div>
           <div className="space-y-4">
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                 Email Address
               </label>
               <Input
@@ -930,7 +956,7 @@ export default function UserManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                 Reset Token (if you have one)
               </label>
               <Input
@@ -941,7 +967,7 @@ export default function UserManagement() {
               />
             </div>
             <div>
-              <label className="block text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+              <label className="block text-sm font-medium mb-1" style={{ color: 'var(--color-text-primary)' }}>
                 New Password
               </label>
               <div className="relative">
@@ -957,9 +983,9 @@ export default function UserManagement() {
                   className="absolute right-3 top-1/2 transform -translate-y-1/2"
                 >
                   {showPassword ? (
-                    <EyeOff className="w-4 h-4" style={{ color: colors.textMuted }} />
+                    <EyeOff className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
                   ) : (
-                    <Eye className="w-4 h-4" style={{ color: colors.textMuted }} />
+                    <Eye className="w-4 h-4" style={{ color: 'var(--color-text-muted)' }} />
                   )}
                 </button>
               </div>
@@ -1014,63 +1040,76 @@ export default function UserManagement() {
       <Card className="p-6">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-lg font-semibold">Admin Users</h3>
-          <div className="text-sm" style={{ color: colors.textMuted }}>
+          <div className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
             {users.length} user{users.length !== 1 ? 's' : ''}
           </div>
         </div>
         
         {loading ? (
           <div className="flex items-center justify-center py-8">
-            <Loader className="w-6 h-6 animate-spin text-blue-600" />
-            <span className="ml-2" style={{ color: colors.textSecondary }}>Loading users...</span>
+            <Loader className="w-6 h-6 animate-spin" style={{ color: 'var(--color-text-secondary)' }} />
+            <span className="ml-2" style={{ color: 'var(--color-text-secondary)' }}>Loading users...</span>
           </div>
         ) : users.length === 0 ? (
-          <div className="text-center py-8" style={{ color: colors.textMuted }}>
-            <Users className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
+          <div className="text-center py-8" style={{ color: 'var(--color-text-muted)' }}>
+            <Users className="w-12 h-12 mx-auto mb-4" style={{ color: 'var(--color-text-muted)' }} />
             <p>No users found</p>
           </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="min-w-full">
-              <thead style={{ backgroundColor: colors.backgroundSecondary }}>
-                <tr className="border-b border-gray-200/20">
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+              <thead style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                <tr style={{ borderBottom: '1px solid var(--color-border-light)' }}>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                     User
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                     Role
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                     Status
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                     Last Login
                   </th>
-                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                  <th className="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                     Created
                   </th>
                   {(canUpdateUsers || canDeleteUsers) && (
-                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: colors.textPrimary }}>
+                    <th className="px-6 py-3 text-right text-xs font-medium uppercase tracking-wider" style={{ color: 'var(--color-text-primary)' }}>
                       Actions
                     </th>
                   )}
                 </tr>
               </thead>
-              <tbody style={{ backgroundColor: colors.backgroundPrimary }}>
+              <tbody style={{ backgroundColor: 'var(--color-bg-primary)' }}>
                 {users.map((user) => (
-                  <tr key={user.id} className="border-b border-gray-200/10" style={{ backgroundColor: colors.backgroundPrimary }}>
+                  <tr 
+                    key={user.id} 
+                    style={{ 
+                      borderBottom: '1px solid var(--color-border-light)',
+                      backgroundColor: 'var(--color-bg-primary)'
+                    }}
+                    className="hover:bg-opacity-50 transition-colors"
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                    }}
+                  >
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-10 w-10">
-                          <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: colors.borderLight }}>
-                            <User className="w-5 h-5" style={{ color: colors.textSecondary }} />
+                          <div className="h-10 w-10 rounded-full flex items-center justify-center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                            <User className="w-5 h-5" style={{ color: 'var(--color-text-secondary)' }} />
                           </div>
                         </div>
                         <div className="ml-4">
-                          <div className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                          <div className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
                             {user.name || user.username}
                           </div>
-                          <div className="text-sm" style={{ color: colors.textSecondary }}>
+                          <div className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                             {user.email}
                           </div>
                         </div>
@@ -1079,36 +1118,37 @@ export default function UserManagement() {
                     <td className="px-6 py-4 whitespace-nowrap">
                       <div className="flex items-center">
                         <Shield className="w-4 h-4 mr-2" style={{ 
-                          color: (user.primaryRole || user.role) === 'SuperUser' ? colors.error : 
-                          (user.primaryRole || user.role) === 'editor' ? colors.primary : colors.textSecondary
+                          color: (user.primaryRole || user.role) === 'SuperUser' ? 'var(--color-error)' : 
+                          (user.primaryRole || user.role) === 'editor' ? 'var(--color-primary)' : 'var(--color-text-secondary)'
                         }} />
-                        <span className="text-sm capitalize" style={{ color: colors.textPrimary }}>
+                        <span className="text-sm capitalize" style={{ color: 'var(--color-text-primary)' }}>
                           {user.primaryRole || user.role}
                         </span>
                         {user.roles && user.roles.some(r => r.isSystem) && (
-                          <Lock className="w-3 h-3 ml-1" style={{ color: colors.textSecondary }} />
+                          <Lock className="w-3 h-3 ml-1" style={{ color: 'var(--color-text-secondary)' }} />
                         )}
                       </div>
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       <span className="inline-flex px-2 py-1 text-xs font-semibold rounded-full" style={{
-                        backgroundColor: user.isActive ? colors.success : colors.error,
-                        color: user.isActive ? colors.textPrimary : colors.textPrimary
+                        backgroundColor: user.isActive ? 'var(--color-primary)' : 'var(--color-error-light)',
+                        color: user.isActive ? 'var(--color-bg-primary)' : 'var(--color-error-dark)',
+                        border: `1px solid ${user.isActive ? 'var(--color-primary)' : 'var(--color-error)'}`
                       }}>
                         {user.isActive ? 'Active' : 'Inactive'}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: colors.textSecondary }}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                       {user.lastLoginAt ? (
                         <div className="flex items-center">
                           <Activity className="w-4 h-4 mr-1" />
                           {formatDate(user.lastLoginAt)}
                         </div>
                       ) : (
-                        <span style={{ color: colors.textMuted }}>Never</span>
+                        <span style={{ color: 'var(--color-text-muted)' }}>Never</span>
                       )}
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: colors.textSecondary }}>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                       <div className="flex items-center">
                         <Calendar className="w-4 h-4 mr-1" />
                         {formatDate(user.createdAt)}
@@ -1120,8 +1160,9 @@ export default function UserManagement() {
                           {canUpdateUsers && (
                             <button
                               onClick={() => handleEditUser(user)}
-                              style={{ color: colors.primary }}
+                              style={{ color: 'var(--color-primary)' }}
                               title="Edit user"
+                              className="hover:opacity-80 transition-opacity"
                             >
                               <Edit className="w-4 h-4" />
                             </button>
@@ -1129,8 +1170,9 @@ export default function UserManagement() {
                           {canDeleteUsers && (
                             <button
                               onClick={() => handleDeleteUser(user.id)}
-                              style={{ color: colors.error }}
+                              style={{ color: 'var(--color-error)' }}
                               title="Delete user"
+                              className="hover:opacity-80 transition-opacity"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>

@@ -4,10 +4,12 @@ import { useState, useEffect } from 'react';
 import { useAdminApi } from '@/hooks/useApi';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
+import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { formatCurrency } from '@/lib/currency';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
 import { 
   Plus, 
   Edit, 
@@ -105,6 +107,11 @@ export default function CompanyStaffManager() {
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
   const { siteSettings } = useSiteSettings();
+  const { permissions } = useUserPermissions();
+  
+  const canCreateStaff = hasPermission(permissions, 'staff.create');
+  const canUpdateStaff = hasPermission(permissions, 'staff.update');
+  const canDeleteStaff = hasPermission(permissions, 'staff.delete');
 
   const [staff, setStaff] = useState<CompanyStaff[]>([]);
   const [companyPositions, setCompanyPositions] = useState<Position[]>([]);
@@ -778,30 +785,23 @@ export default function CompanyStaffManager() {
     }
   };
 
-  const handleSelectAll = () => {
-    console.log('Select all clicked. Current selection:', selectedStaff.size, 'Total staff:', filteredStaff.length);
-    if (selectedStaff.size === filteredStaff.length) {
+  const handleSelectAll = (e?: React.ChangeEvent<HTMLInputElement>) => {
+    if (selectedStaff.size === filteredStaff.length && filteredStaff.length > 0) {
       setSelectedStaff(new Set());
-      console.log('Deselected all staff');
     } else {
       const newSelection = new Set(filteredStaff.map(staff => staff.id));
       setSelectedStaff(newSelection);
-      console.log('Selected all staff:', newSelection);
     }
   };
 
   const handleSelectStaff = (staffId: number) => {
-    console.log('Individual checkbox clicked for staff ID:', staffId);
     const newSelected = new Set(selectedStaff);
     if (newSelected.has(staffId)) {
       newSelected.delete(staffId);
-      console.log('Deselected staff:', staffId);
     } else {
       newSelected.add(staffId);
-      console.log('Selected staff:', staffId);
     }
     setSelectedStaff(newSelected);
-    console.log('New selection:', newSelected);
   };
 
   const handleBulkDelete = async () => {
@@ -844,7 +844,10 @@ export default function CompanyStaffManager() {
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: colors.primary }}></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ 
+          borderColor: 'var(--color-border-light)',
+          borderTopColor: 'var(--color-primary)'
+        }}></div>
       </div>
     );
   }
@@ -1363,65 +1366,29 @@ export default function CompanyStaffManager() {
             <Briefcase className="w-4 h-4" />
             <span>{showPositionsSection ? 'Hide Positions' : 'Manage Positions'}</span>
           </Button>
-          <Button
-            onClick={() => handleExport('xlsx')}
-            variant="ghost"
-            className="flex items-center space-x-2"
-            style={{ color: colors.textSecondary }}
-          >
-            <Download className="w-4 h-4" />
-            <span>Export Excel</span>
-          </Button>
-          <Button
-            onClick={() => handleExport('csv')}
-            variant="ghost"
-            className="flex items-center space-x-2"
-            style={{ color: colors.textSecondary }}
-          >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Export CSV</span>
-          </Button>
-          <Button
-            onClick={() => setShowImportModal(true)}
-            variant="ghost"
-            className="flex items-center space-x-2"
-            style={{ color: colors.textSecondary }}
-          >
-            <Upload className="w-4 h-4" />
-            <span>Import</span>
-          </Button>
-          {selectedStaff.size > 0 && (
+          {canCreateStaff && (
             <Button
-              onClick={() => setShowBulkDeleteModal(true)}
-              variant="ghost"
+              onClick={() => {
+                setFormData({
+                  staffName: '',
+                  employeeNumber: '',
+                  email: '',
+                  phone: '',
+                  position: '',
+                  positionId: undefined,
+                  isActive: true,
+                  monthlyBaseRate: undefined,
+                });
+                setEditingStaff(null);
+                setShowForm(true);
+              }}
               className="flex items-center space-x-2"
-              style={{ color: colors.error }}
+              style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
             >
-              <Trash className="w-4 h-4" />
-              <span>Delete Selected ({selectedStaff.size})</span>
+              <Plus className="w-4 h-4" />
+              <span>Add Staff Member</span>
             </Button>
           )}
-          <Button
-            onClick={() => {
-              setFormData({
-                staffName: '',
-                employeeNumber: '',
-                email: '',
-                phone: '',
-                position: '',
-                positionId: undefined,
-                isActive: true,
-                monthlyBaseRate: undefined,
-              });
-              setEditingStaff(null);
-              setShowForm(true);
-            }}
-            className="flex items-center space-x-2"
-            style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
-          >
-            <Plus className="w-4 h-4" />
-            <span>Add Staff Member</span>
-          </Button>
         </div>
       </div>
 
@@ -1684,51 +1651,54 @@ export default function CompanyStaffManager() {
       )}
 
       {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-        <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
-        <Input
-          type="text"
-          placeholder="Search staff members..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-          className="pl-10"
-          style={{
-            backgroundColor: colors.backgroundSecondary,
-            color: colors.textPrimary
-          }}
-        />
+      <div className="flex flex-col gap-4">
+        <div className="flex flex-col sm:flex-row gap-4">
+          <div className="relative flex-1">
+            <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: colors.textMuted }} />
+            <Input
+              type="text"
+              placeholder="Search staff members..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10"
+              style={{
+                backgroundColor: colors.backgroundSecondary,
+                color: colors.textPrimary
+              }}
+            />
+          </div>
+          <div className="flex items-center space-x-2">
+            <select
+              value={activeFilter}
+              onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active' | 'onLeave')}
+              className="px-4 py-2 border rounded-lg text-sm"
+              style={{
+                backgroundColor: colors.backgroundSecondary,
+                borderColor: colors.border,
+                color: colors.textPrimary
+              }}
+            >
+              <option value="all">All Status</option>
+              <option value="active">Active Only</option>
+              <option value="onLeave">On Leave</option>
+            </select>
+            <select
+              value={availabilityFilter}
+              onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'utilized')}
+              className="px-4 py-2 border rounded-lg text-sm"
+              style={{
+                backgroundColor: colors.backgroundSecondary,
+                borderColor: colors.border,
+                color: colors.textPrimary
+              }}
+            >
+              <option value="all">All Staff</option>
+              <option value="available">Available Only</option>
+              <option value="utilized">Utilized Only</option>
+            </select>
+          </div>
         </div>
-        <div className="flex items-center space-x-2">
-          <select
-            value={activeFilter}
-            onChange={(e) => setActiveFilter(e.target.value as 'all' | 'active' | 'onLeave')}
-            className="px-4 py-2 border rounded-lg text-sm"
-            style={{
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-              color: colors.textPrimary
-            }}
-          >
-            <option value="all">All Status</option>
-            <option value="active">Active Only</option>
-            <option value="onLeave">On Leave</option>
-          </select>
-          <select
-            value={availabilityFilter}
-            onChange={(e) => setAvailabilityFilter(e.target.value as 'all' | 'available' | 'utilized')}
-            className="px-4 py-2 border rounded-lg text-sm"
-            style={{
-              backgroundColor: colors.backgroundSecondary,
-              borderColor: colors.border,
-              color: colors.textPrimary
-            }}
-          >
-            <option value="all">All Staff</option>
-            <option value="available">Available Only</option>
-            <option value="utilized">Utilized Only</option>
-          </select>
-        </div>
+        
       </div>
 
       {/* Staff Form */}
@@ -1993,6 +1963,84 @@ export default function CompanyStaffManager() {
 
       {/* Staff Table */}
       <Card className="overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary }}>
+        {/* Card Header with Import/Export Actions */}
+        <div className="px-6 py-4 border-b flex items-center justify-end" style={{ borderColor: colors.border }}>
+          <div className="flex items-center space-x-2">
+            <button
+              onClick={() => handleExport('xlsx')}
+              className="p-2 rounded hover:opacity-80 transition-all duration-150"
+              style={{ 
+                color: colors.primary,
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+              title="Export to Excel"
+            >
+              <Download className="w-5 h-5" />
+            </button>
+            <button
+              onClick={() => handleExport('csv')}
+              className="p-2 rounded hover:opacity-80 transition-all duration-150"
+              style={{ 
+                color: colors.primary,
+                backgroundColor: 'transparent'
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = 'transparent';
+              }}
+              title="Export to CSV"
+            >
+              <FileSpreadsheet className="w-5 h-5" />
+            </button>
+            {canCreateStaff && (
+              <button
+                onClick={() => setShowImportModal(true)}
+                className="p-2 rounded hover:opacity-80 transition-all duration-150"
+                style={{ 
+                  color: colors.primary,
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+                title="Import Staff Data"
+              >
+                <Upload className="w-5 h-5" />
+              </button>
+            )}
+            {selectedStaff.size > 0 && (
+              <button
+                onClick={() => setShowBulkDeleteModal(true)}
+                className="p-2 rounded hover:opacity-80 transition-all duration-150"
+                style={{ 
+                  color: colors.error,
+                  backgroundColor: 'transparent'
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'transparent';
+                }}
+                title={`Delete Selected (${selectedStaff.size})`}
+              >
+                <Trash className="w-5 h-5" />
+              </button>
+            )}
+          </div>
+        </div>
+        
         {/* Selection Status */}
         {selectedStaff.size > 0 && (
           <div className="px-6 py-3 border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
@@ -2005,190 +2053,231 @@ export default function CompanyStaffManager() {
           </div>
         )}
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full table-auto" style={{ tableLayout: 'auto' }}>
             <thead>
-              <tr className="border-b border-gray-200/20" style={{ backgroundColor: colors.backgroundPrimary }}>
-                <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
+              <tr style={{ 
+                borderBottom: '1px solid var(--color-border-light)',
+                backgroundColor: 'var(--color-bg-secondary)'
+              }}>
+                <th className="w-12 px-2 py-3 text-center">
                   <div className="flex items-center justify-center">
-                    <div 
-                      className="w-5 h-5 border-2 rounded cursor-pointer flex items-center justify-center transition-colors hover:border-opacity-80 hover:bg-opacity-10"
-                      style={{ 
-                        borderColor: selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 ? colors.primary : '#E5E7EB',
-                        backgroundColor: selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 ? colors.primary : 'transparent'
-                      }}
-                      onClick={handleSelectAll}
-                    >
-                      {selectedStaff.size === filteredStaff.length && filteredStaff.length > 0 && (
-                        <CheckCircle className="w-3 h-3 text-white" />
-                      )}
-                    </div>
-                    <span className="ml-2 text-xs" style={{ color: colors.textMuted }}>
-                      All
-                    </span>
+                    <Checkbox
+                      variant="primary"
+                      size="sm"
+                      checked={selectedStaff.size === filteredStaff.length && filteredStaff.length > 0}
+                      onChange={handleSelectAll}
+                    />
                   </div>
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
+                <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                   Name
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Employee #
+                <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                  Emp #
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
+                <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                   Position
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
+                <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                   Email
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
+                <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                   Phone
                 </th>
-                <th className="px-6 py-4 text-left text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Base Rate
+                <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                  Rate
                 </th>
-                <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Total Utilization
+                <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                  Util
                 </th>
-                <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
+                <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                   Status
                 </th>
-                <th className="px-6 py-4 text-center text-sm font-medium" style={{ color: colors.textPrimary }}>
-                  Actions
-                </th>
+                {(canUpdateStaff || canDeleteStaff) && (
+                  <th className="w-24 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                    Actions
+                  </th>
+                )}
               </tr>
             </thead>
             <tbody>
               {filteredStaff.map((staffMember, index) => (
                 <tr 
                   key={staffMember.id}
-                  className="border-b border-gray-200/10"
                   style={{ 
-                    backgroundColor: colors.backgroundSecondary
+                    borderBottom: '1px solid var(--color-border-light)',
+                    backgroundColor: 'var(--color-bg-primary)'
+                  }}
+                  className="transition-all duration-150"
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                    e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                    e.currentTarget.style.boxShadow = 'none';
                   }}
                 >
-                  <td className="px-6 py-4 text-center">
-                    <div 
-                      className="w-5 h-5 border-2 rounded cursor-pointer flex items-center justify-center transition-colors hover:border-opacity-80 hover:bg-opacity-10 mx-auto"
-                      style={{ 
-                        borderColor: selectedStaff.has(staffMember.id) ? colors.primary : '#E5E7EB',
-                        backgroundColor: selectedStaff.has(staffMember.id) ? colors.primary : 'transparent'
-                      }}
-                      onClick={() => handleSelectStaff(staffMember.id)}
-                    >
-                      {selectedStaff.has(staffMember.id) && (
-                        <CheckCircle className="w-3 h-3 text-white" />
-                      )}
+                  <td className="px-2 py-3 text-center">
+                    <div className="flex items-center justify-center">
+                      <Checkbox
+                        variant="primary"
+                        size="sm"
+                        checked={selectedStaff.has(staffMember.id)}
+                        onChange={() => handleSelectStaff(staffMember.id)}
+                      />
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
-                      <User className="w-4 h-4" style={{ color: colors.textMuted }} />
-                      <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  <td className="px-3 py-3">
+                    <div className="flex items-center space-x-2 min-w-0">
+                      <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style={{ 
+                        backgroundColor: 'var(--color-bg-secondary)'
+                      }}>
+                        <User className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+                      </div>
+                      <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
                         {staffMember.staffName}
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm font-mono" style={{ color: colors.textPrimary }}>
+                  <td className="px-2 py-3">
+                    <span className="text-xs font-mono truncate block" style={{ color: 'var(--color-text-secondary)' }}>
                       {staffMember.employeeNumber || '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <div className="flex items-center space-x-2">
-                      <Briefcase className="w-4 h-4" style={{ color: colors.textMuted }} />
-                      <span className="text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="px-2 py-3">
+                    <div className="flex items-center space-x-1.5 min-w-0">
+                      <Briefcase className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                      <span className="text-xs truncate" style={{ color: 'var(--color-text-primary)' }}>
                         {staffMember.position || '-'}
                       </span>
                     </div>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="px-2 py-3">
+                    <span className="text-xs truncate block" style={{ color: 'var(--color-text-primary)' }}>
                       {staffMember.email || '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="px-2 py-3">
+                    <span className="text-xs truncate block" style={{ color: 'var(--color-text-primary)' }}>
                       {staffMember.phone || '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4">
-                    <span className="text-sm" style={{ color: colors.textPrimary }}>
+                  <td className="px-2 py-3">
+                    <span className="text-xs font-medium truncate block" style={{ color: 'var(--color-text-primary)' }}>
                       {staffMember.monthlyBaseRate !== undefined && staffMember.monthlyBaseRate !== null
                         ? formatCurrency(staffMember.monthlyBaseRate, siteSettings?.currencySymbol || '$')
                         : '-'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex flex-col items-center space-y-1">
-                      <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                  <td className="px-2 py-3 text-center">
+                    <div className="flex flex-col items-center space-y-0.5">
+                      <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>
                         {staffMember.totalUtilization || 0}%
                       </span>
-                      {staffMember.remainingCapacity !== undefined && staffMember.remainingCapacity > 0 && (
-                        <span className="text-xs" style={{ color: colors.textMuted }}>
-                          {staffMember.remainingCapacity}% available
-                        </span>
-                      )}
                       {staffMember.totalUtilization && staffMember.totalUtilization > 100 && (
-                        <span className="text-xs px-1 py-0.5 rounded" style={{ backgroundColor: colors.warning, color: '#FFFFFF' }}>
-                          Over-allocated
+                        <span className="text-xs px-1 py-0.5 rounded font-medium" style={{ 
+                          backgroundColor: 'var(--color-warning)',
+                          color: 'var(--color-bg-primary)'
+                        }}>
+                          Over
                         </span>
                       )}
                     </div>
                   </td>
-                  <td className="px-6 py-4 text-center">
+                  <td className="px-2 py-3 text-center">
                     <span 
-                      className="px-2 py-1 text-xs rounded-full whitespace-nowrap inline-block"
+                      className="px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap inline-block"
                       style={{ 
-                        backgroundColor: !staffMember.isActive ? colors.error :
-                                       isOnLeave(staffMember) ? colors.warning : colors.success,
-                        color: '#FFFFFF'
+                        backgroundColor: !staffMember.isActive ? 'var(--color-error)' :
+                                       isOnLeave(staffMember) ? 'var(--color-warning)' : 'var(--color-primary)',
+                        color: 'var(--color-bg-primary)'
                       }}
                     >
                       {!staffMember.isActive ? 'Inactive' : 
-                       isOnLeave(staffMember) ? 'On Leave' : 'Active'}
+                       isOnLeave(staffMember) ? 'Leave' : 'Active'}
                     </span>
                   </td>
-                  <td className="px-6 py-4 text-center">
-                    <div className="flex items-center justify-center space-x-2">
-                      <Button
-                        onClick={() => setViewingStaff(staffMember)}
-                        variant="ghost"
-                        className="p-2"
-                        style={{ color: colors.info }}
-                        title="View Details"
-                      >
-                        <Eye className="w-4 h-4" />
-                      </Button>
-                      {staffMember.projectStaff && staffMember.projectStaff.length > 0 && (
-                        <Button
-                          onClick={() => handleOpenMoveModal(staffMember)}
-                          variant="ghost"
-                          className="p-2"
-                          style={{ color: colors.info }}
-                          title="Move to another project"
+                  {(canUpdateStaff || canDeleteStaff) && (
+                    <td className="px-2 py-3 text-center">
+                      <div className="flex items-center justify-center space-x-1">
+                        <button
+                          onClick={() => setViewingStaff(staffMember)}
+                          className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                          style={{ 
+                            color: 'var(--color-info)',
+                            backgroundColor: 'transparent'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                          }}
+                          title="View Details"
                         >
-                          <ArrowRight className="w-4 h-4" />
-                        </Button>
-                      )}
-                      <Button
-                        onClick={() => handleEdit(staffMember)}
-                        variant="ghost"
-                        className="p-2"
-                        style={{ color: colors.primary }}
-                        title="Edit Staff"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </Button>
-                      <Button
-                        onClick={() => handleDelete(staffMember.id)}
-                        variant="ghost"
-                        className="p-2"
-                        style={{ color: colors.error }}
-                        title="Delete Staff"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </Button>
-                    </div>
-                  </td>
+                          <Eye className="w-3.5 h-3.5" />
+                        </button>
+                        {canUpdateStaff && staffMember.projectStaff && staffMember.projectStaff.length > 0 && (
+                          <button
+                            onClick={() => handleOpenMoveModal(staffMember)}
+                            className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                            style={{ 
+                              color: 'var(--color-info)',
+                              backgroundColor: 'transparent'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Move to another project"
+                          >
+                            <ArrowRight className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canUpdateStaff && (
+                          <button
+                            onClick={() => handleEdit(staffMember)}
+                            className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                            style={{ 
+                              color: 'var(--color-primary)',
+                              backgroundColor: 'transparent'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Edit Staff"
+                          >
+                            <Edit className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                        {canDeleteStaff && (
+                          <button
+                            onClick={() => handleDelete(staffMember.id)}
+                            className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                            style={{ 
+                              color: 'var(--color-error)',
+                              backgroundColor: 'transparent'
+                            }}
+                            onMouseEnter={(e) => {
+                              e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                            }}
+                            onMouseLeave={(e) => {
+                              e.currentTarget.style.backgroundColor = 'transparent';
+                            }}
+                            title="Delete Staff"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>
@@ -2197,12 +2286,16 @@ export default function CompanyStaffManager() {
       </Card>
 
           {filteredStaff.length === 0 && (
-            <Card className="p-8 text-center" style={{ backgroundColor: colors.backgroundSecondary }}>
-              <User className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
-              <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+            <Card className="p-12 text-center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ 
+                backgroundColor: 'var(--color-bg-primary)'
+              }}>
+                <User className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
+              </div>
+              <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
                 No staff members found
               </h3>
-              <p className="text-sm" style={{ color: colors.textSecondary }}>
+              <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first staff member'}
               </p>
             </Card>

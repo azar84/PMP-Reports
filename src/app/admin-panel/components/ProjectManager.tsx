@@ -201,6 +201,8 @@ export default function ProjectManager() {
   const canCreateStaff = hasPermission(permissions, 'staff.create');
   const canCreateLabours = hasPermission(permissions, 'labours.create');
   const canCreateContacts = hasPermission(permissions, 'contacts.create');
+  const canUpdateProjects = hasPermission(permissions, 'projects.update');
+  const canDeleteProjects = hasPermission(permissions, 'projects.delete');
 
   // Project tab permissions
   const accessibleTabs = getAccessibleTabs(permissions);
@@ -2568,6 +2570,7 @@ export default function ProjectManager() {
               </div>
             </div>
             <div className="flex items-center space-x-2">
+              {hasPermission(permissions, 'reports.create') && (
               <Button
                 onClick={async () => {
                   setShowGenerateReportModal(true);
@@ -2606,17 +2609,20 @@ export default function ProjectManager() {
                 <FileBarChart className="w-4 h-4" />
                 <span>Generate Report</span>
               </Button>
-            <Button
-              onClick={() => {
-                setShowDetailView(false);
-                handleEdit(selectedProject);
-              }}
-              className="flex items-center space-x-2"
-              style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
-            >
-              <Edit className="w-4 h-4" />
-              <span>Edit Project</span>
-            </Button>
+              )}
+            {canUpdateProjects && (
+              <Button
+                onClick={() => {
+                  setShowDetailView(false);
+                  handleEdit(selectedProject);
+                }}
+                className="flex items-center space-x-2"
+                style={{ backgroundColor: colors.primary, color: colors.backgroundPrimary }}
+              >
+                <Edit className="w-4 h-4" />
+                <span>Edit Project</span>
+              </Button>
+            )}
             </div>
           </div>
 
@@ -3953,6 +3959,7 @@ export default function ProjectManager() {
                 Manage your projects, consultants, and timelines
               </p>
             </div>
+            {hasPermission(permissions, 'projects.create') && (
             <Button
               onClick={() => setShowForm(true)}
               className="flex items-center space-x-2"
@@ -3961,6 +3968,7 @@ export default function ProjectManager() {
               <Plus className="w-4 h-4" />
               <span>Add Project</span>
             </Button>
+            )}
           </div>
 
       {/* Search */}
@@ -7268,22 +7276,26 @@ export default function ProjectManager() {
                 >
                   <Eye className="w-4 h-4" />
                 </Button>
-                <Button
-                  onClick={() => handleEdit(project)}
-                  variant="ghost"
-                  className="p-2"
-                  style={{ color: colors.primary }}
-                >
-                  <Edit className="w-4 h-4" />
-                </Button>
-                <Button
-                  onClick={() => handleDelete(project.id)}
-                  variant="ghost"
-                  className="p-2"
-                  style={{ color: colors.error }}
-                >
-                  <Trash2 className="w-4 h-4" />
-                </Button>
+                {canUpdateProjects && (
+                  <Button
+                    onClick={() => handleEdit(project)}
+                    variant="ghost"
+                    className="p-2"
+                    style={{ color: colors.primary }}
+                  >
+                    <Edit className="w-4 h-4" />
+                  </Button>
+                )}
+                {canDeleteProjects && (
+                  <Button
+                    onClick={() => handleDelete(project.id)}
+                    variant="ghost"
+                    className="p-2"
+                    style={{ color: colors.error }}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                )}
               </div>
             </div>
           </Card>

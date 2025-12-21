@@ -6,6 +6,8 @@ import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/us
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { Checkbox } from '@/components/ui/Checkbox';
+import { useUserPermissions, hasPermission } from '@/hooks/useUserPermissions';
 import { 
   Plus, 
   Edit, 
@@ -24,7 +26,11 @@ import {
   ArrowRight,
   AlertCircle,
   Eye,
-  FileText
+  FileText,
+  Download,
+  Upload,
+  FileSpreadsheet,
+  Trash
 } from 'lucide-react';
 import { useSiteSettings } from '@/hooks/useSiteSettings';
 import { formatCurrency } from '@/lib/currency';
@@ -100,6 +106,12 @@ export default function LabourManager() {
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
   const { siteSettings } = useSiteSettings();
+  const { permissions } = useUserPermissions();
+
+  // Permission checks
+  const canCreateLabour = hasPermission(permissions, 'labours.create');
+  const canUpdateLabour = hasPermission(permissions, 'labours.update');
+  const canDeleteLabour = hasPermission(permissions, 'labours.delete');
 
   const [labours, setLabours] = useState<Labour[]>([]);
   const [trades, setTrades] = useState<Trade[]>([]);
@@ -173,6 +185,15 @@ export default function LabourManager() {
   const [tradeErrorMessage, setTradeErrorMessage] = useState<string>('');
   const [isSubmittingTrade, setIsSubmittingTrade] = useState(false);
   const [tradeSearchTermForList, setTradeSearchTermForList] = useState('');
+  
+  // Import/Export state
+  const [showImportModal, setShowImportModal] = useState(false);
+  const [importFile, setImportFile] = useState<File | null>(null);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<any>(null);
+  const [selectedLabours, setSelectedLabours] = useState<Set<number>>(new Set());
+  const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     fetchLabours();
@@ -644,10 +665,151 @@ export default function LabourManager() {
     return matchesSearch && matchesAvailability && matchesActive;
   });
 
+  const handleExport = async (format: 'xlsx' | 'csv' = 'xlsx') => {
+    try {
+      const response = await fetch(`/api/admin/labours/export?format=${format}`);
+      
+      if (!response.ok) {
+        throw new Error('Export failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `labours_data_${new Date().toISOString().split('T')[0]}.${format}`;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error exporting labours data:', error);
+      alert('Failed to export labours data. Please try again.');
+    }
+  };
+
+  const handleDownloadTemplate = async () => {
+    try {
+      const response = await fetch('/api/admin/labours/template');
+      
+      if (!response.ok) {
+        throw new Error('Template download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'labours_import_template.xlsx';
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      console.error('Error downloading template:', error);
+      alert('Failed to download template. Please try again.');
+    }
+  };
+
+  const handleImport = async () => {
+    if (!importFile) {
+      alert('Please select a file to import');
+      return;
+    }
+
+    setImporting(true);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append('file', importFile);
+
+      const response = await fetch('/api/admin/labours/import', {
+        method: 'POST',
+        body: formData,
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setImportResult(result.data);
+        await fetchLabours();
+        setImportFile(null);
+        setShowImportModal(false);
+      } else {
+        setImportResult({ error: result.error, details: result.details });
+      }
+    } catch (error) {
+      console.error('Error importing labours data:', error);
+      setImportResult({ error: 'Failed to import labours data. Please try again.' });
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const handleSelectAll = () => {
+    if (selectedLabours.size === filteredLabours.length && filteredLabours.length > 0) {
+      setSelectedLabours(new Set());
+    } else {
+      const newSelection = new Set(filteredLabours.map(labour => labour.id));
+      setSelectedLabours(newSelection);
+    }
+  };
+
+  const handleSelectLabour = (labourId: number) => {
+    const newSelected = new Set(selectedLabours);
+    if (newSelected.has(labourId)) {
+      newSelected.delete(labourId);
+    } else {
+      newSelected.add(labourId);
+    }
+    setSelectedLabours(newSelected);
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedLabours.size === 0) {
+      alert('Please select labours to delete');
+      return;
+    }
+
+    setBulkDeleting(true);
+
+    try {
+      const response = await fetch('/api/admin/labours/bulk-delete', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          labourIds: Array.from(selectedLabours)
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        await fetchLabours();
+        setSelectedLabours(new Set());
+        setShowBulkDeleteModal(false);
+        alert(`Successfully deleted ${result.data.deletedCount} labour(s)`);
+      } else {
+        alert(`Failed to delete labours: ${result.error}`);
+      }
+    } catch (error) {
+      console.error('Error bulk deleting labours:', error);
+      alert('Failed to delete labours. Please try again.');
+    } finally {
+      setBulkDeleting(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-8">
-        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ borderColor: colors.primary }}></div>
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2" style={{ 
+          borderColor: 'var(--color-border-light)',
+          borderTopColor: 'var(--color-primary)'
+        }}></div>
       </div>
     );
   }
@@ -1093,25 +1255,27 @@ export default function LabourManager() {
                   <Wrench className="w-4 h-4" />
                   <span>{showTradesSection ? 'Hide Trades' : 'Manage Trades'}</span>
                 </Button>
-                <Button
-                  onClick={() => {
-                    setFormData({
-                      labourName: '',
-                      employeeNumber: '',
-                      phone: '',
-                      trade: '',
-                      tradeId: undefined,
-                      isActive: true,
-                    });
-                    setEditingLabour(null);
-                    setShowForm(true);
-                  }}
-                  className="flex items-center space-x-2"
-                  style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>Add Labour</span>
-                </Button>
+                {canCreateLabour && (
+                  <Button
+                    onClick={() => {
+                      setFormData({
+                        labourName: '',
+                        employeeNumber: '',
+                        phone: '',
+                        trade: '',
+                        tradeId: undefined,
+                        isActive: true,
+                      });
+                      setEditingLabour(null);
+                      setShowForm(true);
+                    }}
+                    className="flex items-center space-x-2"
+                    style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Add Labour</span>
+                  </Button>
+                )}
               </div>
             </div>
 
@@ -1272,70 +1436,100 @@ export default function LabourManager() {
 
                 {/* Trades List */}
                 <div className="overflow-x-auto">
-                  <table className="w-full">
+                  <table className="w-full table-auto" style={{ tableLayout: 'auto' }}>
                     <thead>
                       <tr style={{ 
-                        backgroundColor: colors.backgroundPrimary,
-                        borderBottom: `1px solid ${colors.borderLight}`
+                        borderBottom: '1px solid var(--color-border-light)',
+                        backgroundColor: 'var(--color-bg-secondary)'
                       }}>
-                        <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Trade</th>
-                        <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Monthly Rate</th>
-                        <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Description</th>
-                        <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
-                        <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Actions</th>
+                        <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Trade</th>
+                        <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Monthly Rate</th>
+                        <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Description</th>
+                        <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Status</th>
+                        <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {filteredTrades.map((trade) => (
                         <tr 
-                          key={trade.id} 
-                          style={{
-                            borderBottom: `1px solid ${colors.borderLight}`
+                          key={trade.id}
+                          style={{ 
+                            borderBottom: '1px solid var(--color-border-light)',
+                            backgroundColor: 'var(--color-bg-primary)'
+                          }}
+                          className="transition-all duration-150"
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                            e.currentTarget.style.boxShadow = 'none';
                           }}
                         >
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
-                              <span style={{ color: colors.textPrimary }}>{trade.name}</span>
+                          <td className="px-3 py-3">
+                            <div className="flex items-center space-x-2 min-w-0">
+                              <Wrench className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                              <span className="text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>{trade.name}</span>
                             </div>
                           </td>
-                          <td className="py-3 px-4">
-                            <span style={{ color: colors.textSecondary }}>
+                          <td className="px-2 py-3">
+                            <span className="text-xs truncate block" style={{ color: 'var(--color-text-secondary)' }}>
                               {trade.monthlyRate ? formatCurrency(trade.monthlyRate, siteSettings?.currencySymbol || '$') : '-'}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
-                            <span style={{ color: colors.textSecondary }}>
+                          <td className="px-2 py-3">
+                            <span className="text-xs truncate block" style={{ color: 'var(--color-text-secondary)' }}>
                               {trade.description || '-'}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
+                          <td className="px-2 py-3">
                             <span 
-                              className={`px-2 py-1 text-xs rounded-full ${
-                                trade.isActive ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-800'
-                              }`}
+                              className="px-2 py-1 text-xs rounded-full whitespace-nowrap inline-block"
+                              style={{
+                                backgroundColor: trade.isActive ? 'var(--color-success)' : 'var(--color-error)',
+                                color: 'var(--color-bg-primary)'
+                              }}
                             >
                               {trade.isActive ? 'Active' : 'Inactive'}
                             </span>
                           </td>
-                          <td className="py-3 px-4">
-                            <div className="flex items-center space-x-2">
-                              <Button
+                          <td className="px-2 py-3">
+                            <div className="flex items-center space-x-1">
+                              <button
                                 onClick={() => handleTradeEdit(trade)}
-                                variant="ghost"
-                                size="sm"
-                                className="p-1"
+                                className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                                style={{ 
+                                  color: 'var(--color-primary)',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="Edit Trade"
                               >
-                                <Edit className="w-4 h-4" />
-                              </Button>
-                              <Button
+                                <Edit className="w-3.5 h-3.5" />
+                              </button>
+                              <button
                                 onClick={() => handleTradeDelete(trade.id)}
-                                variant="ghost"
-                                size="sm"
-                                className="p-1"
+                                className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                                style={{ 
+                                  color: 'var(--color-error)',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="Delete Trade"
                               >
-                                <Trash2 className="w-4 h-4" />
-                              </Button>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
                             </div>
                           </td>
                         </tr>
@@ -1346,11 +1540,15 @@ export default function LabourManager() {
 
                 {filteredTrades.length === 0 && (
                   <div className="text-center py-8">
-                    <Wrench className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
-                    <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ 
+                      backgroundColor: 'var(--color-bg-primary)'
+                    }}>
+                      <Wrench className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
                       {tradeSearchTermForList ? 'No trades found' : 'No trades yet'}
                     </h3>
-                    <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                    <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
                       {tradeSearchTermForList ? 'Try adjusting your search terms' : 'Add your first trade to get started'}
                     </p>
                     {!tradeSearchTermForList && (
@@ -1673,144 +1871,312 @@ export default function LabourManager() {
             </div>
 
             {/* Labours List */}
-            <Card className="p-6" style={{ backgroundColor: colors.backgroundSecondary }}>
+            <Card className="overflow-hidden" style={{ backgroundColor: colors.backgroundSecondary }}>
+              {/* Card Header with Import/Export Actions */}
+              <div className="px-6 py-4 border-b flex items-center justify-end" style={{ borderColor: colors.border }}>
+                <div className="flex items-center space-x-2">
+                  <button
+                    onClick={() => handleExport('xlsx')}
+                    className="p-2 rounded hover:opacity-80 transition-all duration-150"
+                    style={{ 
+                      color: colors.primary,
+                      backgroundColor: 'transparent'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                    title="Export to Excel"
+                  >
+                    <Download className="w-5 h-5" />
+                  </button>
+                  <button
+                    onClick={() => handleExport('csv')}
+                    className="p-2 rounded hover:opacity-80 transition-all duration-150"
+                    style={{ 
+                      color: colors.primary,
+                      backgroundColor: 'transparent'
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                    }}
+                    title="Export to CSV"
+                  >
+                    <FileSpreadsheet className="w-5 h-5" />
+                  </button>
+                  {canCreateLabour && (
+                    <button
+                      onClick={() => setShowImportModal(true)}
+                      className="p-2 rounded hover:opacity-80 transition-all duration-150"
+                      style={{ 
+                        color: colors.primary,
+                        backgroundColor: 'transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                      title="Import Labour Data"
+                    >
+                      <Upload className="w-5 h-5" />
+                    </button>
+                  )}
+                  {selectedLabours.size > 0 && (
+                    <button
+                      onClick={() => setShowBulkDeleteModal(true)}
+                      className="p-2 rounded hover:opacity-80 transition-all duration-150"
+                      style={{ 
+                        color: colors.error,
+                        backgroundColor: 'transparent'
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = colors.backgroundPrimary;
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                      }}
+                      title={`Delete Selected (${selectedLabours.size})`}
+                    >
+                      <Trash className="w-5 h-5" />
+                    </button>
+                  )}
+                </div>
+              </div>
+              
+              {/* Selection Status */}
+              {selectedLabours.size > 0 && (
+                <div className="px-6 py-3 border-b" style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.border }}>
+                  <div className="flex items-center space-x-2">
+                    <CheckCircle className="w-4 h-4" style={{ color: colors.primary }} />
+                    <span className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                      {selectedLabours.size} labour(s) selected
+                    </span>
+                  </div>
+                </div>
+              )}
+              
               <div className="overflow-x-auto">
-                <table className="w-full">
+                <table className="w-full table-auto" style={{ tableLayout: 'auto' }}>
                   <thead>
                     <tr style={{ 
-                      backgroundColor: colors.backgroundPrimary,
-                      borderBottom: `1px solid ${colors.borderLight}`
+                      borderBottom: '1px solid var(--color-border-light)',
+                      backgroundColor: 'var(--color-bg-secondary)'
                     }}>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Name</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Employee ID</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Trade</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Phone</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Utilization</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Projects</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Status</th>
-                      <th className="text-left py-3 px-4 font-medium" style={{ color: colors.textPrimary }}>Actions</th>
+                      <th className="w-12 px-2 py-3 text-center">
+                        <div className="flex items-center justify-center">
+                          <Checkbox
+                            variant="primary"
+                            size="sm"
+                            checked={selectedLabours.size === filteredLabours.length && filteredLabours.length > 0}
+                            onChange={handleSelectAll}
+                          />
+                        </div>
+                      </th>
+                      <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Name</th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Employee ID</th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Trade</th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Phone</th>
+                      <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Util</th>
+                      <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Projects</th>
+                      <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>Status</th>
+                      {(canUpdateLabour || canDeleteLabour) && (
+                        <th className="w-24 px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                          Actions
+                        </th>
+                      )}
                     </tr>
                   </thead>
                   <tbody>
                     {filteredLabours.map((labour) => (
                       <tr 
-                        key={labour.id} 
-                        className="cursor-pointer hover:opacity-80 transition-opacity"
-                        style={{
-                          borderBottom: `1px solid ${colors.borderLight}`
+                        key={labour.id}
+                        style={{ 
+                          borderBottom: '1px solid var(--color-border-light)',
+                          backgroundColor: 'var(--color-bg-primary)'
+                        }}
+                        className="transition-all duration-150 cursor-pointer"
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                          e.currentTarget.style.boxShadow = 'none';
                         }}
                         onClick={() => setViewingLabour(labour)}
                       >
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-2">
-                            <User className="w-4 h-4" style={{ color: colors.textMuted }} />
-                            <span style={{ color: colors.textPrimary }}>{labour.labourName}</span>
+                        <td className="px-2 py-3 text-center" onClick={(e) => e.stopPropagation()}>
+                          <div className="flex items-center justify-center">
+                            <Checkbox
+                              variant="primary"
+                              size="sm"
+                              checked={selectedLabours.has(labour.id)}
+                              onChange={() => handleSelectLabour(labour.id)}
+                            />
                           </div>
                         </td>
-                        <td className="py-3 px-4">
-                          <span style={{ color: colors.textSecondary }}>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center space-x-2 min-w-0">
+                            <div className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center" style={{ 
+                              backgroundColor: 'var(--color-bg-secondary)'
+                            }}>
+                              <User className="w-3.5 h-3.5" style={{ color: 'var(--color-text-muted)' }} />
+                            </div>
+                            <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+                              {labour.labourName}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="px-2 py-3">
+                          <span className="text-xs font-mono truncate block" style={{ color: 'var(--color-text-secondary)' }}>
                             {labour.employeeNumber || '-'}
                           </span>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="px-2 py-3">
                           {labour.trade ? (
-                            <div className="flex items-center space-x-2">
-                              <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
-                              <span style={{ color: colors.textPrimary }}>{labour.trade}</span>
+                            <div className="flex items-center space-x-1.5 min-w-0">
+                              <Wrench className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                              <span className="text-xs truncate" style={{ color: 'var(--color-text-primary)' }}>{labour.trade}</span>
                             </div>
                           ) : (
-                            <span style={{ color: colors.textMuted }}>-</span>
+                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="px-2 py-3">
                           {labour.phone ? (
-                            <div className="flex items-center space-x-2">
-                              <Phone className="w-4 h-4" style={{ color: colors.textMuted }} />
-                              <span style={{ color: colors.textSecondary }}>{labour.phone}</span>
+                            <div className="flex items-center space-x-1.5 min-w-0">
+                              <Phone className="w-3.5 h-3.5 flex-shrink-0" style={{ color: 'var(--color-text-muted)' }} />
+                              <span className="text-xs truncate block" style={{ color: 'var(--color-text-secondary)' }}>{labour.phone}</span>
                             </div>
                           ) : (
-                            <span style={{ color: colors.textMuted }}>-</span>
+                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4">
-                          <span style={{ color: colors.textPrimary }}>
-                            {labour.isUtilized ? '100%' : '0%'}
-                          </span>
+                        <td className="px-2 py-3 text-center">
+                          <div className="flex flex-col items-center space-y-0.5">
+                            <span className="text-xs font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                              {labour.isUtilized ? '100%' : '0%'}
+                            </span>
+                          </div>
                         </td>
-                        <td className="py-3 px-4">
+                        <td className="px-2 py-3">
                           {labour.projectLabours && labour.projectLabours.length > 0 ? (
-                            <div className="space-y-1">
+                            <div className="space-y-0.5">
                               {labour.projectLabours.slice(0, 2).map((assignment) => (
-                                <div key={assignment.id} className="text-sm">
-                                  <span style={{ color: colors.textPrimary }}>{assignment.project.projectCode}</span>
+                                <div key={assignment.id} className="text-xs">
+                                  <span style={{ color: 'var(--color-text-primary)' }}>{assignment.project.projectCode}</span>
                                 </div>
                               ))}
                               {labour.projectLabours.length > 2 && (
-                                <span className="text-xs" style={{ color: colors.textMuted }}>
+                                <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                                   +{labour.projectLabours.length - 2} more
                                 </span>
                               )}
                             </div>
                           ) : (
-                            <span style={{ color: colors.textMuted }}>-</span>
+                            <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>-</span>
                           )}
                         </td>
-                        <td className="py-3 px-4">
-                          <span
-                            className="px-2 py-1 text-xs rounded-full whitespace-nowrap inline-block"
-                            style={{
-                              backgroundColor: !labour.isActive ? colors.error :
-                                             isOnLeave(labour) ? colors.warning : colors.success,
-                              color: '#FFFFFF'
+                        <td className="px-2 py-3 text-center">
+                          <span 
+                            className="px-2 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap inline-block"
+                            style={{ 
+                              backgroundColor: !labour.isActive ? 'var(--color-error)' :
+                                             isOnLeave(labour) ? 'var(--color-warning)' : 'var(--color-primary)',
+                              color: 'var(--color-bg-primary)'
                             }}
                           >
                             {!labour.isActive ? 'Inactive' :
-                             isOnLeave(labour) ? 'On Leave' : 'Active'}
+                             isOnLeave(labour) ? 'Leave' : 'Active'}
                           </span>
                         </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center space-x-2" onClick={(e) => e.stopPropagation()}>
-                            <Button
-                              onClick={() => setViewingLabour(labour)}
-                              variant="ghost"
-                              size="sm"
-                              className="p-1"
-                              style={{ color: colors.info }}
-                              title="View Details"
-                            >
-                              <Eye className="w-4 h-4" />
-                            </Button>
-                            {labour.projectLabours && labour.projectLabours.length > 0 && (
-                              <Button
-                                onClick={() => handleOpenMoveModal(labour)}
-                                variant="ghost"
-                                size="sm"
-                                className="p-1"
-                                style={{ color: colors.info }}
-                                title="Move to another project"
+                        {(canUpdateLabour || canDeleteLabour) && (
+                          <td className="px-2 py-3 text-center">
+                            <div className="flex items-center justify-center space-x-1" onClick={(e) => e.stopPropagation()}>
+                              <button
+                                onClick={() => setViewingLabour(labour)}
+                                className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                                style={{ 
+                                  color: 'var(--color-info)',
+                                  backgroundColor: 'transparent'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                                title="View Details"
                               >
-                                <ArrowRight className="w-4 h-4" />
-                              </Button>
-                            )}
-                            <Button
-                              onClick={() => handleEdit(labour)}
-                              variant="ghost"
-                              size="sm"
-                              className="p-1"
-                            >
-                              <Edit className="w-4 h-4" />
-                            </Button>
-                            <Button
-                              onClick={() => handleDelete(labour.id)}
-                              variant="ghost"
-                              size="sm"
-                              className="p-1"
-                              style={{ color: colors.error }}
-                            >
-                              <Trash2 className="w-4 h-4" />
-                            </Button>
-                          </div>
-                        </td>
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {canUpdateLabour && labour.projectLabours && labour.projectLabours.length > 0 && (
+                                <button
+                                  onClick={() => handleOpenMoveModal(labour)}
+                                  className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                                  style={{ 
+                                    color: 'var(--color-info)',
+                                    backgroundColor: 'transparent'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="Move to another project"
+                                >
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {canUpdateLabour && (
+                                <button
+                                  onClick={() => handleEdit(labour)}
+                                  className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                                  style={{ 
+                                    color: 'var(--color-primary)',
+                                    backgroundColor: 'transparent'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="Edit Labour"
+                                >
+                                  <Edit className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              {canDeleteLabour && (
+                                <button
+                                  onClick={() => handleDelete(labour.id)}
+                                  className="p-1.5 rounded hover:opacity-80 transition-all duration-150"
+                                  style={{ 
+                                    color: 'var(--color-error)',
+                                    backgroundColor: 'transparent'
+                                  }}
+                                  onMouseEnter={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                                  }}
+                                  onMouseLeave={(e) => {
+                                    e.currentTarget.style.backgroundColor = 'transparent';
+                                  }}
+                                  title="Delete Labour"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -1818,34 +2184,19 @@ export default function LabourManager() {
               </div>
 
               {filteredLabours.length === 0 && (
-                <div className="text-center py-8">
-                  <Users className="w-12 h-12 mx-auto mb-4" style={{ color: colors.textMuted }} />
-                  <h3 className="text-lg font-semibold mb-2" style={{ color: colors.textPrimary }}>
+                <Card className="p-12 text-center" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={{ 
+                    backgroundColor: 'var(--color-bg-primary)'
+                  }}>
+                    <Users className="w-8 h-8" style={{ color: 'var(--color-text-muted)' }} />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
                     {searchTerm ? 'No labours found' : 'No labours yet'}
                   </h3>
-                  <p className="text-sm mb-4" style={{ color: colors.textSecondary }}>
+                  <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                     {searchTerm ? 'Try adjusting your search terms' : 'Get started by adding your first labour worker'}
                   </p>
-                  <Button
-                    onClick={() => {
-                      setFormData({
-                        labourName: '',
-                        employeeNumber: '',
-                        phone: '',
-                        trade: '',
-                        tradeId: undefined,
-                        isActive: true,
-                      });
-                      setEditingLabour(null);
-                      setShowForm(true);
-                    }}
-                    className="flex items-center space-x-2 mx-auto"
-                    style={{ backgroundColor: colors.primary, color: '#FFFFFF' }}
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Add Labour</span>
-                  </Button>
-                </div>
+                </Card>
               )}
             </Card>
           </>
@@ -2263,6 +2614,221 @@ export default function LabourManager() {
                   </p>
                 </div>
               )}
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Import Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div 
+            className="rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            {/* Modal Header */}
+            <div 
+              className="flex items-center justify-between p-6 border-b"
+              style={{ borderColor: colors.border }}
+            >
+              <div>
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Import Labour Data
+                </h2>
+                <p className="text-sm mt-1" style={{ color: colors.textSecondary }}>
+                  Upload an Excel file to import labours
+                </p>
+              </div>
+              <Button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                }}
+                variant="ghost"
+                className="p-2"
+              >
+                <X className="w-5 h-5" />
+              </Button>
+            </div>
+
+            <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              {/* Download Template */}
+              <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h3 className="text-sm font-medium mb-1" style={{ color: colors.textPrimary }}>
+                      Download Template
+                    </h3>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                      Download the Excel template with sample data and instructions
+                    </p>
+                  </div>
+                  <Button
+                    onClick={handleDownloadTemplate}
+                    variant="ghost"
+                    className="flex items-center space-x-2"
+                  >
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span>Download Template</span>
+                  </Button>
+                </div>
+              </div>
+
+              {/* File Upload */}
+              <div className="mb-6">
+                <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Select Excel File
+                </label>
+                <div 
+                  className="border-2 border-dashed rounded-lg p-6 text-center"
+                  style={{ 
+                    borderColor: colors.border,
+                    backgroundColor: colors.backgroundPrimary
+                  }}
+                >
+                  <input
+                    type="file"
+                    accept=".xlsx,.xls,.csv"
+                    onChange={(e) => setImportFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    id="import-labour-file"
+                  />
+                  <label 
+                    htmlFor="import-labour-file"
+                    className="cursor-pointer flex flex-col items-center space-y-2"
+                  >
+                    <Upload className="w-8 h-8" style={{ color: colors.textMuted }} />
+                    <div>
+                      <p className="text-sm font-medium" style={{ color: colors.textPrimary }}>
+                        {importFile ? importFile.name : 'Click to select file'}
+                      </p>
+                      <p className="text-xs" style={{ color: colors.textSecondary }}>
+                        Excel (.xlsx, .xls) or CSV files only
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              </div>
+
+              {/* Import Results */}
+              {importResult && (
+                <div className="mb-6">
+                  {importResult.error ? (
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.error + '20', border: `1px solid ${colors.error}` }}>
+                      <h4 className="text-sm font-medium mb-2" style={{ color: colors.error }}>
+                        Import Failed
+                      </h4>
+                      <p className="text-sm mb-2" style={{ color: colors.error }}>
+                        {importResult.error}
+                      </p>
+                      {importResult.details && (
+                        <div className="text-xs" style={{ color: colors.error }}>
+                          <pre className="whitespace-pre-wrap">{JSON.stringify(importResult.details, null, 2)}</pre>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-lg" style={{ backgroundColor: colors.success + '20', border: `1px solid ${colors.success}` }}>
+                      <h4 className="text-sm font-medium mb-2" style={{ color: colors.success }}>
+                        Import Successful
+                      </h4>
+                      <div className="text-sm space-y-1" style={{ color: colors.success }}>
+                        <p>Total processed: {importResult.totalProcessed}</p>
+                        <p>Created: {importResult.created}</p>
+                        <p>Updated: {importResult.updated}</p>
+                        {importResult.errors > 0 && (
+                          <p>Errors: {importResult.errors}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Import Instructions */}
+              <div className="mb-6 p-4 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>
+                <h3 className="text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                  Import Instructions
+                </h3>
+                <ul className="text-xs space-y-1" style={{ color: colors.textSecondary }}>
+                  <li>• Labour Name is required for all records</li>
+                  <li>• Employee Number, Phone, and Trade are optional</li>
+                  <li>• Status must be "Active" or "Inactive" (defaults to Active)</li>
+                  <li>• Existing labours with same name or employee number will be updated</li>
+                  <li>• Download the template above for the correct format</li>
+                </ul>
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div 
+              className="flex items-center justify-end space-x-3 p-6 border-t"
+              style={{ borderColor: colors.border }}
+            >
+              <Button
+                onClick={() => {
+                  setShowImportModal(false);
+                  setImportFile(null);
+                  setImportResult(null);
+                }}
+                variant="ghost"
+                disabled={importing}
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={handleImport}
+                disabled={!importFile || importing}
+                style={{ backgroundColor: colors.primary }}
+              >
+                {importing ? 'Importing...' : 'Import Labours'}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Delete Modal */}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <Card 
+            className="w-full max-w-md"
+            style={{ backgroundColor: colors.backgroundSecondary }}
+          >
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-semibold" style={{ color: colors.textPrimary }}>
+                  Delete Selected Labours
+                </h2>
+                <Button
+                  onClick={() => setShowBulkDeleteModal(false)}
+                  variant="ghost"
+                  className="p-2"
+                >
+                  <X className="w-5 h-5" />
+                </Button>
+              </div>
+              <p className="text-sm mb-6" style={{ color: colors.textSecondary }}>
+                Are you sure you want to delete {selectedLabours.size} labour(s)? This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-3">
+                <Button
+                  onClick={() => setShowBulkDeleteModal(false)}
+                  variant="ghost"
+                  disabled={bulkDeleting}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleBulkDelete}
+                  variant="destructive"
+                  disabled={bulkDeleting}
+                  style={{ backgroundColor: colors.error }}
+                >
+                  {bulkDeleting ? 'Deleting...' : 'Delete'}
+                </Button>
+              </div>
             </div>
           </Card>
         </div>
