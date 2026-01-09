@@ -6,7 +6,17 @@ const addTradeSchema = z.object({
   projectId: z.number().int().positive(),
   trade: z.string().min(1, 'Trade name is required'),
   requiredQuantity: z.number().int().min(1).optional().default(1),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
 });
+
+function parseDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 // GET - Fetch all trades for a project
 export async function GET(request: NextRequest) {
@@ -59,6 +69,8 @@ export async function POST(request: NextRequest) {
         projectId: validatedData.projectId,
         trade: validatedData.trade,
         requiredQuantity: validatedData.requiredQuantity,
+        startDate: parseDate(validatedData.startDate),
+        endDate: parseDate(validatedData.endDate),
       },
     });
 

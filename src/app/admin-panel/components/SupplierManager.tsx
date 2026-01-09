@@ -32,6 +32,7 @@ import { Input } from '@/components/ui/Input';
 import { Checkbox } from '@/components/ui/Checkbox';
 import { useDesignSystem, getAdminPanelColorsWithDesignSystem } from '@/hooks/useDesignSystem';
 import { useAdminApi } from '@/hooks/useApi';
+import { useSiteSettings } from '@/hooks/useSiteSettings';
 
 interface SupplierResponse {
   id: number;
@@ -41,6 +42,8 @@ interface SupplierResponse {
   contactPerson: string | null;
   contactNumber: string | null;
   email: string | null;
+  contractValueCapability: number | string | null;
+  averageRating: number | null;
   typeOfWorks: Array<{
     typeOfWork: {
       id: number;
@@ -71,6 +74,7 @@ type SupplierFormState = {
   contactPerson: string;
   contactNumber: string;
   email: string;
+  contractValueCapability: string;
 };
 
 const DEFAULT_FORM: SupplierFormState = {
@@ -80,12 +84,15 @@ const DEFAULT_FORM: SupplierFormState = {
   contactPerson: '',
   contactNumber: '',
   email: '',
+  contractValueCapability: '',
 };
 
 export default function SupplierManager() {
   const { designSystem } = useDesignSystem();
   const colors = getAdminPanelColorsWithDesignSystem(designSystem);
   const { get, post, put, delete: del } = useAdminApi();
+  const { siteSettings } = useSiteSettings();
+  const currencySymbol = siteSettings?.currencySymbol || '$';
 
   const [isLoading, setIsLoading] = useState(true);
   const [suppliers, setSuppliers] = useState<SupplierResponse[]>([]);
@@ -98,6 +105,11 @@ export default function SupplierManager() {
   const [typeFilter, setTypeFilter] = useState<'all' | 'Supplier' | 'Subcontractor'>('all');
   const [selectedTypeOfWorks, setSelectedTypeOfWorks] = useState<string[]>([]);
   const [typeOfWorkInput, setTypeOfWorkInput] = useState('');
+  const [filterTypeOfWorks, setFilterTypeOfWorks] = useState<string[]>([]);
+  const [capabilityFrom, setCapabilityFrom] = useState<string>('');
+  const [capabilityTo, setCapabilityTo] = useState<string>('');
+  const [typeOfWorkSearchTerm, setTypeOfWorkSearchTerm] = useState<string>('');
+  const [showTypeOfWorkDropdown, setShowTypeOfWorkDropdown] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [selectedSuppliers, setSelectedSuppliers] = useState<Set<number>>(new Set());
   const [showImportModal, setShowImportModal] = useState(false);
@@ -107,26 +119,92 @@ export default function SupplierManager() {
   const [loadingDetails, setLoadingDetails] = useState(false);
 
   const typeInputRef = useRef<HTMLInputElement | null>(null);
+  const typeOfWorkDropdownRef = useRef<HTMLDivElement | null>(null);
+
+  const formatCurrency = useCallback((value: number | string | null | undefined): string => {
+    if (value === null || value === undefined || value === '') return '';
+    const num = typeof value === 'string' ? Number.parseFloat(value) : value;
+    if (Number.isNaN(num)) return '';
+    // Format number with commas and add currency symbol from settings
+    const formatted = new Intl.NumberFormat('en-US', {
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(num);
+    return `${currencySymbol}${formatted}`;
+  }, [currencySymbol]);
+
+  const parseCurrencyInput = useCallback((value: string): string => {
+    // Remove currency symbols, commas, and spaces, keep only numbers and decimal point
+    // Handle common currency symbols and the one from settings
+    const currencySymbols = ['$', '€', '£', '¥', currencySymbol].filter(Boolean);
+    const regex = new RegExp(`[${currencySymbols.map(s => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('')},\\s]`, 'g');
+    return value.replace(regex, '');
+  }, [currencySymbol]);
 
   const filteredSuppliers = useMemo(() => {
     const term = searchTerm.toLowerCase();
     return suppliers.filter((supplier) => {
+      // Filter by vendor type
       if (typeFilter !== 'all' && supplier.type !== typeFilter) {
         return false;
       }
-      if (!term) return true;
-      const fields = [
-        supplier.name,
-        supplier.vendorCode ?? '',
-        supplier.type,
-        supplier.contactPerson ?? '',
-        supplier.contactNumber ?? '',
-        supplier.email ?? '',
-        ...supplier.typeOfWorks.map((link) => link.typeOfWork.name ?? ''),
-      ];
-      return fields.some((value) => value.toLowerCase().includes(term));
+
+      // Filter by type of works
+      if (filterTypeOfWorks.length > 0) {
+        const supplierWorkTypes = supplier.typeOfWorks.map((link) => link.typeOfWork.name.toLowerCase());
+        const hasMatchingWorkType = filterTypeOfWorks.some((filterWork) =>
+          supplierWorkTypes.includes(filterWork.toLowerCase())
+        );
+        if (!hasMatchingWorkType) {
+          return false;
+        }
+      }
+
+      // Filter by capability range
+      if (capabilityFrom || capabilityTo) {
+        const supplierCapability = supplier.contractValueCapability
+          ? (typeof supplier.contractValueCapability === 'string'
+              ? Number.parseFloat(supplier.contractValueCapability)
+              : Number(supplier.contractValueCapability))
+          : null;
+
+        if (supplierCapability === null) {
+          return false; // Exclude suppliers without capability if range filter is set
+        }
+
+        const fromValue = capabilityFrom ? Number.parseFloat(parseCurrencyInput(capabilityFrom)) : null;
+        const toValue = capabilityTo ? Number.parseFloat(parseCurrencyInput(capabilityTo)) : null;
+
+        if (fromValue !== null && supplierCapability < fromValue) {
+          return false;
+        }
+        if (toValue !== null && supplierCapability > toValue) {
+          return false;
+        }
+      }
+
+      // Filter by search term
+      if (term) {
+        const fields = [
+          supplier.name,
+          supplier.vendorCode ?? '',
+          supplier.type,
+          supplier.contactPerson ?? '',
+          supplier.contactNumber ?? '',
+          supplier.email ?? '',
+          supplier.contractValueCapability ? formatCurrency(
+            typeof supplier.contractValueCapability === 'string'
+              ? Number.parseFloat(supplier.contractValueCapability)
+              : supplier.contractValueCapability
+          ) : '',
+          ...supplier.typeOfWorks.map((link) => link.typeOfWork.name ?? ''),
+        ];
+        return fields.some((value) => value.toLowerCase().includes(term));
+      }
+
+      return true;
     });
-  }, [suppliers, searchTerm, typeFilter]);
+  }, [suppliers, searchTerm, typeFilter, filterTypeOfWorks, capabilityFrom, capabilityTo, formatCurrency, parseCurrencyInput]);
 
   const totalSuppliers = suppliers.length;
   const totalSubcontractors = suppliers.filter((supplier) => supplier.type === 'Subcontractor')
@@ -166,6 +244,26 @@ export default function SupplierManager() {
     fetchSuppliers();
   }, [fetchSuppliers]);
 
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (
+        typeOfWorkDropdownRef.current &&
+        !typeOfWorkDropdownRef.current.contains(event.target as Node)
+      ) {
+        setShowTypeOfWorkDropdown(false);
+      }
+    };
+
+    if (showTypeOfWorkDropdown) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showTypeOfWorkDropdown]);
+
   const handleInputChange = useCallback(
     (field: keyof SupplierFormState, value: string) => {
       setFormState((prev) => ({
@@ -201,6 +299,11 @@ export default function SupplierManager() {
     setShowForm(true);
     setSaveError(null);
     setEditingSupplierId(supplier.id);
+    const contractValue = supplier.contractValueCapability 
+      ? (typeof supplier.contractValueCapability === 'string' 
+          ? supplier.contractValueCapability 
+          : String(supplier.contractValueCapability))
+      : '';
     setFormState({
       name: supplier.name,
       vendorCode: supplier.vendorCode ?? '',
@@ -208,6 +311,7 @@ export default function SupplierManager() {
       contactPerson: supplier.contactPerson ?? '',
       contactNumber: supplier.contactNumber ?? '',
       email: supplier.email ?? '',
+      contractValueCapability: contractValue,
     });
     setSelectedTypeOfWorks(
       supplier.typeOfWorks.map((link) => link.typeOfWork.name).filter((name) => !!name)
@@ -599,6 +703,18 @@ export default function SupplierManager() {
                           {supplierDetails.evaluations?.length || 0}
                         </span>
                       </div>
+                      {supplierDetails.contractValueCapability && (
+                        <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
+                          <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Capability ({currencySymbol})</span>
+                          <span className="text-lg font-bold" style={{ color: 'var(--color-success)' }}>
+                            {formatCurrency(
+                              typeof supplierDetails.contractValueCapability === 'string'
+                                ? Number.parseFloat(supplierDetails.contractValueCapability)
+                                : supplierDetails.contractValueCapability
+                            )}
+                          </span>
+                        </div>
+                      )}
                       <div className="flex items-center justify-between p-3 rounded-lg" style={{ backgroundColor: 'var(--color-bg-primary)' }}>
                         <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>Type</span>
                         <span 
@@ -861,43 +977,260 @@ export default function SupplierManager() {
         </Button>
       </div>
 
-      {/* Search and Filters */}
-      <div className="flex flex-col sm:flex-row gap-4">
-        <div className="relative flex-1">
-          <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }} />
-          <Input
-            type="text"
-            placeholder="Search vendors by name, code, type, contact..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="pl-10"
-            style={{
-              backgroundColor: 'var(--color-bg-secondary)',
-              color: 'var(--color-text-primary)'
-            }}
-          />
+      {/* Combined Filters */}
+      <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-sm font-semibold flex items-center space-x-2" style={{ color: 'var(--color-text-primary)' }}>
+            <Filter className="w-4 h-4" />
+            <span>Filters</span>
+          </h3>
+          {(typeFilter !== 'all' || filterTypeOfWorks.length > 0 || capabilityFrom || capabilityTo || searchTerm) && (
+            <button
+              type="button"
+              onClick={() => {
+                setTypeFilter('all');
+                setFilterTypeOfWorks([]);
+                setCapabilityFrom('');
+                setCapabilityTo('');
+                setTypeOfWorkSearchTerm('');
+                setSearchTerm('');
+                setShowTypeOfWorkDropdown(false);
+              }}
+              className="text-xs transition-colors"
+              style={{ color: 'var(--color-error)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.color = 'var(--color-error)';
+                e.currentTarget.style.opacity = '0.8';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.color = 'var(--color-error)';
+                e.currentTarget.style.opacity = '1';
+              }}
+            >
+              Clear All
+            </button>
+          )}
         </div>
-        <div className="flex items-center space-x-2">
-          <div className="flex items-center space-x-2 px-3 py-2 border rounded-lg" style={{ borderColor: 'var(--color-border-light)' }}>
-            <Filter className="w-4 h-4" style={{ color: 'var(--color-text-secondary)' }} />
-            {(['all', 'Supplier', 'Subcontractor'] as const).map((option) => (
-              <button
-                key={option}
-                type="button"
-                onClick={() => setTypeFilter(option === 'all' ? 'all' : option)}
-                className="rounded-full px-3 py-1 text-xs font-medium transition-colors whitespace-nowrap"
-                style={{
-                  backgroundColor: typeFilter === option ? 'var(--color-bg-primary)' : 'transparent',
-                  color: typeFilter === option ? 'var(--color-primary)' : 'var(--color-text-secondary)',
-                  border: `1px solid ${typeFilter === option ? 'var(--color-primary)' : 'var(--color-border-light)'}`,
-                }}
-              >
-                {option === 'all' ? 'All' : option}
-              </button>
-            ))}
+        
+        <div className="space-y-4">
+          {/* Search Bar */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+              Search
+            </label>
+            <div className="relative">
+              <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }} />
+              <Input
+                type="text"
+                placeholder="Search vendors by name, code, type, contact..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="pl-10"
+              />
+            </div>
           </div>
-        </div>
-      </div>
+          {/* Vendor Type Filter */}
+          <div>
+            <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+              Vendor Type
+            </label>
+            <div className="flex items-center space-x-2">
+              {(['all', 'Supplier', 'Subcontractor'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => setTypeFilter(option === 'all' ? 'all' : option)}
+                  className="rounded-full px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap"
+                  style={{
+                    backgroundColor: typeFilter === option ? 'var(--color-primary)' : 'var(--color-bg-primary)',
+                    color: typeFilter === option ? 'var(--color-bg-primary)' : 'var(--color-text-secondary)',
+                    border: `1px solid ${typeFilter === option ? 'var(--color-primary)' : 'var(--color-border-light)'}`,
+                  }}
+                >
+                  {option === 'all' ? 'All' : option}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            {/* Type of Works Filter */}
+            <div className="relative">
+                <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                  Type of Works
+                </label>
+                
+                {/* Selected Tags */}
+                {filterTypeOfWorks.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-2">
+                    {filterTypeOfWorks.map((work) => (
+                      <span
+                        key={work}
+                        className="inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium"
+                        style={{
+                          backgroundColor: `${colors.primary}20`,
+                          color: colors.primary,
+                          border: `1px solid ${colors.primary}60`,
+                        }}
+                      >
+                        {work}
+                        <button
+                          type="button"
+                          className="ml-1 inline-flex h-4 w-4 items-center justify-center rounded-full hover:opacity-70 transition-opacity"
+                          onClick={() => setFilterTypeOfWorks(prev => prev.filter(w => w !== work))}
+                          aria-label={`Remove ${work}`}
+                          style={{ color: colors.primary }}
+                        >
+                          ×
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
+
+                {/* Searchable Dropdown */}
+                <div className="relative" ref={typeOfWorkDropdownRef}>
+                  <div className="relative">
+                    <Search className="w-4 h-4 absolute left-3 top-1/2 transform -translate-y-1/2" style={{ color: 'var(--color-text-muted)' }} />
+                    <Input
+                      type="text"
+                      placeholder="Search type of works..."
+                      value={typeOfWorkSearchTerm}
+                      onChange={(e) => {
+                        setTypeOfWorkSearchTerm(e.target.value);
+                        setShowTypeOfWorkDropdown(true);
+                      }}
+                      onFocus={() => setShowTypeOfWorkDropdown(true)}
+                      className="pl-10 pr-10"
+                    />
+                    {typeOfWorkSearchTerm && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setTypeOfWorkSearchTerm('');
+                          setShowTypeOfWorkDropdown(false);
+                        }}
+                        className="absolute right-3 top-1/2 transform -translate-y-1/2"
+                        style={{ color: 'var(--color-text-muted)' }}
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Dropdown Results */}
+                  {showTypeOfWorkDropdown && uniqueTypeOptions.length > 0 && (
+                    <div 
+                      className="absolute z-50 w-full mt-1 border rounded-lg shadow-lg max-h-60 overflow-y-auto"
+                      style={{
+                        backgroundColor: 'var(--color-bg-secondary)',
+                        borderColor: 'var(--color-border-light)',
+                        border: '1px solid var(--color-border-light)',
+                        boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                      }}
+                    >
+                      {(() => {
+                        const searchLower = typeOfWorkSearchTerm.toLowerCase();
+                        const filtered = uniqueTypeOptions.filter(option => {
+                          const matchesSearch = !searchLower || option.name.toLowerCase().includes(searchLower);
+                          const notSelected = !filterTypeOfWorks.includes(option.name);
+                          return matchesSearch && notSelected;
+                        });
+
+                        if (filtered.length === 0) {
+                          return (
+                            <div className="px-4 py-3 text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>
+                              {typeOfWorkSearchTerm 
+                                ? 'No matching work types found' 
+                                : filterTypeOfWorks.length > 0 
+                                  ? 'All work types selected' 
+                                  : 'No work types available'}
+                            </div>
+                          );
+                        }
+
+                        return (
+                          <div className="py-1">
+                            {filtered.map((option) => (
+                              <button
+                                key={option.id}
+                                type="button"
+                                onClick={() => {
+                                  setFilterTypeOfWorks(prev => [...prev, option.name]);
+                                  setTypeOfWorkSearchTerm('');
+                                  setShowTypeOfWorkDropdown(false);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm hover:bg-opacity-80 transition-colors flex items-center space-x-2"
+                                style={{
+                                  backgroundColor: 'transparent',
+                                  color: 'var(--color-text-primary)',
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'var(--color-bg-primary)';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.backgroundColor = 'transparent';
+                                }}
+                              >
+                                <Plus className="w-4 h-4" style={{ color: 'var(--color-primary)' }} />
+                                <span>{option.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+            {/* Capability Range Filter */}
+            <div>
+              <label className="block text-xs font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                Capability Range ({currencySymbol})
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="text-xs font-medium whitespace-nowrap min-w-[35px]" style={{ color: 'var(--color-text-primary)' }}>From</label>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      {currencySymbol}
+                    </span>
+                    <Input
+                      type="text"
+                      value={capabilityFrom}
+                      onChange={(e) => {
+                        const cleaned = parseCurrencyInput(e.target.value);
+                        setCapabilityFrom(cleaned);
+                      }}
+                      placeholder="0"
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-1">
+                  <label className="text-xs font-medium whitespace-nowrap min-w-[20px]" style={{ color: 'var(--color-text-primary)' }}>To</label>
+                  <div className="relative flex-1">
+                    <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                      {currencySymbol}
+                    </span>
+                    <Input
+                      type="text"
+                      value={capabilityTo}
+                      onChange={(e) => {
+                        const cleaned = parseCurrencyInput(e.target.value);
+                        setCapabilityTo(cleaned);
+                      }}
+                      placeholder="No limit"
+                      className="pl-8"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+            </div>
+          </div>
+      </Card>
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
         <Card className="p-4" style={{ backgroundColor: 'var(--color-bg-secondary)' }}>
@@ -1025,6 +1358,42 @@ export default function SupplierManager() {
               value={formState.email}
               onChange={(event) => handleInputChange('email', event.target.value)}
             />
+
+            <div className="md:col-span-1">
+              <label className="block text-sm font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                Capability ({currencySymbol})
+              </label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+                  {currencySymbol}
+                </span>
+                <Input
+                  type="text"
+                  value={formState.contractValueCapability}
+                  onChange={(event) => {
+                    const cleaned = parseCurrencyInput(event.target.value);
+                    handleInputChange('contractValueCapability', cleaned);
+                  }}
+                  onBlur={(event) => {
+                    const value = event.target.value.trim();
+                    if (value && !Number.isNaN(Number.parseFloat(value))) {
+                      const formatted = formatCurrency(Number.parseFloat(value));
+                      // Store the numeric value but display formatted on blur
+                      // We'll keep the numeric value in state for submission
+                    }
+                  }}
+                  placeholder="e.g., 100000"
+                  className="pl-8"
+                  style={{
+                    backgroundColor: 'var(--color-bg-primary)',
+                    color: 'var(--color-text-primary)'
+                  }}
+                />
+              </div>
+              <p className="mt-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                Maximum contract value this vendor can undertake
+              </p>
+            </div>
 
             <div className="md:col-span-1">
               <Input
@@ -1235,6 +1604,9 @@ export default function SupplierManager() {
                   <th className="px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                     Name
                   </th>
+                  <th className="px-2 py-3 text-center text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                    Rating
+                  </th>
                   <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                     Vendor Code
                   </th>
@@ -1249,6 +1621,9 @@ export default function SupplierManager() {
                   </th>
                   <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                     Email
+                  </th>
+                  <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
+                    Capability ({currencySymbol})
                   </th>
                   <th className="px-2 py-3 text-left text-xs font-semibold uppercase tracking-wider whitespace-nowrap" style={{ color: 'var(--color-text-primary)' }}>
                     Type of Works
@@ -1291,6 +1666,34 @@ export default function SupplierManager() {
                       </span>
                     </td>
                     <td className="px-2 py-3">
+                      {supplier.averageRating !== null && supplier.averageRating !== undefined ? (
+                        <div className="flex flex-col items-center gap-1">
+                          <div className="flex items-center gap-0.5">
+                            {[...Array(5)].map((_, i) => {
+                              const rating = supplier.averageRating ?? 0;
+                              const roundedRating = Math.round(rating);
+                              return (
+                                <Star
+                                  key={i}
+                                  className={`w-4 h-4 ${i < roundedRating ? 'fill-current' : ''}`}
+                                  style={{ 
+                                    color: i < roundedRating 
+                                      ? 'var(--color-warning)' 
+                                      : 'var(--color-text-muted)' 
+                                  }}
+                                />
+                              );
+                            })}
+                          </div>
+                          <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                            {supplier.averageRating.toFixed(1)}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>-</span>
+                      )}
+                    </td>
+                    <td className="px-2 py-3">
                       {supplier.vendorCode ? (
                         <span className="inline-flex items-center gap-1 rounded-full px-2 py-1 text-xs font-medium" style={{ backgroundColor: 'var(--color-info)', color: 'var(--color-bg-primary)' }}>
                           {supplier.vendorCode}
@@ -1321,6 +1724,19 @@ export default function SupplierManager() {
                       <span style={{ color: 'var(--color-text-primary)' }}>
                         {supplier.email || '-'}
                       </span>
+                    </td>
+                    <td className="px-2 py-3">
+                      {supplier.contractValueCapability ? (
+                        <span className="font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                          {formatCurrency(
+                            typeof supplier.contractValueCapability === 'string'
+                              ? Number.parseFloat(supplier.contractValueCapability)
+                              : supplier.contractValueCapability
+                          )}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--color-text-muted)' }}>-</span>
+                      )}
                     </td>
                     <td className="px-2 py-3">
                       <div className="flex flex-wrap gap-1">

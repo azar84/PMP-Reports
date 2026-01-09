@@ -1,11 +1,29 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { prisma } from '@/lib/db';
 import { verifyToken } from '@/lib/jwt';
+import { Prisma } from '@prisma/client';
 
 function sanitizeString(value: unknown): string | null {
   if (typeof value !== 'string') return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function sanitizeDecimal(value: unknown): Prisma.Decimal | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') {
+    return new Prisma.Decimal(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    // Remove currency symbols and commas
+    const cleaned = trimmed.replace(/[$,\s]/g, '');
+    const num = Number.parseFloat(cleaned);
+    if (Number.isNaN(num)) return null;
+    return new Prisma.Decimal(num);
+  }
+  return null;
 }
 
 async function resolveUserId(request: NextRequest): Promise<number | null> {
@@ -107,6 +125,7 @@ export async function PUT(
         contactPerson: sanitizeString(body?.contactPerson),
         contactNumber: sanitizeString(body?.contactNumber),
         email: sanitizeString(body?.email),
+        contractValueCapability: sanitizeDecimal(body?.contractValueCapability),
         typeOfWorks: {
           deleteMany: {},
           create: typeOfWorks.map((work) => ({

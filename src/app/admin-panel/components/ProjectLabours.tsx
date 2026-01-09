@@ -63,6 +63,8 @@ interface ProjectTrade {
   projectId: number;
   trade: string;
   requiredQuantity: number;
+  startDate?: string | null;
+  endDate?: string | null;
   createdAt: string;
   updatedAt: string;
   labourAssignments: ProjectLabourAssignment[];
@@ -108,6 +110,9 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
   // Trade modal state
   const [showTradeModal, setShowTradeModal] = useState(false);
   const [selectedTrade, setSelectedTrade] = useState<Trade | null>(null);
+  const [newTradeStartDate, setNewTradeStartDate] = useState('');
+  const [newTradeEndDate, setNewTradeEndDate] = useState('');
+  const [tradeDateValidationError, setTradeDateValidationError] = useState<string>('');
   const [assigningToTrade, setAssigningToTrade] = useState<number | null>(null);
   const [editingLabourAssignment, setEditingLabourAssignment] = useState<ProjectLabourAssignment | null>(null);
   const [editingTrade, setEditingTrade] = useState<ProjectTrade | null>(null);
@@ -143,6 +148,24 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     fetchLabours();
     fetchTrades();
   }, [projectId]);
+
+  const selectableTrades = useMemo(() => {
+    const usedTradeNames = new Set(projectTrades.map((t) => t.trade.trim().toLowerCase()));
+    return trades.filter((trade) => {
+      if (!trade.isActive) return false;
+      const nameKey = trade.name.trim().toLowerCase();
+      return !usedTradeNames.has(nameKey);
+    });
+  }, [projectTrades, trades]);
+
+  useEffect(() => {
+    if (!showTradeModal) return;
+    const formattedStart = formatDateForInput(projectStartDate) || '';
+    const formattedEnd = formatDateForInput(projectEndDate) || '';
+    setNewTradeStartDate(formattedStart);
+    setNewTradeEndDate(formattedEnd);
+    setTradeDateValidationError(validateDates(formattedStart, formattedEnd));
+  }, [showTradeModal, projectStartDate, projectEndDate]);
 
   const fetchTrades = async () => {
     try {
@@ -285,10 +308,24 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     setErrorMessage('');
 
     try {
+      const fallbackStart = formatDateForInput(projectStartDate) || '';
+      const fallbackEnd = formatDateForInput(projectEndDate) || '';
+      const startDate = (newTradeStartDate || fallbackStart || '').split('T')[0];
+      const endDate = (newTradeEndDate || fallbackEnd || '').split('T')[0];
+
+      const validation = validateDates(startDate, endDate);
+      if (validation) {
+        setErrorMessage(validation);
+        setIsSubmitting(false);
+        return;
+      }
+
       const response = await post<{ success: boolean; data: any }>('/api/admin/project-trades', {
         projectId: projectId,
         trade: trade.name,
         requiredQuantity: 1,
+        startDate: startDate || null,
+        endDate: endDate || null,
       });
 
       if (response.success) {
@@ -381,8 +418,22 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
     setErrorMessage('');
 
     try {
+      const fallbackStart = formatDateForInput(projectStartDate) || '';
+      const fallbackEnd = formatDateForInput(projectEndDate) || '';
+      const startDate = (formatDateForInput(editingTrade.startDate) || fallbackStart || '').split('T')[0];
+      const endDate = (formatDateForInput(editingTrade.endDate) || fallbackEnd || '').split('T')[0];
+
+      const validation = validateDates(startDate, endDate);
+      if (validation) {
+        setErrorMessage(validation);
+        setIsSubmitting(false);
+        return;
+      }
+
       const response = await put<{ success: boolean; data: any }>(`/api/admin/project-trades/${editingTrade.id}`, {
         requiredQuantity: editingTrade.requiredQuantity,
+        startDate: startDate || null,
+        endDate: endDate || null,
       });
 
       if (response.success) {
@@ -867,69 +918,99 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                   const assignedQuantity = trade.labourAssignments.length;
                   const isQuantityMet = assignedQuantity >= trade.requiredQuantity;
                   const remainingNeeded = Math.max(0, trade.requiredQuantity - assignedQuantity);
+                  const tradeStartLabel = trade.startDate
+                    ? formatDateForDisplay(trade.startDate)
+                    : projectStartDate
+                      ? formatDateForDisplay(projectStartDate)
+                      : '-';
+                  const tradeEndLabel = trade.endDate
+                    ? formatDateForDisplay(trade.endDate)
+                    : projectEndDate
+                      ? formatDateForDisplay(projectEndDate)
+                      : '-';
 
                   return (
                     <React.Fragment key={trade.id}>
                       {/* Trade Header Row */}
                       <tr className="border-b" style={{ borderColor: colors.border, backgroundColor: colors.backgroundSecondary }}>
-                        <td className="py-3 px-4" colSpan={9}>
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center space-x-2">
-                              <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
-                              <span className="font-medium" style={{ color: colors.textPrimary }}>
-                                {trade.trade}
-                              </span>
-                            </div>
-                            <div className="flex items-center space-x-4">
-                              <div className="flex items-center space-x-2">
-                                <span 
-                                  className={`text-sm font-medium ${
-                                    isQuantityMet ? 'text-green-600' : 'text-orange-600'
-                                  }`}
-                                >
-                                  {isQuantityMet 
-                                    ? `Complete (${assignedQuantity}/${trade.requiredQuantity})` 
-                                    : `${remainingNeeded} needed`
-                                  }
-                                </span>
-                                {!isQuantityMet && (
-                                  <Button
-                                    onClick={() => {
-                                      setAssigningToTrade(trade.id);
-                                      setShowAddModal(true);
-                                    }}
-                                    variant="ghost"
-                                    size="sm"
-                                    className="p-1"
-                                    title={`Add labour to ${trade.trade}`}
-                                  >
-                                    <Plus className="w-3 h-3" />
-                                  </Button>
-                                )}
-                              </div>
-                              <div className="flex items-center space-x-2">
-                                <Button
-                                  onClick={() => {
-                                    setEditingTrade(trade);
-                                    setErrorMessage('');
-                                  }}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="p-1"
-                                  title={`Edit ${trade.trade} requirements`}
-                                >
-                                  <Edit className="w-4 h-4" />
-                                </Button>
-                                <Button
-                                  onClick={() => handleDeleteTrade(trade.id)}
-                                  variant="ghost"
-                                  size="sm"
-                                  className="p-1"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </div>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center space-x-2">
+                            <Wrench className="w-4 h-4" style={{ color: colors.textMuted }} />
+                            <span className="font-medium" style={{ color: colors.textPrimary }}>
+                              {trade.trade}
+                            </span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4" style={{ color: colors.textSecondary }}>
+                          <span className="text-sm">{assignedQuantity}/{trade.requiredQuantity}</span>
+                        </td>
+                        <td className="py-3 px-4" style={{ color: colors.textSecondary }}>
+                          <span className="text-sm">—</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span
+                            className={`text-sm font-medium ${
+                              isQuantityMet ? 'text-green-600' : 'text-orange-600'
+                            }`}
+                          >
+                            {isQuantityMet ? 'Complete' : `${remainingNeeded} needed`}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4" style={{ color: colors.textSecondary }}>
+                          <span className="text-sm">—</span>
+                        </td>
+                        <td className="py-3 px-4" style={{ color: colors.textSecondary }}>
+                          <span className="text-sm">{tradeStartLabel}</span>
+                        </td>
+                        <td className="py-3 px-4" style={{ color: colors.textSecondary }}>
+                          <span className="text-sm">{tradeEndLabel}</span>
+                        </td>
+                        <td className="py-3 px-4" style={{ color: colors.textSecondary }}>
+                          <span className="text-sm">—</span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end space-x-2">
+                            {!isQuantityMet && (
+                              <Button
+                                onClick={() => {
+                                  setAssigningToTrade(trade.id);
+                                  setShowAddModal(true);
+                                }}
+                                variant="ghost"
+                                size="sm"
+                                className="p-1"
+                                title={`Add labour to ${trade.trade}`}
+                              >
+                                <Plus className="w-3 h-3" />
+                              </Button>
+                            )}
+                            <Button
+                              onClick={() => {
+                                const fallbackStart = formatDateForInput(projectStartDate) || '';
+                                const fallbackEnd = formatDateForInput(projectEndDate) || '';
+                                setEditingTrade({
+                                  ...trade,
+                                  startDate: formatDateForInput(trade.startDate) || fallbackStart || null,
+                                  endDate: formatDateForInput(trade.endDate) || fallbackEnd || null,
+                                });
+                                setErrorMessage('');
+                              }}
+                              variant="ghost"
+                              size="sm"
+                              className="p-1"
+                              title={`Edit ${trade.trade} requirements`}
+                            >
+                              <Edit className="w-4 h-4" />
+                            </Button>
+                            <Button
+                              onClick={() => handleDeleteTrade(trade.id)}
+                              variant="ghost"
+                              size="sm"
+                              className="p-1"
+                              title={`Delete ${trade.trade}`}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                         </td>
                       </tr>
@@ -1160,8 +1241,62 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                 </div>
               )}
 
+              <Card
+                className="p-4 mb-4"
+                style={{ backgroundColor: colors.backgroundPrimary, borderColor: colors.borderLight }}
+              >
+                <div className="flex items-center justify-between gap-3 flex-wrap">
+                  <div>
+                    <p className="text-sm font-semibold" style={{ color: colors.textPrimary }}>
+                      Trade duration
+                    </p>
+                    <p className="text-xs" style={{ color: colors.textSecondary }}>
+                      Defaults to the project start/end dates.
+                    </p>
+                  </div>
+                  {tradeDateValidationError && (
+                    <span className="text-xs font-medium" style={{ color: colors.error }}>
+                      {tradeDateValidationError}
+                    </span>
+                  )}
+                </div>
+
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Input
+                    label="Start Date"
+                    type="date"
+                    value={newTradeStartDate}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setNewTradeStartDate(next);
+                      setTradeDateValidationError(validateDates(next, newTradeEndDate));
+                    }}
+                    style={{
+                      backgroundColor: colors.backgroundSecondary,
+                      borderColor: colors.borderLight,
+                      color: colors.textPrimary,
+                    }}
+                  />
+                  <Input
+                    label="End Date"
+                    type="date"
+                    value={newTradeEndDate}
+                    onChange={(e) => {
+                      const next = e.target.value;
+                      setNewTradeEndDate(next);
+                      setTradeDateValidationError(validateDates(newTradeStartDate, next));
+                    }}
+                    style={{
+                      backgroundColor: colors.backgroundSecondary,
+                      borderColor: colors.borderLight,
+                      color: colors.textPrimary,
+                    }}
+                  />
+                </div>
+              </Card>
+
               <div className="space-y-3 max-h-96 overflow-y-auto">
-                {trades.filter(t => t.isActive).map((trade) => (
+                {selectableTrades.map((trade) => (
                   <button
                     key={trade.id}
                     onClick={() => handleTradeSelect(trade)}
@@ -1170,6 +1305,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                       borderColor: colors.borderLight,
                       backgroundColor: colors.backgroundPrimary
                     }}
+                    disabled={isSubmitting || !!tradeDateValidationError}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.backgroundColor = colors.backgroundSecondary;
                     }}
@@ -1273,7 +1409,7 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                     }}
                   >
                     <option value="">All Trades</option>
-                    {trades.filter(t => t.isActive).map((trade) => (
+                    {selectableTrades.map((trade) => (
                       <option key={trade.id} value={trade.name}>
                         {trade.name}
                       </option>
@@ -2363,6 +2499,37 @@ export default function ProjectLabours({ projectId, projectName, projectStartDat
                 <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
                   Number of labourers required for this trade
                 </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Trade Start Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={formatDateForInput(editingTrade.startDate) || ''}
+                    onChange={(e) => setEditingTrade({ ...editingTrade, startDate: e.target.value })}
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                    Defaults to the project start date.
+                  </p>
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2" style={{ color: colors.textPrimary }}>
+                    Trade End Date
+                  </label>
+                  <Input
+                    type="date"
+                    value={formatDateForInput(editingTrade.endDate) || ''}
+                    onChange={(e) => setEditingTrade({ ...editingTrade, endDate: e.target.value })}
+                    style={{ backgroundColor: colors.backgroundPrimary }}
+                  />
+                  <p className="text-xs mt-1" style={{ color: colors.textMuted }}>
+                    Defaults to the project end date.
+                  </p>
+                </div>
               </div>
 
               <div className="p-3 rounded-lg" style={{ backgroundColor: colors.backgroundPrimary }}>

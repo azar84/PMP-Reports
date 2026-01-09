@@ -49,6 +49,29 @@ export async function GET(
             createdAt: 'desc',
           },
         },
+        projectSubcontractors: {
+          include: {
+            project: {
+              select: {
+                id: true,
+                projectName: true,
+                projectCode: true,
+                startDate: true,
+                endDate: true,
+                status: true,
+                projectManager: {
+                  select: {
+                    id: true,
+                    staffName: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'desc',
+          },
+        },
         projectEvaluations: {
           include: {
             project: {
@@ -73,11 +96,13 @@ export async function GET(
       );
     }
 
-    // Format the response
-    const response = {
-      ...supplier,
-      typeOfWorks: supplier.typeOfWorks.map((tw) => tw.typeOfWork),
-      projects: supplier.projectSuppliers.map((ps) => ({
+    // Combine projects from both projectSuppliers and projectSubcontractors
+    // Use a Map to deduplicate by project ID (in case vendor is both supplier and subcontractor for same project)
+    const projectsMap = new Map();
+
+    // Add projects from projectSuppliers
+    supplier.projectSuppliers.forEach((ps) => {
+      projectsMap.set(ps.project.id, {
         id: ps.project.id,
         projectName: ps.project.projectName,
         projectCode: ps.project.projectCode,
@@ -90,7 +115,52 @@ export async function GET(
         notes: ps.notes,
         assignedAt: ps.createdAt,
         updatedAt: ps.updatedAt,
-      })),
+        role: 'Supplier',
+      });
+    });
+
+    // Add projects from projectSubcontractors (will overwrite if same project, keeping subcontractor data)
+    supplier.projectSubcontractors.forEach((psc) => {
+      const existing = projectsMap.get(psc.project.id);
+      if (existing) {
+        // If project already exists, merge the data (prefer subcontractor performanceRating if available)
+        existing.performanceRating = psc.performanceRating ?? existing.performanceRating;
+        existing.performanceReview = psc.performanceReview ?? existing.performanceReview;
+        // Note: ProjectSubcontractor doesn't have a notes field, so keep existing notes from ProjectSupplier
+        existing.role = 'Both'; // Vendor is both supplier and subcontractor
+        existing.assignedAt = psc.createdAt < existing.assignedAt ? psc.createdAt : existing.assignedAt;
+        existing.updatedAt = psc.updatedAt > existing.updatedAt ? psc.updatedAt : existing.updatedAt;
+      } else {
+        projectsMap.set(psc.project.id, {
+          id: psc.project.id,
+          projectName: psc.project.projectName,
+          projectCode: psc.project.projectCode,
+          startDate: psc.project.startDate,
+          endDate: psc.project.endDate,
+          status: psc.project.status,
+          projectManager: psc.project.projectManager,
+          performanceRating: psc.performanceRating,
+          performanceReview: psc.performanceReview,
+          notes: null, // ProjectSubcontractor doesn't have a notes field
+          assignedAt: psc.createdAt,
+          updatedAt: psc.updatedAt,
+          role: 'Subcontractor',
+        });
+      }
+    });
+
+    // Convert map to array and sort by assignedAt (most recent first)
+    const allProjects = Array.from(projectsMap.values()).sort((a, b) => {
+      const dateA = new Date(a.assignedAt).getTime();
+      const dateB = new Date(b.assignedAt).getTime();
+      return dateB - dateA;
+    });
+
+    // Format the response
+    const response = {
+      ...supplier,
+      typeOfWorks: supplier.typeOfWorks.map((tw) => tw.typeOfWork),
+      projects: allProjects,
       evaluations: supplier.projectEvaluations.map((evaluation) => ({
         id: evaluation.id,
         projectId: evaluation.project.id,

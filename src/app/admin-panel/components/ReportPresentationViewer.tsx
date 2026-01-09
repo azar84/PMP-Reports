@@ -304,6 +304,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       required: number;
       assigned: number;
       balance: number;
+      startDate?: string | null;
+      endDate?: string | null;
     }> = [];
     
     // Use projectTrades as source of truth for all trades (includes trades with no assignments)
@@ -385,6 +387,15 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       });
     }
     
+    // Create a map of projectTrades by trade name to get dates
+    const projectTradesMap = new Map<string, any>();
+    if (Array.isArray(projectTradesData)) {
+      projectTradesData.forEach((projectTrade: any) => {
+        const tradeName = projectTrade.trade || 'Unknown';
+        projectTradesMap.set(tradeName, projectTrade);
+      });
+    }
+    
     // Calculate trade summary for all trades (including those with no assignments)
     tradesMap.forEach((tradeData, tradeName) => {
       const assignedCount = tradeData.assignments.reduce((sum: number, assignment: any) => {
@@ -394,11 +405,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       }, 0);
       
       const balance = tradeData.required - assignedCount;
+      const projectTrade = projectTradesMap.get(tradeName);
       tradeSummary.push({
         trade: tradeName,
         required: tradeData.required,
         assigned: assignedCount,
         balance: balance,
+        startDate: projectTrade?.startDate || null,
+        endDate: projectTrade?.endDate || null,
       });
     });
     
@@ -415,6 +429,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         balanceLabours: balanceLaboursList, // All balance labours (including trades with no assignments)
         tradeSummary: tradeSummary, // Keep for summary calculations
         labours: laboursData, // Include full labours array
+        projectTrades: projectTradesData, // Include projectTrades for dates
         labourSupply: data.labourSupply || [], // Include labour supply data
         pageNumber: 1,
         totalPages: 1,
@@ -1982,15 +1997,59 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Total
                       </th>
                       <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
                         style={{ 
                           color: colors.primary, 
                           backgroundColor: `${colors.primary}10`,
                           borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
+                          fontSize: '0.65rem'
                         }}
                       >
-                        Sub
+                        Submitted
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Under Review
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Approved
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Revised & Resubmit
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Balance
                       </th>
                       <th 
                         className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
@@ -2001,40 +2060,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           fontSize: '0.7rem'
                         }}
                       >
-                        Review
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Appr
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Revise
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        % Appr
+                        % Approved
                       </th>
                       <th 
                         className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
@@ -2052,6 +2078,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <tbody>
                     {e1Entries.map((entry: any, idx: number) => {
                       const approvedPct = calculateApprovedPercentage(entry.totalNumber, entry.approved);
+                      const total = entry.totalNumber ?? 0;
+                      const approved = entry.approved ?? 0;
+                      const underReview = entry.underReview ?? 0;
+                      const balance = total - approved - underReview;
                       return (
                         <tr 
                           key={entry.id || idx}
@@ -2078,6 +2108,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           </td>
                           <td className="py-1 px-2 text-center" style={{ color: colors.error, fontSize: '0.7rem', fontWeight: '600' }}>
                             {entry.reviseAndResubmit ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {balance}
                           </td>
                           <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
                             {approvedPct !== null ? `${approvedPct.toFixed(1)}%` : '-'}
@@ -2133,15 +2166,59 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Total
                       </th>
                       <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
                         style={{ 
                           color: colors.primary, 
                           backgroundColor: `${colors.primary}10`,
                           borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
+                          fontSize: '0.65rem'
                         }}
                       >
-                        Sub
+                        Submitted
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Under Review
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Approved
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Revised & Resubmit
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Balance
                       </th>
                       <th 
                         className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
@@ -2152,40 +2229,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           fontSize: '0.7rem'
                         }}
                       >
-                        Review
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Appr
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Revise
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        % Appr
+                        % Approved
                       </th>
                       <th 
                         className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
@@ -2203,6 +2247,10 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <tbody>
                     {e2Entries.map((entry: any, idx: number) => {
                       const approvedPct = calculateApprovedPercentage(entry.totalNumber, entry.approved);
+                      const total = entry.totalNumber ?? 0;
+                      const approved = entry.approved ?? 0;
+                      const underReview = entry.underReview ?? 0;
+                      const balance = total - approved - underReview;
                       return (
                         <tr 
                           key={entry.id || idx}
@@ -2229,6 +2277,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           </td>
                           <td className="py-1 px-2 text-center" style={{ color: colors.error, fontSize: '0.7rem', fontWeight: '600' }}>
                             {entry.reviseAndResubmit ?? '-'}
+                          </td>
+                          <td className="py-1 px-2 text-center" style={{ color: colors.textPrimary, fontSize: '0.7rem', fontWeight: '600' }}>
+                            {balance}
                           </td>
                           <td className="py-1 px-2 text-center" style={{ color: colors.success, fontSize: '0.7rem', fontWeight: '600' }}>
                             {approvedPct !== null ? `${approvedPct.toFixed(1)}%` : '-'}
@@ -2273,6 +2324,50 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Type
                       </th>
                       <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Submitted
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Under Review
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Approved
+                      </th>
+                      <th 
+                        className="text-center py-1.5 px-2 font-bold tracking-wider"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: `${colors.primary}10`,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem'
+                        }}
+                      >
+                        Revised & Resubmit
+                      </th>
+                      <th 
                         className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                         style={{ 
                           color: colors.primary, 
@@ -2281,51 +2376,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           fontSize: '0.7rem'
                         }}
                       >
-                        Sub
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Review
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Appr
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        Reject
-                      </th>
-                      <th 
-                        className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
-                        style={{ 
-                          color: colors.primary, 
-                          backgroundColor: `${colors.primary}10`,
-                          borderBottom: `2px solid ${colors.primary}`,
-                          fontSize: '0.7rem'
-                        }}
-                      >
-                        % Appr
+                        % Approved
                       </th>
                       <th 
                         className="text-center py-1.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
@@ -2342,9 +2393,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   </thead>
                   <tbody>
                     {checklistEntries.map((entry: any, idx: number) => {
-                      // For checklist, calculate approved percentage from submitted (not total)
-                      const totalSubmitted = (entry.submitted || 0) + (entry.underReview || 0) + (entry.approved || 0) + (entry.rejected || 0);
-                      const approvedPct = totalSubmitted > 0 ? ((entry.approved || 0) / totalSubmitted) * 100 : null;
+                      // For checklist, calculate approved percentage: approved / submitted
+                      const submitted = entry.submitted ?? 0;
+                      const approvedPct = submitted > 0 ? ((entry.approved || 0) / submitted) * 100 : null;
                       return (
                         <tr 
                           key={entry.id || idx}
@@ -3192,7 +3243,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   onClick={() => setChecklistPage(Math.min(Math.ceil(allChecklistItems.length / 25) - 1, checklistPage + 1))}
                   disabled={checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1}
                   className="p-2 md:p-1 rounded disabled:opacity-30 disabled:cursor-not-allowed hover:opacity-80 transition-opacity touch-manipulation"
-                  style={{
+                  style={{ 
                     color: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? colors.textMuted : colors.primary,
                     backgroundColor: checklistPage >= Math.ceil(allChecklistItems.length / 25) - 1 ? 'transparent' : colors.backgroundSecondary,
                     minWidth: '40px',
@@ -4000,7 +4051,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                       <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
+              <table className="w-full border-collapse min-w-[700px] md:min-w-0 text-sm md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4051,6 +4102,30 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     >
                       Balance
                     </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Start Date
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      End Date
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4067,14 +4142,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         {pos.designation}
                       </td>
                       <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
-                        {pos.required}
+                        {typeof pos.required === 'number' ? pos.required.toFixed(2) : pos.required}
                       </td>
                       <td className="py-0.5 px-2" style={{ height: 'auto' }}>
                         <span 
                           className="font-semibold"
-                          style={{ color: colors.warning, fontSize: '0.7rem' }}
+                          style={{ color: colors.textSecondary, fontSize: '0.7rem' }}
                         >
-                          {typeof pos.assigned === 'number' ? pos.assigned.toFixed(1) : pos.assigned}
+                          {typeof pos.assigned === 'number' ? pos.assigned.toFixed(2) : pos.assigned}
                         </span>
                       </td>
                       <td className="py-0.5 px-2" style={{ height: 'auto' }}>
@@ -4082,8 +4157,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           className="font-semibold"
                           style={{ color: colors.warning, fontSize: '0.7rem' }}
                         >
-                          {typeof pos.balance === 'number' ? pos.balance.toFixed(1) : pos.balance} needed
+                          {typeof pos.balance === 'number' ? pos.balance.toFixed(2) : pos.balance} needed
                         </span>
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {project?.startDate ? formatDate(project.startDate) : '-'}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {project?.endDate ? formatDate(project.endDate) : '-'}
                       </td>
                     </tr>
                   ))}
@@ -4130,6 +4211,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       required: number;
       assigned: number;
       balance: number;
+      startDate?: string | null;
+      endDate?: string | null;
     }> = [];
     
     // Track balance labours (trades that need to be filled)
@@ -4138,6 +4221,8 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       required: number;
       assigned: number;
       balance: number;
+      startDate?: string | null;
+      endDate?: string | null;
     }> = [];
 
     // Helper function to calculate duration
@@ -4234,14 +4319,34 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         });
       }
       
-      // Get balance labours from content
-      if (content.balanceLabours && Array.isArray(content.balanceLabours)) {
-        balanceLaboursList = content.balanceLabours;
-      }
-      
       // Get trade summary for reference
       if (content.tradeSummary && Array.isArray(content.tradeSummary)) {
         tradeSummary = content.tradeSummary;
+      }
+      
+      // Get balance labours from content, and enrich with dates from projectTrades if needed
+      if (content.balanceLabours && Array.isArray(content.balanceLabours)) {
+        // Create a map of projectTrades by trade name to get dates
+        const projectTradesMap = new Map<string, any>();
+        if (content.projectTrades && Array.isArray(content.projectTrades)) {
+          content.projectTrades.forEach((projectTrade: any) => {
+            const tradeName = projectTrade.trade || 'Unknown';
+            projectTradesMap.set(tradeName, projectTrade);
+          });
+        }
+        
+        balanceLaboursList = content.balanceLabours.map((trade: any) => {
+          // If dates are missing, try to get them from projectTrades
+          if ((!trade.startDate || !trade.endDate) && projectTradesMap.has(trade.trade)) {
+            const projectTrade = projectTradesMap.get(trade.trade);
+            return {
+              ...trade,
+              startDate: trade.startDate || projectTrade?.startDate || null,
+              endDate: trade.endDate || projectTrade?.endDate || null,
+            };
+          }
+          return trade;
+        });
       }
     } else {
       // Old format: content is array of labour assignments
@@ -4289,6 +4394,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           }
         });
         
+        // Get projectTrades data for dates (not available in old format)
+        const projectTradesMap = new Map<string, any>();
+        
         // Calculate trade summary
         tradesMap.forEach((tradeData, tradeName) => {
           const assignedCount = tradeData.assignments.reduce((sum: number, assignment: any) => {
@@ -4298,11 +4406,14 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
           
           totalNeeded += tradeData.required;
           const balance = tradeData.required - assignedCount;
+          const projectTrade = projectTradesMap.get(tradeName);
           const tradeDataObj = {
             trade: tradeName,
             required: tradeData.required,
             assigned: assignedCount,
             balance: balance,
+            startDate: projectTrade?.startDate || null,
+            endDate: projectTrade?.endDate || null,
           };
           
           tradeSummary.push(tradeDataObj);
@@ -4659,7 +4770,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   return (
                     <div key={pageIdx} className="flex-shrink-0 w-full" style={{ minWidth: '100%' }}>
                       <div className="overflow-x-auto -mx-3 md:mx-0">
-              <table className="w-full border-collapse min-w-[500px] md:min-w-0 text-sm md:text-sm">
+              <table className="w-full border-collapse min-w-[700px] md:min-w-0 text-sm md:text-sm">
                 <thead>
                   <tr>
                     <th 
@@ -4710,6 +4821,30 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                     >
                       Balance
                     </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      Start Date
+                    </th>
+                    <th 
+                      className="text-left py-0.5 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                      style={{ 
+                        color: colors.primary, 
+                        backgroundColor: colors.backgroundSecondary,
+                        borderBottom: `2px solid ${colors.primary}`,
+                        fontSize: '0.7rem',
+                        height: 'auto'
+                      }}
+                    >
+                      End Date
+                    </th>
                   </tr>
                 </thead>
                 <tbody>
@@ -4733,16 +4868,17 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                       </td>
                       <td className="py-0.5 px-2" style={{ height: 'auto' }}>
                         <span 
-                          className="px-1 py-0.5 rounded-md text-xs font-semibold inline-block"
-                          style={{ 
-                            backgroundColor: trade.balance > 0 ? `${colors.warning}15` : `${colors.success}15`,
-                            color: trade.balance > 0 ? colors.warning : colors.success,
-                            border: `1px solid ${trade.balance > 0 ? colors.warning : colors.success}30`,
-                            fontSize: '0.65rem'
-                          }}
+                          className="font-semibold"
+                          style={{ color: colors.warning, fontSize: '0.7rem' }}
                         >
-                          {trade.balance.toFixed(2)}
+                          {typeof trade.balance === 'number' ? trade.balance.toFixed(2) : trade.balance} needed
                         </span>
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {trade.startDate ? formatDate(trade.startDate) : '-'}
+                      </td>
+                      <td className="py-0.5 px-2" style={{ color: colors.textSecondary, fontSize: '0.7rem', height: 'auto' }}>
+                        {trade.endDate ? formatDate(trade.endDate) : '-'}
                       </td>
                     </tr>
                   ))}
@@ -7010,7 +7146,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
     const rows = content.rows || [];
 
     // Pagination logic
-    const itemsPerPage = 10;
+    const itemsPerPage = 15;
     const totalPagesForTable = Math.ceil(rows.length / itemsPerPage);
     const startIndex = paymentCertificatePage * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
@@ -7160,7 +7296,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
               >
                 <div className="absolute top-0 right-0 w-16 h-16 rounded-full -mr-8 -mt-8 opacity-10" style={{ backgroundColor: colors.error }}></div>
                 <p className="text-xs font-semibold mb-1 uppercase tracking-wide" style={{ color: colors.textSecondary }}>
-                  Due Payments
+                  Over Due Payments
                 </p>
                 <p className="text-lg font-bold" style={{ color: colors.error }}>
                   {formatCurrencyWithDecimals(summary.duePayments || 0)}
@@ -7250,7 +7386,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                   <div className="flex-1 h-px" style={{ backgroundColor: colors.border }}></div>
                   <div className="flex items-center gap-3 px-4">
                     <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: colors.textPrimary }}>
-                      Payment Details
+                      Payments List
                     </h3>
                     {totalPagesForTable > 1 && (
                       <div className="flex items-center gap-2">
@@ -7356,6 +7492,18 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                         Certification Date
                       </th>
                       <th 
+                        className="text-left py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
+                        style={{ 
+                          color: colors.primary, 
+                          backgroundColor: colors.backgroundSecondary,
+                          borderBottom: `2px solid ${colors.primary}`,
+                          fontSize: '0.65rem',
+                          height: 'auto'
+                        }}
+                      >
+                        Due Date
+                      </th>
+                      <th 
                         className="text-right py-1 px-2 font-bold uppercase tracking-wider whitespace-nowrap"
                         style={{ 
                           color: colors.primary, 
@@ -7449,6 +7597,9 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
                           </td>
                           <td className="py-1 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
                             {formatDate(row.certifiedDate)}
+                          </td>
+                          <td className="py-1 px-2" style={{ color: colors.textSecondary, fontSize: '0.65rem', height: 'auto' }}>
+                            {formatDate(row.paymentDueDate)}
                           </td>
                           <td className="py-1 px-2 text-right" style={{ color: colors.textPrimary, fontSize: '0.65rem', height: 'auto' }}>
                             {certifiedAmount > 0 ? formatCurrencyWithDecimals(certifiedAmount) : '-'}
@@ -8090,7 +8241,28 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
         {/* Mobile: Bottom row with navigation controls */}
         {/* Desktop: Right side with navigation controls */}
         <div className="flex items-center justify-between md:justify-end space-x-2 md:space-x-1 md:space-x-1.5">
-            <p className="text-xs md:text-xs whitespace-nowrap" style={{ color: colors.textSecondary }}>
+          {/* Slide Navigation Dropdown */}
+          <select
+            value={currentSlide}
+            onChange={(e) => setCurrentSlide(parseInt(e.target.value, 10))}
+            className="text-xs md:text-xs px-2 py-1 rounded border"
+            style={{
+              backgroundColor: colors.backgroundPrimary,
+              color: colors.textPrimary,
+              borderColor: colors.border,
+              minWidth: '150px',
+              maxWidth: '200px',
+              cursor: 'pointer'
+            }}
+          >
+            {slides.map((slide, idx) => (
+              <option key={idx} value={idx}>
+                {idx + 1}. {slide.title}
+              </option>
+            ))}
+          </select>
+          
+          <p className="text-xs md:text-xs whitespace-nowrap" style={{ color: colors.textSecondary }}>
             {currentSlide + 1}/{slides.length}
           </p>
           <form onSubmit={handlePageJumpSubmit} className="flex items-center space-x-1 md:space-x-0.5">
@@ -8180,7 +8352,7 @@ export default function ReportPresentationViewer({ report, onClose }: ReportPres
       </div>
 
       {/* Slide Indicator */}
-      <div className="py-0.5 px-2 md:px-3 flex items-center justify-center space-x-1 overflow-x-auto" style={{ backgroundColor: colors.backgroundDark }}>
+      <div className="py-0.5 px-2 md:px-3 flex items-center justify-center space-x-1 overflow-x-auto" style={{ backgroundColor: colors.backgroundDark, minHeight: '16px', maxHeight: '16px' }}>
         {slides.map((_, idx) => (
           <button
             key={idx}

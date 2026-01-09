@@ -5,7 +5,17 @@ import { z } from 'zod';
 const updateProjectTradeSchema = z.object({
   trade: z.string().min(1).optional(),
   requiredQuantity: z.number().int().min(1).optional(),
+  startDate: z.string().optional().nullable(),
+  endDate: z.string().optional().nullable(),
 });
+
+function parseDate(value: string | null | undefined): Date | null {
+  if (!value) return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+  const date = new Date(trimmed);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
 
 // GET - Fetch specific project trade
 export async function GET(
@@ -72,7 +82,11 @@ export async function PUT(
 
     const trade = await prisma.projectTrade.update({
       where: { id: tradeId },
-      data: validatedData,
+      data: {
+        ...validatedData,
+        startDate: validatedData.startDate === undefined ? undefined : parseDate(validatedData.startDate),
+        endDate: validatedData.endDate === undefined ? undefined : parseDate(validatedData.endDate),
+      },
     });
 
     return NextResponse.json({ success: true, data: trade });

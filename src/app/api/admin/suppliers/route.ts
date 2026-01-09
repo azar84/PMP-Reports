@@ -9,6 +9,23 @@ function sanitizeString(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+function sanitizeDecimal(value: unknown): Prisma.Decimal | null {
+  if (value === null || value === undefined || value === '') return null;
+  if (typeof value === 'number') {
+    return new Prisma.Decimal(value);
+  }
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    if (trimmed === '') return null;
+    // Remove currency symbols and commas
+    const cleaned = trimmed.replace(/[$,\s]/g, '');
+    const num = Number.parseFloat(cleaned);
+    if (Number.isNaN(num)) return null;
+    return new Prisma.Decimal(num);
+  }
+  return null;
+}
+
 async function resolveUserId(request: NextRequest): Promise<number | null> {
   try {
     const token =
@@ -76,7 +93,19 @@ export async function GET(request: NextRequest) {
 
     const [suppliers, typeOfWorks] = await Promise.all([
       prisma.supplier.findMany({
-        include: { typeOfWorks: { include: { typeOfWork: true } } },
+        include: { 
+          typeOfWorks: { include: { typeOfWork: true } },
+          projectSuppliers: {
+            select: {
+              performanceRating: true,
+            },
+          },
+          projectSubcontractors: {
+            select: {
+              performanceRating: true,
+            },
+          },
+        },
         orderBy: [{ createdAt: 'desc' }],
       }),
       prisma.typeOfWork.findMany({
@@ -84,10 +113,34 @@ export async function GET(request: NextRequest) {
       }),
     ]);
 
+    // Calculate average star rating for each supplier (from both suppliers and subcontractors)
+    const suppliersWithRating = suppliers.map((supplier) => {
+      const supplierRatings = supplier.projectSuppliers
+        .map((ps) => ps.performanceRating)
+        .filter((rating): rating is number => rating !== null && rating !== undefined);
+      
+      const subcontractorRatings = supplier.projectSubcontractors
+        .map((ps) => ps.performanceRating)
+        .filter((rating): rating is number => rating !== null && rating !== undefined);
+      
+      const allRatings = [...supplierRatings, ...subcontractorRatings];
+      
+      const averageRating = allRatings.length > 0
+        ? allRatings.reduce((sum, rating) => sum + rating, 0) / allRatings.length
+        : null;
+
+      // Remove projectSuppliers and projectSubcontractors from response, add averageRating
+      const { projectSuppliers, projectSubcontractors, ...supplierData } = supplier;
+      return {
+        ...supplierData,
+        averageRating: averageRating ? Number(averageRating.toFixed(1)) : null,
+      };
+    });
+
     return NextResponse.json({
       success: true,
       data: {
-        suppliers,
+        suppliers: suppliersWithRating,
         typeOfWorks,
       },
     });
@@ -127,6 +180,7 @@ export async function POST(request: NextRequest) {
         contactPerson: sanitizeString(body?.contactPerson),
         contactNumber: sanitizeString(body?.contactNumber),
         email: sanitizeString(body?.email),
+        contractValueCapability: sanitizeDecimal(body?.contractValueCapability),
         typeOfWorks: {
           create: typeOfWorks.map((work) => ({
             typeOfWork: { connect: { id: work.id } },
